@@ -77,6 +77,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
       sections: SECTIONS.reduce((acc, s) => { acc[s.id] = 0; return acc; }, {}),
       notes: '',
       file_name: '',
+      resume_text: '',
       coach_reviewed: false,
       coach_feedback: null,
       coach_notes: null,
@@ -214,6 +215,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
 
     const data = Storage.get('resume', _defaultData());
     data.file_name = file.name;
+    data.resume_text = '';
     Storage.set('resume', data);
 
     const btn = document.getElementById('rate-resume-btn');
@@ -228,6 +230,11 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
         UI.notify('Please select a .docx or .pdf file.', 'error');
         return;
       }
+      const fresh = Storage.get('resume', _defaultData());
+      fresh.file_name = file.name;
+      fresh.resume_text = _resumeText;
+      fresh.last_updated = new Date().toISOString();
+      Storage.set('resume', fresh);
       UI.notify('Resume loaded. Click "Rate My Resume" to get Coach feedback.', 'success');
     } catch (e) {
       UI.notify('Could not read file — make sure it\'s a valid .docx or .pdf.', 'error');
@@ -238,10 +245,47 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
   }
 
   async function _readDocx(file) {
-    if (typeof mammoth === 'undefined') throw new Error('mammoth not loaded');
-    const buffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawValue({ arrayBuffer: buffer });
-    return result.value;
+    try {
+      return await _readDocxViaServer(file);
+    } catch {}
+
+    if (typeof mammoth !== 'undefined') {
+      try {
+        const buffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawValue({ arrayBuffer: buffer });
+        if (result.value?.trim()) return result.value;
+      } catch {}
+    }
+    return _readDocxViaServer(file);
+  }
+
+  async function _readResumeFile(file) {
+    if (file.name.toLowerCase().endsWith('.docx')) return _readDocx(file);
+    if (file.name.toLowerCase().endsWith('.pdf')) return _readPdf(file);
+    throw new Error('Unsupported resume file type');
+  }
+
+  async function _readDocxViaServer(file) {
+    const data = await _fileToBase64(file);
+    const response = await fetch('/api/extract-resume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.name, data }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.text) {
+      throw new Error(payload.error || 'Could not extract .docx text');
+    }
+    return payload.text;
+  }
+
+  function _fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+      reader.onerror = () => reject(reader.error || new Error('Could not read file'));
+      reader.readAsDataURL(file);
+    });
   }
 
   async function _readPdf(file) {
@@ -258,12 +302,35 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
   }
 
   async function rateWithCoach() {
-    if (!_resumeText) {
-      UI.notify('Select your resume file first.', 'error');
+    const data = Storage.get('resume', _defaultData());
+    let resumeText = _resumeText || data.resume_text || '';
+
+    if (!resumeText) {
+      const selectedFile = document.getElementById('resume-file-input')?.files?.[0];
+      if (selectedFile) {
+        const btn = document.getElementById('rate-resume-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Reading file…'; }
+        try {
+          resumeText = await _readResumeFile(selectedFile);
+          _resumeText = resumeText;
+          const fresh = Storage.get('resume', _defaultData());
+          fresh.file_name = selectedFile.name;
+          fresh.resume_text = resumeText;
+          fresh.last_updated = new Date().toISOString();
+          Storage.set('resume', fresh);
+        } catch {
+          UI.notify('Could not read that resume file. Please select a .docx or .pdf file and try again.', 'error');
+          if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
+          return;
+        }
+      }
+    }
+
+    if (!resumeText) {
+      UI.notify('Select your resume file first, then wait for the "Resume loaded" message.', 'error');
       return;
     }
 
-    const data = Storage.get('resume', _defaultData());
     if (data.coach_feedback) {
       const ok = window.confirm('This will update your previous Coach rating with a fresh assessment based on your current resume. Continue?');
       if (!ok) return;
@@ -283,7 +350,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
           max_tokens: 1400,
           stream: false,
           system: RATE_PROMPT,
-          messages: [{ role: 'user', content: `Rate this resume:${notes}\n\n${_resumeText}` }],
+          messages: [{ role: 'user', content: `Rate this resume:${notes}\n\n${resumeText}` }],
         }),
       });
 
@@ -294,6 +361,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
       const result = JSON.parse(jsonMatch[0]);
 
       const fresh = Storage.get('resume', _defaultData());
+      fresh.sections = { ..._defaultData().sections, ...(fresh.sections || {}) };
       SECTIONS.forEach(s => {
         const v = result.scores?.[s.id];
         if (typeof v === 'number') fresh.sections[s.id] = Math.max(0, Math.min(100, Math.round(v)));

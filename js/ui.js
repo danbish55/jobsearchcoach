@@ -11,8 +11,12 @@ const UI = (() => {
   }
 
   function loadTheme() {
-    const saved = localStorage.getItem('jsc_theme') || 'light';
+    const saved = localStorage.getItem('jsc_theme') || _systemTheme();
     applyTheme(saved);
+  }
+
+  function _systemTheme() {
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
   function toggleTheme() {
@@ -34,14 +38,6 @@ const UI = (() => {
     const profile = Storage.get('profile', {});
     const nameEl = document.getElementById('sidebar-user-name');
     if (nameEl) nameEl.textContent = profile.name ? `Hi, ${profile.name}` : 'Welcome!';
-
-    // Mission progress
-    const currentMission = Milestones.getCurrentMission();
-    const progress = Milestones.getMissionProgress(currentMission.id);
-    const nameDisplay = document.getElementById('sidebar-mission-name');
-    const bar = document.getElementById('sidebar-mission-progress');
-    if (nameDisplay) nameDisplay.textContent = currentMission.codename;
-    if (bar) bar.style.width = progress.pct + '%';
 
     // USC gauge
     updateGauge();

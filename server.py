@@ -11,6 +11,10 @@ import urllib.request
 import urllib.parse
 import html as html_lib
 import tempfile
+import base64
+import zipfile
+import xml.etree.ElementTree as ET
+from io import BytesIO
 from urllib.parse import urlparse, parse_qs
 
 PORT = 8765
@@ -97,6 +101,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._token_exchange(body)
         elif path == '/api/token-refresh':
             self._token_refresh()
+        elif path == '/api/extract-resume':
+            self._extract_resume(body)
         elif path == '/api/claude':
             self._claude_proxy(body)
         else:
@@ -184,6 +190,53 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._json({'access_token': tokens.get('access_token')})
         except Exception as e:
             self._json({'ok': False, 'error': str(e)}, 500)
+
+    def _extract_resume(self, payload):
+        filename = (payload.get('filename') or '').lower()
+        encoded = payload.get('data') or ''
+        if not filename.endswith('.docx'):
+            self._json({'ok': False, 'error': 'Only .docx files are supported by the local extractor'}, 400)
+            return
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+            text = self._extract_docx_text(raw)
+            if not text.strip():
+                self._json({'ok': False, 'error': 'No readable text found in the .docx file'}, 400)
+                return
+            self._json({'ok': True, 'text': text})
+        except Exception as e:
+            self._json({'ok': False, 'error': f'Could not read .docx file: {e}'}, 400)
+
+    def _extract_docx_text(self, raw):
+        with zipfile.ZipFile(BytesIO(raw)) as zf:
+            names = ['word/document.xml']
+            names.extend(
+                name for name in sorted(zf.namelist())
+                if name.startswith('word/header') and name.endswith('.xml')
+            )
+            names.extend(
+                name for name in sorted(zf.namelist())
+                if name.startswith('word/footer') and name.endswith('.xml')
+            )
+            chunks = [self._extract_docx_xml_text(zf.read(name)) for name in names if name in zf.namelist()]
+        return '\n'.join(chunk for chunk in chunks if chunk)
+
+    def _extract_docx_xml_text(self, xml_bytes):
+        root = ET.fromstring(xml_bytes)
+        paragraphs = []
+        for para in root.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'):
+            parts = []
+            for node in para.iter():
+                if node.tag.endswith('}t') and node.text:
+                    parts.append(node.text)
+                elif node.tag.endswith('}tab'):
+                    parts.append('\t')
+                elif node.tag.endswith('}br'):
+                    parts.append('\n')
+            line = ''.join(parts).strip()
+            if line:
+                paragraphs.append(line)
+        return '\n'.join(paragraphs)
 
     def _claude_proxy(self, payload):
         cfg = load_config()

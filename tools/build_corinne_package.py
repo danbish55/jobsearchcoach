@@ -46,7 +46,7 @@ EXCLUDE_FILES = {
 }
 
 WINDOWS_LAUNCHER = """@echo off
-setlocal
+setlocal EnableExtensions
 title JobSearchCoach
 cd /d "%~dp0"
 cls
@@ -60,17 +60,47 @@ echo.
 echo To stop JobSearchCoach, close this window.
 echo.
 
-py -3 --version >nul 2>&1
+set "PYTHON_EXE="
+set "PY_LAUNCHER_ARGS="
+set "PYTHON_TEST=import sys; raise SystemExit(0 if sys.version_info >= (3,8) else 1)"
+
+where py >nul 2>&1
 if %errorlevel%==0 (
-    py -3 server.py
-    goto done
+    call :try_py_launcher -3.13
+    if defined PY_LAUNCHER_ARGS goto run_with_py_launcher
+    call :try_py_launcher -3.12
+    if defined PY_LAUNCHER_ARGS goto run_with_py_launcher
+    call :try_py_launcher -3
+    if defined PY_LAUNCHER_ARGS goto run_with_py_launcher
 )
 
-python --version >nul 2>&1
-if %errorlevel%==0 (
-    python server.py
-    goto done
+for /f "delims=" %%P in ('where python 2^>nul') do (
+    call :try_python_exe "%%P"
+    if defined PYTHON_EXE goto run_with_python_exe
 )
+
+if defined PYTHON_EXE goto run_with_python_exe
+
+for %%V in (313 312 311 310) do (
+    if not defined PYTHON_EXE (
+        if exist "%LocalAppData%\\Programs\\Python\\Python%%V\\python.exe" call :try_python_exe "%LocalAppData%\\Programs\\Python\\Python%%V\\python.exe"
+    )
+    if not defined PYTHON_EXE (
+        if exist "%ProgramFiles%\\Python%%V\\python.exe" call :try_python_exe "%ProgramFiles%\\Python%%V\\python.exe"
+    )
+    if not defined PYTHON_EXE (
+        if exist "%ProgramFiles(x86)%\\Python%%V\\python.exe" call :try_python_exe "%ProgramFiles(x86)%\\Python%%V\\python.exe"
+    )
+)
+
+if defined PYTHON_EXE goto run_with_python_exe
+
+for /f "usebackq delims=" %%P in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$roots=@('HKCU:\\Software\\Python\\PythonCore','HKLM:\\Software\\Python\\PythonCore','HKLM:\\Software\\WOW6432Node\\Python\\PythonCore'); foreach($root in $roots){ if(Test-Path $root){ Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object { $ip=Join-Path $_.PSPath 'InstallPath'; if(Test-Path $ip){ $install=(Get-ItemProperty $ip -ErrorAction SilentlyContinue).'(default)'; if($install){ $exe=Join-Path $install 'python.exe'; if(Test-Path $exe){ Write-Output $exe } } } } } }"`) do (
+    call :try_python_exe "%%P"
+    if defined PYTHON_EXE goto run_with_python_exe
+)
+
+if defined PYTHON_EXE goto run_with_python_exe
 
 echo Python 3 is required to run JobSearchCoach.
 echo.
@@ -80,6 +110,34 @@ echo.
 echo Important: during install, check "Add python.exe to PATH".
 echo Then double-click this file again.
 start "" "https://www.python.org/downloads/windows/"
+goto done
+
+:run_with_py_launcher
+echo Found Python with launcher: py %PY_LAUNCHER_ARGS%
+echo Opening JobSearchCoach in your browser...
+start "" "http://localhost:8765"
+echo.
+py %PY_LAUNCHER_ARGS% -u server.py
+goto done
+
+:run_with_python_exe
+echo Found Python: %PYTHON_EXE%
+echo Opening JobSearchCoach in your browser...
+start "" "http://localhost:8765"
+echo.
+"%PYTHON_EXE%" -u server.py
+goto done
+
+:try_py_launcher
+py %~1 -c "%PYTHON_TEST%" >nul 2>&1
+if %errorlevel%==0 set "PY_LAUNCHER_ARGS=%~1"
+exit /b
+
+:try_python_exe
+if defined PYTHON_EXE exit /b
+"%~1" -c "%PYTHON_TEST%" >nul 2>&1
+if %errorlevel%==0 set "PYTHON_EXE=%~1"
+exit /b
 
 :done
 echo.

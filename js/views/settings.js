@@ -288,7 +288,7 @@ const Settings = (() => {
   function _collectData() {
     return {
       config_status: Config.get() || {},
-      theme: localStorage.getItem('jsc_theme') || 'light',
+      theme: localStorage.getItem('jsc_theme') || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
       last_view: sessionStorage.getItem('jsc_last_view') || 'dashboard',
       profile:    Storage.get('profile', {}),
       milestones: Storage.get('milestones', {}),
