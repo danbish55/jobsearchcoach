@@ -1,0 +1,10 @@
+# Never commit secrets
+config.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp

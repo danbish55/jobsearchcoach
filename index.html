@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobSearchCoach</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- Onboarding overlay — shown until setup is complete -->
+<div id="onboarding-overlay" class="hidden">
+  <div class="onboarding-card" id="onboarding-card">
+    <!-- Rendered by onboarding.js -->
+  </div>
+</div>
+
+<!-- Mission Complete overlay — shown on milestone unlock -->
+<div id="mission-complete-overlay" class="hidden">
+  <div class="mission-complete-card">
+    <div class="mission-complete-007">007</div>
+    <div class="mission-complete-title" id="mc-title">Mission Complete</div>
+    <div class="mission-complete-sub" id="mc-sub"></div>
+    <div class="mission-complete-next" id="mc-next"></div>
+    <button class="btn btn-gold" onclick="UI.closeMissionComplete()">Continue to Next Mission ›</button>
+  </div>
+</div>
+
+<!-- Modal container -->
+<div id="modal-container"></div>
+
+<!-- Notifications -->
+<div id="notifications"></div>
+
+<!-- Main App -->
+<div id="app" class="hidden">
+
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-title">JobSearchCoach</div>
+      <div class="sidebar-logo-sub" id="sidebar-user-name">Loading...</div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-view="dashboard">
+        <span class="nav-icon">🏠</span> Dashboard
+      </div>
+      <div class="nav-item" data-view="coach">
+        <span class="nav-icon">💬</span> Coach
+      </div>
+
+      <div class="nav-section-label">Job Search</div>
+      <div class="nav-item" data-view="resume">
+        <span class="nav-icon">📄</span> Resume
+      </div>
+      <div class="nav-item" data-view="jobs">
+        <span class="nav-icon">📋</span> Applications
+      </div>
+
+      <div class="nav-section-label">Reports</div>
+      <div class="nav-item" data-view="report">
+        <span class="nav-icon">📨</span> Progress Report
+      </div>
+      <div class="nav-item" data-view="settings">
+        <span class="nav-icon">⚙️</span> Settings
+      </div>
+    </div>
+
+    <!-- Current mission indicator -->
+    <div class="sidebar-mission" id="sidebar-mission">
+      <div class="sidebar-mission-label">Current Mission</div>
+      <div class="sidebar-mission-name" id="sidebar-mission-name">DOSSIER</div>
+      <div class="mission-progress-bar">
+        <div class="mission-progress-fill" id="sidebar-mission-progress" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Theme toggle -->
+    <div class="theme-toggle" onclick="UI.toggleTheme()">
+      <span class="theme-toggle-icon" id="theme-icon">🌙</span>
+      <span id="theme-label">Dark mode</span>
+    </div>
+
+    <!-- USC Alumni Gauge -->
+    <div class="sidebar-gauge" onclick="UI.showGaugeModal()">
+      <div class="gauge-label">USC Alumni Network</div>
+      <div class="gauge-svg-wrap">
+        <svg width="120" height="70" viewBox="0 0 120 70" id="gauge-svg">
+          <!-- Arc background -->
+          <path id="gauge-bg-arc"
+            d="M 15 65 A 50 50 0 0 1 105 65"
+            fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round"/>
+          <!-- Arc fill -->
+          <path id="gauge-fill-arc"
+            d="M 15 65 A 50 50 0 0 1 105 65"
+            fill="none" stroke="#FFCC00" stroke-width="8" stroke-linecap="round"
+            stroke-dasharray="0 157"
+            style="transition: stroke-dasharray 0.8s ease"/>
+          <!-- USC dot -->
+          <circle cx="15" cy="65" r="3" fill="#9D2235"/>
+          <circle cx="105" cy="65" r="3" fill="#FFCC00"/>
+          <!-- Center text -->
+          <text x="60" y="56" class="gauge-value-text" id="gauge-value-text">0%</text>
+          <text x="60" y="67" class="gauge-sub-text">Network Score</text>
+        </svg>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main id="main-content">
+
+    <!-- DASHBOARD -->
+    <div id="view-dashboard" class="view active">
+      <div class="view-header">
+        <div class="view-title" id="dash-welcome">Welcome back!</div>
+        <div class="view-subtitle" id="dash-date"></div>
+      </div>
+
+      <div class="welcome-banner">
+        <div class="welcome-text">
+          <h2 id="dash-banner-greeting">Ready for your next mission?</h2>
+          <p>Your coaching session is standing by. What would you like to work on today?</p>
+        </div>
+        <div>
+          <div class="welcome-badge" id="dash-mission-badge">MISSION: DOSSIER</div>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-bottom:24px" id="dash-stats">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-apps">0</div>
+          <div class="stat-label">Applications Sent</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-interviews">0</div>
+          <div class="stat-label">Interviews Booked</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-connections">0</div>
+          <div class="stat-label">Alumni Connections</div>
+        </div>
+      </div>
+
+      <!-- Current Mission Card -->
+      <div id="dash-mission-card"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Quick Actions</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-primary" onclick="App.navigate('coach')">💬 Talk to Your Coach</button>
+            <button class="btn btn-ghost" onclick="App.navigate('resume')">📄 Review My Resume</button>
+            <button class="btn btn-ghost" onclick="App.navigate('jobs')">➕ Log a New Application</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">All Missions</div>
+          <div id="dash-missions-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COACH -->
+    <div id="view-coach" class="view">
+      <div class="coach-container">
+        <div class="coach-header">
+          <div class="coach-persona">
+            <div class="coach-avatar">🎯</div>
+            <div>
+              <div class="coach-name">Your Career Coach</div>
+              <div class="coach-status" id="coach-status-label">● Ready</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="Coach.compressAndNewSession()">New Session</button>
+            <button class="btn btn-ghost btn-sm" onclick="Coach.showSessionHistory()">History</button>
+          </div>
+        </div>
+
+        <div class="messages-area" id="messages-area">
+          <!-- Messages rendered here -->
+        </div>
+
+        <div class="coach-input-area">
+          <div class="input-row">
+            <textarea
+              id="coach-input"
+              placeholder="Ask your coach anything — resume, interviews, networking, salary..."
+              rows="1"
+              onkeydown="Coach.handleKeyDown(event)"
+              oninput="Coach.autoResize(this)"
+            ></textarea>
+            <button class="send-btn" id="send-btn" onclick="Coach.send()">➤</button>
+          </div>
+          <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESUME -->
+    <div id="view-resume" class="view">
+      <div class="view-header">
+        <div class="view-title">My Resume</div>
+        <div class="view-subtitle">Track your resume completeness and get coaching feedback</div>
+      </div>
+      <div id="resume-content"></div>
+    </div>
+
+    <!-- JOBS -->
+    <div id="view-jobs" class="view">
+      <div class="view-header">
+        <div class="view-title">Applications</div>
+        <div class="view-subtitle">Track every company, role, and status</div>
+      </div>
+      <div id="jobs-content"></div>
+    </div>
+
+    <!-- REPORT -->
+    <div id="view-report" class="view">
+      <div class="view-header">
+        <div class="view-title">Progress Report</div>
+        <div class="view-subtitle">Send a status update to your parents</div>
+      </div>
+      <div id="report-content"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="view-settings" class="view">
+      <div class="view-header">
+        <div class="view-title">Settings</div>
+        <div class="view-subtitle">API keys, Google Drive, and your profile</div>
+      </div>
+      <div id="settings-content"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Scripts — order matters -->
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/drive.js"></script>
+<script src="js/milestones.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/claude.js"></script>
+<script src="js/onboarding.js"></script>
+<script src="js/views/dashboard.js"></script>
+<script src="js/views/coach.js"></script>
+<script src="js/views/resume.js"></script>
+<script src="js/views/jobs.js"></script>
+<script src="js/views/report.js"></script>
+<script src="js/views/settings.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
