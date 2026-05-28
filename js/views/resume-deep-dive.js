@@ -45,6 +45,8 @@ Begin by reading her resume carefully and opening with a specific observation ab
       suggested_rewrites: [],
       accepted_rewrites: [],
       resume_text: '',
+      pending_rescore_file_name: '',
+      pending_rescore_text: '',
     };
   }
 
@@ -295,7 +297,9 @@ ${data.resume_text}`;
         <div class="deep-dive-rescore-box">
           <div class="settings-section-title">Ready to see your new score?</div>
           <p>Save your updated resume as a new file, then upload it here to get your new score.</p>
-          <input type="file" id="deep-dive-rescore-file" accept=".docx,.pdf">
+          <input type="file" id="deep-dive-rescore-file" accept=".docx,.pdf"
+            onchange="ResumeDeepDive.prepareRescoreFile(this)">
+          <div class="deep-dive-rescore-status" id="deep-dive-rescore-status"></div>
           <button class="btn btn-gold btn-sm" id="deep-dive-rescore-btn" onclick="ResumeDeepDive.rescore()">Rescore My Resume</button>
         </div>
       </div>
@@ -308,10 +312,55 @@ ${data.resume_text}`;
     UI.notify('Revised resume copied', 'success');
   }
 
-  async function rescore() {
-    const file = document.getElementById('deep-dive-rescore-file')?.files?.[0];
+  async function prepareRescoreFile(input) {
+    const file = input?.files?.[0];
+    const status = document.getElementById('deep-dive-rescore-status');
+    const btn = document.getElementById('deep-dive-rescore-btn');
     if (!file) {
-      UI.notify('Choose your updated resume file first.', 'error');
+      const data = getData();
+      data.pending_rescore_file_name = '';
+      data.pending_rescore_text = '';
+      _save(data);
+      return;
+    }
+
+    if (status) {
+      status.textContent = `Reading ${file.name}...`;
+      status.className = 'deep-dive-rescore-status';
+    }
+    if (btn) btn.disabled = true;
+
+    try {
+      const text = await Resume.readResumeFile(file);
+      const data = getData();
+      data.pending_rescore_file_name = file.name;
+      data.pending_rescore_text = text;
+      _save(data);
+      if (status) {
+        status.textContent = `${file.name} loaded. Ready to rescore.`;
+        status.className = 'deep-dive-rescore-status success';
+      }
+    } catch (err) {
+      const data = getData();
+      data.pending_rescore_file_name = '';
+      data.pending_rescore_text = '';
+      _save(data);
+      if (status) {
+        status.textContent = `Could not read ${file.name}. Try saving it as a new .docx or .pdf file, then choose it again.`;
+        status.className = 'deep-dive-rescore-status error';
+      }
+      UI.notify(`Could not read that resume file: ${err.message || 'please try again.'}`, 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function rescore() {
+    const data = getData();
+    const text = data.pending_rescore_text || '';
+    const fileName = data.pending_rescore_file_name || '';
+    if (!text) {
+      UI.notify('Choose your updated resume file first and wait for it to say "Ready to rescore."', 'error');
       return;
     }
     const btn = document.getElementById('deep-dive-rescore-btn');
@@ -320,13 +369,12 @@ ${data.resume_text}`;
     try {
       const beforeResume = Resume.getCurrentData();
       const beforeScore = Resume.calcScore(beforeResume);
-      const text = await Resume.readResumeFile(file);
       const result = await Resume.rateResumeText(text, beforeResume.notes || '');
-      const updatedResume = Resume.applyRatingResult(result, text, file.name);
+      const updatedResume = Resume.applyRatingResult(result, text, fileName);
       const afterScore = Resume.calcScore(updatedResume);
 
-      const data = getData();
-      const history = Array.isArray(data.resume_score_history) ? [...data.resume_score_history] : [];
+      const latest = getData();
+      const history = Array.isArray(latest.resume_score_history) ? [...latest.resume_score_history] : [];
       if (!history.length) {
         history.push({
           version: 1,
@@ -341,12 +389,14 @@ ${data.resume_text}`;
         date: new Date().toISOString(),
         section_scores: { ...(updatedResume.sections || {}) },
       });
-      data.resume_text = text;
-      data.resume_score_history = history;
-      data.deep_dive_completed = true;
-      data.deep_dive_date = history[history.length - 1].date;
-      data.accepted_rewrites = (data.suggested_rewrites || []).filter(r => r.accepted);
-      _save(data);
+      latest.resume_text = text;
+      latest.resume_score_history = history;
+      latest.deep_dive_completed = true;
+      latest.deep_dive_date = history[history.length - 1].date;
+      latest.accepted_rewrites = (latest.suggested_rewrites || []).filter(r => r.accepted);
+      latest.pending_rescore_file_name = '';
+      latest.pending_rescore_text = '';
+      _save(latest);
 
       UI.closeModal();
       App.navigate('resume');
@@ -518,5 +568,6 @@ ${data.resume_text}`;
     showBuildModal,
     copyRevisedResume,
     rescore,
+    prepareRescoreFile,
   };
 })();
