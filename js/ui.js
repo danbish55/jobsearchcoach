@@ -48,21 +48,7 @@ const UI = (() => {
   }
 
   function updateGauge() {
-    const usc = Storage.get('usc', { alumni_dms: 0, coffee_chats: 0, events_attended: 0, career_center_visits: 0 });
-    const score = Math.round(
-      (Math.min(usc.alumni_dms / 5, 1) * 0.35 +
-       Math.min(usc.coffee_chats / 3, 1) * 0.35 +
-       Math.min(usc.events_attended / 2, 1) * 0.20 +
-       Math.min(usc.career_center_visits / 2, 1) * 0.10) * 100
-    );
-
-    // SVG arc: half-circle from 15,65 to 105,65 has arc length ≈ 157
-    const ARC_LEN = 157;
-    const fill = Math.round((score / 100) * ARC_LEN);
-    const arc = document.getElementById('gauge-fill-arc');
-    const txt = document.getElementById('gauge-value-text');
-    if (arc) arc.setAttribute('stroke-dasharray', `${fill} ${ARC_LEN}`);
-    if (txt) txt.textContent = score + '%';
+    // Sidebar USC gauge removed — usc data preserved in storage for coach context
   }
 
   function setActiveNav(viewId) {

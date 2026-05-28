@@ -3,8 +3,6 @@ const Dashboard = (() => {
 
   function render() {
     const profile = Storage.get('profile', {});
-    const jobs = Storage.get('jobs', { applications: [] });
-    const usc = Storage.get('usc', { alumni_dms: 0 });
 
     // Welcome text
     const hour = new Date().getHours();
@@ -15,13 +13,9 @@ const Dashboard = (() => {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
 
-    // Stats
-    const apps = jobs.applications.length;
-    const interviews = jobs.applications.filter(a => ['interview', 'offer'].includes(a.status)).length;
-    const connections = (usc.alumni_dms || 0) + (usc.coffee_chats || 0);
-    document.getElementById('stat-apps').textContent = apps;
-    document.getElementById('stat-interviews').textContent = interviews;
-    document.getElementById('stat-connections').textContent = connections;
+    // Gauge band
+    const bandEl = document.getElementById('gauge-band-container');
+    if (bandEl) bandEl.innerHTML = Gauges.renderBand();
 
     // Current mission banner
     const current = Milestones.getCurrentMission();
@@ -34,6 +28,7 @@ const Dashboard = (() => {
     // All missions list
     _renderMissionsList();
   }
+
 
   function _renderCurrentMissionCard(mission) {
     const progress = Milestones.getMissionProgress(mission.id);
@@ -51,20 +46,27 @@ const Dashboard = (() => {
     }).join('');
 
     document.getElementById('dash-mission-card').innerHTML = `
-      <div class="mission-card" style="margin-bottom:24px">
-        <div class="mission-codename">CURRENT MISSION: ${mission.codename}</div>
-        <div class="mission-title">${mission.title}</div>
-        <div class="mission-briefing">"${mission.briefing}"</div>
-        <div style="margin-bottom:16px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <span style="font-size:12px;color:var(--text-muted)">Mission Progress</span>
-            <span style="font-size:12px;font-weight:700;color:var(--gold)">${progress.pct}%</span>
-          </div>
-          <div class="mission-progress-bar" style="height:6px">
-            <div class="mission-progress-fill" style="width:${progress.pct}%"></div>
+      <div style="display:flex;gap:20px;margin-bottom:24px;align-items:stretch">
+        <div style="flex:2;min-width:0">
+          <div class="mission-card" style="height:100%;margin-bottom:0;box-sizing:border-box">
+            <div class="mission-codename">CURRENT MISSION: ${mission.codename}</div>
+            <div class="mission-title">${mission.title}</div>
+            <div class="mission-briefing">"${mission.briefing}"</div>
+            <div style="margin-bottom:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <span style="font-size:12px;color:var(--text-muted)">Mission Progress</span>
+                <span style="font-size:12px;font-weight:700;color:var(--gold)">${progress.pct}%</span>
+              </div>
+              <div class="mission-progress-bar" style="height:6px">
+                <div class="mission-progress-fill" style="width:${progress.pct}%"></div>
+              </div>
+            </div>
+            <div class="mission-tasks">${tasksHTML}</div>
           </div>
         </div>
-        <div class="mission-tasks">${tasksHTML}</div>
+        <div id="side-hustle-panel" style="flex:1;min-width:0;display:flex;flex-direction:column">
+          ${Gauges.renderSideHustlePanel()}
+        </div>
       </div>`;
   }
 

@@ -53,6 +53,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'google_client_id': cfg.get('google_client_id', ''),
                 'profile_complete': cfg.get('profile_complete', False),
             })
+        elif path == '/api/context':
+            ctx_path = os.path.join(BASE_DIR, 'context', 'corinne_claude_context.md')
+            try:
+                with open(ctx_path, encoding='utf-8') as f:
+                    content = f.read()
+                self._json({'content': content})
+            except FileNotFoundError:
+                self._json({'content': '', 'error': 'context file not found'})
         elif path == '/oauth2callback':
             self._oauth_callback(urlparse(self.path).query)
         else:

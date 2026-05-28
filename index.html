@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JobSearchCoach</title>
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=12">
 </head>
 <body>
 
@@ -83,30 +83,6 @@
       <span id="theme-label">Dark mode</span>
     </div>
 
-    <!-- USC Alumni Gauge -->
-    <div class="sidebar-gauge" onclick="UI.showGaugeModal()">
-      <div class="gauge-label">USC Alumni Network</div>
-      <div class="gauge-svg-wrap">
-        <svg width="120" height="70" viewBox="0 0 120 70" id="gauge-svg">
-          <!-- Arc background -->
-          <path id="gauge-bg-arc"
-            d="M 15 65 A 50 50 0 0 1 105 65"
-            fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round"/>
-          <!-- Arc fill -->
-          <path id="gauge-fill-arc"
-            d="M 15 65 A 50 50 0 0 1 105 65"
-            fill="none" stroke="#FFCC00" stroke-width="8" stroke-linecap="round"
-            stroke-dasharray="0 157"
-            style="transition: stroke-dasharray 0.8s ease"/>
-          <!-- USC dot -->
-          <circle cx="15" cy="65" r="3" fill="#9D2235"/>
-          <circle cx="105" cy="65" r="3" fill="#FFCC00"/>
-          <!-- Center text -->
-          <text x="60" y="56" class="gauge-value-text" id="gauge-value-text">0%</text>
-          <text x="60" y="67" class="gauge-sub-text">Network Score</text>
-        </svg>
-      </div>
-    </div>
   </nav>
 
   <!-- Main content -->
@@ -129,20 +105,7 @@
         </div>
       </div>
 
-      <div class="grid-3" style="margin-bottom:24px" id="dash-stats">
-        <div class="stat-card">
-          <div class="stat-value" id="stat-apps">0</div>
-          <div class="stat-label">Applications Sent</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="stat-interviews">0</div>
-          <div class="stat-label">Interviews Booked</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="stat-connections">0</div>
-          <div class="stat-label">Alumni Connections</div>
-        </div>
-      </div>
+      <div id="gauge-band-container"></div>
 
       <!-- Current Mission Card -->
       <div id="dash-mission-card"></div>
@@ -239,21 +202,27 @@
   </main>
 </div>
 
+<!-- Third-party parsers for Resume file reading (require internet) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+
 <!-- Scripts — order matters -->
-<script src="js/config.js"></script>
-<script src="js/storage.js"></script>
-<script src="js/drive.js"></script>
-<script src="js/milestones.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/claude.js"></script>
-<script src="js/onboarding.js"></script>
-<script src="js/views/dashboard.js"></script>
-<script src="js/views/coach.js"></script>
-<script src="js/views/resume.js"></script>
-<script src="js/views/jobs.js"></script>
-<script src="js/views/report.js"></script>
-<script src="js/views/settings.js"></script>
-<script src="js/app.js"></script>
+<script src="js/config.js?v=12"></script>
+<script src="js/storage.js?v=12"></script>
+<script src="js/drive.js?v=12"></script>
+<script src="js/milestones.js?v=12"></script>
+<script src="js/ui.js?v=12"></script>
+<script src="js/claude.js?v=12"></script>
+<script src="js/onboarding.js?v=12"></script>
+<script src="js/views/gauges.js?v=12"></script>
+<script src="js/views/dashboard.js?v=12"></script>
+<script src="js/views/coach.js?v=12"></script>
+<script src="js/views/resume.js?v=12"></script>
+<script src="js/views/jobs.js?v=12"></script>
+<script src="js/views/report.js?v=12"></script>
+<script src="js/views/settings.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 
 </body>
 </html>

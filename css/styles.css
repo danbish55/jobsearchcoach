@@ -85,6 +85,12 @@ input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--gold);
 }
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  padding: 0;
+  border: none;
+  background: none;
+}
 input::placeholder, textarea::placeholder { color: var(--text-muted); }
 
 select option { background: var(--card-bg); }
@@ -585,30 +591,93 @@ select option { background: var(--card-bg); }
 }
 
 /* === Resume View === */
-.resume-score-ring {
+.resume-quote-card {
+  background: var(--accent);
+  border-radius: var(--radius);
+  padding: 20px;
   display: flex;
   align-items: center;
-  gap: 24px;
-  margin-bottom: 20px;
+  justify-content: center;
+}
+.resume-quote-text {
+  color: #fff;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1.45;
+  text-align: center;
+  margin: 0;
 }
 .resume-score-value {
-  font-size: 48px;
+  font-size: 60px;
   font-weight: 800;
   color: var(--gold);
   line-height: 1;
 }
 .resume-score-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-.resume-sections { display: flex; flex-direction: column; gap: 8px; }
+.resume-sections { display: flex; flex-direction: column; }
 .resume-section-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
+  display: grid;
+  grid-template-columns: 64px 1fr 2fr;
+  gap: 10px 16px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.resume-section-name { flex: 1; }
-.resume-section-bar { flex: 2; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.resume-section-row:last-of-type { border-bottom: none; }
+.resume-section-score-input {
+  width: 64px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gold);
+  padding: 5px 2px;
+  margin-top: 1px;
+}
+.resume-section-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+}
+.resume-section-name { font-size: 13px; font-weight: 500; }
+.resume-section-weight { font-size: 11px; color: var(--text-muted); margin-left: 4px; font-weight: 400; }
+.resume-section-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
 .resume-section-fill { height: 100%; background: var(--gold); border-radius: 3px; transition: width 0.5s ease; }
-.resume-section-pct { width: 32px; text-align: right; color: var(--text-muted); }
+.resume-section-comment {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding-top: 3px;
+}
+.resume-section-comment .comment-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.resume-section-comment.expanded .comment-text {
+  display: block;
+  overflow: visible;
+}
+.comment-toggle {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 0 0;
+  display: block;
+}
+.comment-toggle:hover { opacity: 0.75; }
+.coach-overall-note {
+  background: rgba(157, 34, 53, 0.12);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
 
 /* === Jobs View === */
 .jobs-toolbar {
@@ -632,6 +701,12 @@ select option { background: var(--card-bg); }
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
 }
+.jobs-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.jobs-table th.sortable:hover { color: var(--text); }
+.jobs-table th.sort-active { color: var(--gold); }
 .jobs-table td {
   padding: 12px 12px;
   border-bottom: 1px solid var(--border);
@@ -1123,7 +1198,158 @@ body.light input,
 body.light textarea,
 body.light select { background: rgba(0,0,0,0.04); }
 body.light .jobs-table th { background: var(--sidebar-bg); }
-body.light .gauge-value-text { fill: var(--gold); }
-body.light .gauge-sub-text  { fill: var(--text-muted); }
-body.light #gauge-bg-arc { stroke: rgba(0,0,0,0.08); }
 body.light .mission-complete-card { box-shadow: 0 0 60px rgba(184,146,10,0.2); }
+
+/* === Gauge Dashboard === */
+#gauge-band-container {
+  margin-bottom: 24px;
+}
+.gauge-band-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 14px;
+  align-items: flex-start;
+}
+.gauge-section {
+  flex: 1;
+  min-width: 0;
+}
+.gauge-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+}
+.gauge-cards-row {
+  display: flex;
+  gap: 8px;
+}
+.gauge-card {
+  flex: 1;
+  min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 12px;
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), transform 0.1s;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.gauge-card:hover {
+  background: var(--card-hover);
+  border-color: var(--gold-border);
+  transform: translateY(-1px);
+}
+.gauge-card.gauge-card-done {
+  border-color: rgba(46,204,113,0.35);
+}
+.gauge-card.gauge-card-done:hover {
+  border-color: rgba(46,204,113,0.6);
+}
+.gauge-card-featured {
+  flex: 2;
+}
+.gauge-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gauge-card-count {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.1;
+  margin: 1px 0;
+}
+.gauge-count-target {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.gauge-bar-track {
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 2px 0;
+}
+body.light .gauge-bar-track { background: rgba(0,0,0,0.08); }
+.gauge-bar-fill {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+.gauge-bar-fill.gauge-bar-complete { background: var(--success); }
+.gauge-bar-fill.gauge-bar-income   { background: var(--success); }
+.gauge-bar-fill.gauge-bar-items    { background: var(--accent); }
+.gauge-card-foot {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.gauge-dual-bars {
+  display: flex;
+  flex-direction: column;
+  margin: 4px 0;
+}
+.gauge-dual-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.gauge-dual-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.gauge-dual-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* === Side Hustle Panel (next to Current Mission) === */
+.sh-panel {
+  cursor: pointer;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: background var(--ease), border-color var(--ease);
+}
+.sh-panel:hover { border-color: var(--gold-border); background: var(--card-hover); }
+.sh-panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  margin: 12px 0;
+}
+.sh-panel-metric { display: flex; flex-direction: column; gap: 6px; }
+.sh-panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.sh-metric-label { font-size: 12px; color: var(--text-muted); }
+.sh-metric-value { font-size: 22px; font-weight: 800; }
+.sh-bar { height: 6px; }
+.sh-panel-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}

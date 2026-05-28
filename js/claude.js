@@ -4,50 +4,48 @@ const Claude = (() => {
   const MAX_FULL_SESSIONS = 3;       // Keep this many sessions in full
   const COMPRESS_THRESHOLD = 10;     // Messages per session before compression candidate
 
-  // Build the system prompt with profile and milestone context
+  let _coachingContext = '';  // Loaded fresh from disk on every app launch
+
+  async function loadContext() {
+    try {
+      const res = await fetch('/api/context');
+      const data = await res.json();
+      _coachingContext = data.content || '';
+    } catch (e) {
+      _coachingContext = '';
+    }
+  }
+
+  // Build the system prompt — coaching context file is primary; live stats appended
   function buildSystemPrompt() {
     const profile = Storage.get('profile', {});
+    const jobs    = Storage.get('jobs', { applications: [] });
+    const usc     = Storage.get('usc', {});
     const milestoneContext = Milestones.buildContextSummary();
-    const jobs = Storage.get('jobs', { applications: [] });
-    const usc = Storage.get('usc', {});
 
-    const name = profile.name || 'your client';
-    const school = profile.school || 'USC';
-    const major = profile.major || 'your field';
-    const gradYear = profile.grad_year || 'recently';
-    const roles = (profile.target_roles || []).join(', ') || 'not yet specified';
-    const industries = (profile.target_industries || []).join(', ') || 'not yet specified';
-
-    const appCount = jobs.applications.length;
+    const appCount       = jobs.applications.length;
     const interviewCount = jobs.applications.filter(a => ['interview','offer'].includes(a.status)).length;
+    const offerCount     = jobs.applications.filter(a => a.status === 'offer').length;
 
-    return `You are JobSearchCoach — the personal AI career coach for ${name}, a ${gradYear} graduate from ${school} (${major}).
-
-## Your Role
-You help ${name} navigate every stage of their job search: resume refinement, application strategy, interview preparation, networking, and salary negotiation. You are warm, direct, and results-oriented. You celebrate wins and are honest when something needs work.
-
-## About ${name}
-- School: ${school} (${gradYear} graduate)
-- Major: ${major}
-- Target roles: ${roles}
-- Target industries: ${industries}
-
-## Current Job Search Status
+    const liveStats = `
+---
+## Live Session Data (updated each session from the app)
+- Name: ${profile.name || 'Corinne'}
 - Applications submitted: ${appCount}
-- Interviews scheduled/completed: ${interviewCount}
-- USC alumni network: ${usc.alumni_dms || 0} DMs sent, ${usc.coffee_chats || 0} coffee chats
-- ${milestoneContext}
+- Interviews active: ${interviewCount}${offerCount ? `\n- Offers received: ${offerCount}` : ''}
+- USC alumni network: ${usc.alumni_dms || 0} DMs, ${usc.coffee_chats || 0} coffee chats, ${usc.events_attended || 0} events
+- Target roles: ${(profile.target_roles || []).join(', ') || 'not yet specified'}
+- Target industries: ${(profile.target_industries || []).join(', ') || 'not yet specified'}
+- Mission progress: ${milestoneContext}`;
 
-## Coaching Style
-- Keep responses concise and actionable (3–5 paragraphs unless doing a document review)
-- Always end with a clear next step or a focused question
-- Reference the current mission when relevant — ${name} is working the DOSSIER → EXTRACTION mission sequence
-- Know the USC Trojan alumni network and career resources
-- Be honest about what needs improvement
-- Celebrate every win, big or small
+    if (_coachingContext) {
+      return _coachingContext + liveStats;
+    }
 
-## Important
-Never break character. You are always the coach, never an AI assistant.`;
+    // Fallback if context file not loaded
+    return `You are JobSearchCoach — the personal AI career coach for ${profile.name || 'Corinne'}.
+You are warm, direct, and results-oriented. Help with resume, applications, interviews, networking, and negotiation.
+Never break character. You are always the coach, never an AI assistant.` + liveStats;
   }
 
   // Build the full messages array for the API call
@@ -207,5 +205,5 @@ Never break character. You are always the coach, never an AI assistant.`;
     Storage.set('sessions', sessionsData);
   }
 
-  return { sendMessage, saveSession, buildSystemPrompt };
+  return { loadContext, sendMessage, saveSession, buildSystemPrompt };
 })();

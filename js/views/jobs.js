@@ -10,20 +10,67 @@ const Jobs = (() => {
     rejected:  'No',
   };
 
+  // Sort and search state persist across re-renders
+  let _sort   = { col: 'date', dir: 'desc' };
+  let _search = '';
+
   function _defaultData() {
     return { applications: [] };
   }
 
+  function _sortedWithIndex(apps) {
+    const { col, dir } = _sort;
+    const mult = dir === 'asc' ? 1 : -1;
+    const statusOrder = ['offer', 'interview', 'phone', 'applied', 'rejected'];
+
+    return apps
+      .map((app, i) => ({ app, i }))
+      .sort((a, b) => {
+        let va = a.app[col] || '';
+        let vb = b.app[col] || '';
+
+        if (col === 'date') {
+          va = va || '0000-00-00';
+          vb = vb || '0000-00-00';
+          return va < vb ? -mult : va > vb ? mult : 0;
+        }
+        if (col === 'status') {
+          return (statusOrder.indexOf(va) - statusOrder.indexOf(vb)) * mult;
+        }
+        return va.toLowerCase() < vb.toLowerCase() ? -mult : va.toLowerCase() > vb.toLowerCase() ? mult : 0;
+      });
+  }
+
+  function _thLabel(col, label) {
+    const active = _sort.col === col;
+    const arrow  = active ? (_sort.dir === 'asc' ? ' ▲' : ' ▼') : ' <span style="opacity:0.25">⇅</span>';
+    return `<th class="sortable${active ? ' sort-active' : ''}" onclick="Jobs.sortBy('${col}')">${label}${arrow}</th>`;
+  }
+
+  function setSearch(val) {
+    _search = val;
+    render();
+  }
+
   function render() {
-    const data = Storage.get('jobs', _defaultData());
-    const apps = data.applications;
+    const data   = Storage.get('jobs', _defaultData());
+    const apps   = data.applications;
+    const sorted = _sortedWithIndex(apps);
+    const filtered = _search
+      ? sorted.filter(({ app }) => app.company.toLowerCase().includes(_search.toLowerCase()))
+      : sorted;
     const container = document.getElementById('jobs-content');
 
     container.innerHTML = `
       <div class="jobs-toolbar">
         <button class="btn btn-primary btn-sm" onclick="Jobs.showAddModal()">+ Add Application</button>
+        <input type="text" placeholder="Search company…" value="${_search}"
+          oninput="Jobs.setSearch(this.value)"
+          style="width:180px;margin-left:12px;padding:6px 10px;font-size:13px">
         <div style="margin-left:auto;font-size:13px;color:var(--text-muted)">
-          ${apps.length} application${apps.length !== 1 ? 's' : ''} total
+          ${filtered.length === apps.length
+            ? `${apps.length} application${apps.length !== 1 ? 's' : ''} total`
+            : `${filtered.length} of ${apps.length} shown`}
         </div>
       </div>
 
@@ -32,23 +79,32 @@ const Jobs = (() => {
             <div class="empty-state-icon">📋</div>
             <div class="empty-state-text">No applications yet.<br>Every mission starts somewhere — log your first one!</div>
            </div>`
-        : `<div class="card" style="padding:0;overflow:hidden">
+        : `<div class="card" style="padding:0;overflow:auto">
             <table class="jobs-table">
               <thead>
                 <tr>
-                  <th>Company</th>
-                  <th>Role</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Notes</th>
+                  ${_thLabel('company', 'Company')}
+                  ${_thLabel('role', 'Role')}
+                  ${_thLabel('date', 'Date')}
+                  ${_thLabel('status', 'Status')}
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                ${apps.map((app, i) => _renderRow(app, i)).join('')}
+                ${filtered.map(({ app, i }) => _renderRow(app, i)).join('')}
               </tbody>
             </table>
           </div>`}`;
+  }
+
+  function sortBy(col) {
+    if (_sort.col === col) {
+      _sort.dir = _sort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _sort.col = col;
+      _sort.dir = 'asc';
+    }
+    render();
   }
 
   function _renderRow(app, i) {
@@ -60,18 +116,42 @@ const Jobs = (() => {
         <td style="color:var(--text-muted);white-space:nowrap">${_fmtDate(app.date)}</td>
         <td>
           <select class="status-badge ${statusClass}" onchange="Jobs.updateStatus(${i}, this.value)"
-            style="border:none;background:transparent;cursor:pointer;font-size:11px;font-weight:700;padding:3px 6px">
+            style="border:none;background:transparent;cursor:pointer;font-size:11px;font-weight:700;padding:3px 6px;min-width:100px">
             ${STATUSES.map(s => `<option value="${s}" ${app.status === s ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
           </select>
         </td>
-        <td style="color:var(--text-muted);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          ${_esc(app.notes || '—')}
-        </td>
-        <td>
-          <button class="btn btn-ghost btn-sm" onclick="Jobs.showEditModal(${i})">Edit</button>
+        <td style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="Jobs.showNotesModal(${i})">
+            📝 Notes
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="Jobs.showEditModal(${i})" style="margin-left:4px">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="Jobs.remove(${i})" style="margin-left:4px">×</button>
         </td>
       </tr>`;
+  }
+
+  function showNotesModal(i) {
+    const data = Storage.get('jobs', _defaultData());
+    const app = data.applications[i];
+
+    const body = `
+      <textarea id="j-notes-edit" rows="10" style="resize:vertical;width:100%"
+        placeholder="Recruiter name, contact info, interview notes, next steps, anything...">${_esc(app.notes || '')}</textarea>`;
+
+    UI.showModal(`Notes — ${_esc(app.company)}`, body, [
+      {
+        id: 'save', label: 'Save Notes', class: 'btn-primary',
+        close: false,
+        action: () => {
+          const stored = Storage.get('jobs', _defaultData());
+          stored.applications[i].notes = document.getElementById('j-notes-edit').value;
+          Storage.set('jobs', stored);
+          UI.closeModal();
+          render();
+        },
+      },
+      { id: 'cancel', label: 'Cancel', class: 'btn-ghost' },
+    ]);
   }
 
   function showAddModal(editIndex = null) {
@@ -104,7 +184,7 @@ const Jobs = (() => {
       </div>
       <div class="form-row">
         <label>Notes</label>
-        <textarea id="j-notes" rows="3" placeholder="Recruiter name, contact info, next steps...">${_esc(app.notes || '')}</textarea>
+        <textarea id="j-notes" rows="4" placeholder="Recruiter name, contact info, next steps...">${_esc(app.notes || '')}</textarea>
       </div>`;
 
     UI.showModal(isEdit ? 'Edit Application' : 'Log New Application', body, [
@@ -122,7 +202,7 @@ const Jobs = (() => {
             date:   document.getElementById('j-date').value,
             status: document.getElementById('j-status').value,
             url:    document.getElementById('j-url').value.trim(),
-            notes:  document.getElementById('j-notes').value.trim(),
+            notes:  document.getElementById('j-notes').value,
           };
 
           const stored = Storage.get('jobs', _defaultData());
@@ -163,14 +243,14 @@ const Jobs = (() => {
   function _checkMilestones(apps) {
     const count = apps.length;
     const state = Milestones.getMissionState('deploy');
-    if (count >= 1 && !state.tasks['first_app']) Milestones.toggleTask('deploy', 'first_app');
+    if (count >= 1  && !state.tasks['first_app']) Milestones.toggleTask('deploy', 'first_app');
     if (count >= 10 && !state.tasks['apps_10'])  Milestones.toggleTask('deploy', 'apps_10');
     if (count >= 25 && !state.tasks['apps_25']) {
       const r = Milestones.toggleTask('deploy', 'apps_25');
       if (r.justCompleted) UI.showMissionComplete(r.mission);
     }
 
-    const hasInterview = apps.some(a => ['interview','offer'].includes(a.status));
+    const hasInterview = apps.some(a => ['interview', 'offer'].includes(a.status));
     const interviewState = Milestones.getMissionState('interview');
     if (hasInterview && !interviewState.tasks['phone_screen']) {
       Milestones.toggleTask('interview', 'phone_screen');
@@ -197,5 +277,5 @@ const Jobs = (() => {
       .replace(/"/g, '&quot;');
   }
 
-  return { render, showAddModal, showEditModal, updateStatus, remove };
+  return { render, sortBy, setSearch, showAddModal, showEditModal, showNotesModal, updateStatus, remove };
 })();

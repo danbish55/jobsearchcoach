@@ -16,6 +16,9 @@ const App = (() => {
   }
 
   async function launch() {
+    // Load coaching context file fresh from disk
+    await Claude.loadContext();
+
     // Initialize Drive if connected
     if (Config.hasDrive()) {
       await Drive.init();
@@ -24,6 +27,9 @@ const App = (() => {
 
     // Initialize milestone data
     Milestones.init();
+
+    // Initialize gauge data (weekly reset check)
+    Gauges.init();
 
     // Show the app shell
     document.getElementById('app').classList.remove('hidden');

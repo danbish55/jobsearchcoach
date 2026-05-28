@@ -1,15 +1,76 @@
 /* Resume tracker view */
 const Resume = (() => {
 
-  const SECTIONS = [
-    { id: 'contact',     label: 'Contact Info',       weight: 10 },
-    { id: 'summary',     label: 'Summary / Objective', weight: 10 },
-    { id: 'experience',  label: 'Work Experience',     weight: 35 },
-    { id: 'education',   label: 'Education',           weight: 15 },
-    { id: 'skills',      label: 'Skills',              weight: 15 },
-    { id: 'projects',    label: 'Projects / Portfolio', weight: 10 },
-    { id: 'extras',      label: 'Activities / Awards', weight:  5 },
+  const QUOTES = [
+    "Your next breakthrough is just around the corner.",
+    "Believe in yourself. Your hard work will pay off.",
+    "Keep your head up. Great things take time.",
+    "You are capable of amazing things. Stay focused!",
+    "Your skills are valuable. Someone will see that soon.",
+    "Don't stop now. Your dream job is waiting.",
+    "Every effort matters. You are closer than yesterday.",
+    "Stay positive. The right door will open next.",
+    "Your resilience is your superpower. Keep moving forward!",
+    "Trust the process. You are doing just fine.",
+    "New days bring new opportunities. Keep searching!",
+    "You are worthy of a great career. Move forward.",
+    "Focus on your goals. Success is coming.",
+    "Celebrate small wins. You are making real progress.",
+    "You have what it takes. Never give up.",
+    "Keep casting your net. Your big catch is coming.",
+    "Your talent is undeniable. Stay patient and persistent.",
+    "Every application is a step toward your future.",
+    "You are built for this. Keep grinding out there.",
+    "The perfect fit is searching for you too.",
+    "Today is a fresh start. Keep your chin up.",
+    "Your determination will turn into a great offer.",
+    "Stay confident. You bring so much to the table.",
+    "Progress over perfection. Just keep moving today.",
+    "This tough phase will pass. Your success is next.",
+    "Fight on to victory. Your next offer is waiting.",
+    "Always compete, dare to be great, and let it rip.",
+    "All you need is for just one person to say yes.",
+    "Bear Down: Fight, and persevere in every challenge.",
+    "Step outside your comfort zone and take that chance.",
+    "Believe in your ability to succeed. You can win.",
   ];
+
+  const SECTIONS = [
+    { id: 'contact',     label: 'Contact Info',        weight: 10 },
+    { id: 'summary',     label: 'Summary / Objective',  weight: 10 },
+    { id: 'experience',  label: 'Work Experience',      weight: 35 },
+    { id: 'education',   label: 'Education',            weight: 15 },
+    { id: 'skills',      label: 'Skills',               weight: 15 },
+    { id: 'projects',    label: 'Projects / Portfolio', weight: 10 },
+    { id: 'extras',      label: 'Activities / Awards',  weight:  5 },
+  ];
+
+  const RATE_PROMPT = `You are an expert career coach evaluating a resume for a recent college graduate.
+
+Analyze the resume and score each section 0–100 based on completeness, quality, and professional standards for entry-level job seekers. Be honest and rigorous — inflated scores do not help the candidate improve.
+
+Scoring guide:
+0–20: Missing or completely unusable
+21–40: Exists but needs major work
+41–60: Acceptable, clear room to improve
+61–80: Good quality, minor improvements possible
+81–100: Strong, professional level
+
+Sections to score (use these exact JSON keys):
+- contact: Name, email, phone, LinkedIn URL, location
+- summary: Summary or objective statement
+- experience: Work/internship history — job titles, bullet points, quantified results, relevance
+- education: Degree, institution, graduation date, GPA if notable
+- skills: Technical and soft skills, relevance to target roles
+- projects: Side projects, portfolio, GitHub, relevant work samples
+- extras: Activities, awards, volunteer work, certifications
+
+For each section's feedback, write 1–3 honest, specific sentences the candidate can act on.
+
+Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
+{"scores":{"contact":0,"summary":0,"experience":0,"education":0,"skills":0,"projects":0,"extras":0},"feedback":{"contact":"","summary":"","experience":"","education":"","skills":"","projects":"","extras":""},"overall_notes":""}`;
+
+  let _resumeText = '';
 
   function _defaultData() {
     return {
@@ -17,8 +78,23 @@ const Resume = (() => {
       notes: '',
       file_name: '',
       coach_reviewed: false,
+      coach_feedback: null,
+      coach_notes: null,
       last_updated: null,
     };
+  }
+
+  function _dailyQuote() {
+    const idx = Math.floor(Date.now() / 86400000) % QUOTES.length;
+    return QUOTES[idx];
+  }
+
+  function _quoteFontSize(quote) {
+    const len = quote.length;
+    if (len < 50) return 27;
+    if (len < 70) return 23;
+    if (len < 90) return 20;
+    return 18;
   }
 
   function render() {
@@ -26,76 +102,223 @@ const Resume = (() => {
     const container = document.getElementById('resume-content');
 
     const score = _calcScore(data);
+    const quote = _dailyQuote();
+    const quoteFontSize = _quoteFontSize(quote);
+    const hasCoachRating = !!data.coach_feedback;
 
     container.innerHTML = `
-      <div class="grid-2" style="margin-bottom:24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:16px;margin-bottom:24px">
+        <div class="resume-quote-card">
+          <p class="resume-quote-text" style="font-size:${quoteFontSize}px">&ldquo;${quote}&rdquo;</p>
+        </div>
+
         <div class="card">
-          <div class="card-title">Overall Score</div>
-          <div class="resume-score-ring">
-            <div>
-              <div class="resume-score-value">${score}%</div>
-              <div class="resume-score-label">${_scoreLabel(score)}</div>
-            </div>
-            <div style="flex:1">
-              ${_scoreBar(score)}
-            </div>
-          </div>
-          <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-              <input type="checkbox" id="coach-reviewed-cb" ${data.coach_reviewed ? 'checked' : ''}
-                onchange="Resume.toggleCoachReviewed(this.checked)">
-              Coach has reviewed this resume
-            </label>
-            <div style="font-size:12px;color:var(--text-muted)">
-              ${data.last_updated ? 'Last updated: ' + new Date(data.last_updated).toLocaleDateString() : 'Not yet updated'}
-            </div>
-          </div>
+          <div class="card-title" style="margin-bottom:6px">Overall Score</div>
+          <div class="resume-score-value">${score}%</div>
+          <div class="resume-score-label">${_scoreLabel(score)}</div>
+          <div style="margin:8px 0">${_scoreBar(score)}</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06)">
+            <input type="checkbox" id="coach-reviewed-cb" ${data.coach_reviewed ? 'checked' : ''}
+              onchange="Resume.toggleCoachReviewed(this.checked)">
+            Coach has reviewed this resume
+          </label>
         </div>
 
         <div class="card">
           <div class="card-title">Resume File</div>
           <div class="form-row">
-            <label>File name / location</label>
-            <input type="text" id="resume-filename" placeholder="e.g. Corinne_Smith_Resume_2024.pdf"
-              value="${data.file_name || ''}" oninput="Resume.saveFileName(this.value)">
+            <label>File Name / Location</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="resume-filename" placeholder="Select your resume file..."
+                value="${data.file_name || ''}" readonly
+                style="flex:1;cursor:default;color:var(--text-muted)">
+              <button class="btn btn-ghost btn-sm" onclick="Resume.selectFile()"
+                style="white-space:nowrap;flex-shrink:0">Browse</button>
+            </div>
+            <input type="file" id="resume-file-input" accept=".docx,.pdf" style="display:none"
+              onchange="Resume.onFileSelected(this)">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              Supports .docx and .pdf — requires internet connection to parse
+            </div>
           </div>
           <div class="form-row">
-            <label>Notes</label>
-            <textarea id="resume-notes" rows="3" placeholder="Notes on current version, outstanding to-dos..."
+            <label>Any Notes for Coach?</label>
+            <textarea id="resume-notes" rows="3" placeholder="Optional context for the Coach..."
               oninput="Resume.saveNotes(this.value)">${data.notes || ''}</textarea>
           </div>
           <div style="margin-top:12px">
-            <button class="btn btn-primary btn-sm" onclick="App.navigate('coach')">
-              📋 Ask Coach to Review
+            <button class="btn btn-primary btn-sm" id="rate-resume-btn" onclick="Resume.rateWithCoach()">
+              🎓 Rate My Resume
             </button>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Section Completeness</div>
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
-          Rate each section from 0–100%. Drag or type to update.
+        <div class="card-title">Resume Completeness</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:${data.coach_notes ? '8px' : '16px'}">
+          ${hasCoachRating
+            ? 'See below what Coach has to say about your resume.'
+            : 'Select your resume file and click <strong>Rate My Resume</strong> to get a Coach assessment.'
+          }
         </p>
+        ${data.coach_notes ? `<div class="coach-overall-note">${data.coach_notes}</div>` : ''}
         <div class="resume-sections" id="resume-sections">
-          ${SECTIONS.map(s => _renderSection(s, data.sections[s.id] || 0)).join('')}
+          ${SECTIONS.map(s => _renderSection(s, data.sections[s.id] || 0, data.coach_feedback?.[s.id])).join('')}
         </div>
       </div>`;
   }
 
-  function _renderSection(section, value) {
+  function _renderSection(section, value, feedback) {
+    const isLong = feedback && feedback.length > 130;
+    const commentHtml = feedback
+      ? `<span class="comment-text" id="comment-text-${section.id}">${feedback}</span>${isLong ? `<button class="comment-toggle" onclick="Resume.toggleComment('${section.id}')">more ▾</button>` : ''}`
+      : `<span style="font-style:italic;color:var(--text-muted);opacity:0.5">No Coach feedback yet</span>`;
+
     return `
       <div class="resume-section-row">
-        <span class="resume-section-name">${section.label}
-          <span style="font-size:11px;color:var(--text-muted)">(${section.weight}% weight)</span>
-        </span>
-        <div class="resume-section-bar">
-          <div class="resume-section-fill" style="width:${value}%"></div>
-        </div>
-        <input type="number" min="0" max="100" value="${value}"
-          style="width:56px;text-align:center;font-size:13px"
+        <input type="number" min="0" max="100" value="${value}" class="resume-section-score-input"
           onchange="Resume.updateSection('${section.id}', this.value)">
+        <div class="resume-section-left">
+          <span class="resume-section-name">${section.label}
+            <span class="resume-section-weight">(${section.weight}%)</span>
+          </span>
+          <div class="resume-section-bar">
+            <div class="resume-section-fill" style="width:${value}%"></div>
+          </div>
+        </div>
+        <div class="resume-section-comment" id="comment-col-${section.id}">
+          ${commentHtml}
+        </div>
       </div>`;
+  }
+
+  function toggleComment(sectionId) {
+    const col = document.getElementById(`comment-col-${sectionId}`);
+    const btn = col?.querySelector('.comment-toggle');
+    if (!col) return;
+    const expanded = col.classList.toggle('expanded');
+    if (btn) btn.textContent = expanded ? 'less ▴' : 'more ▾';
+  }
+
+  function selectFile() {
+    document.getElementById('resume-file-input')?.click();
+  }
+
+  async function onFileSelected(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const filenameEl = document.getElementById('resume-filename');
+    if (filenameEl) filenameEl.value = file.name;
+
+    const data = Storage.get('resume', _defaultData());
+    data.file_name = file.name;
+    Storage.set('resume', data);
+
+    const btn = document.getElementById('rate-resume-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Reading file…'; }
+
+    try {
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        _resumeText = await _readDocx(file);
+      } else if (file.name.toLowerCase().endsWith('.pdf')) {
+        _resumeText = await _readPdf(file);
+      } else {
+        UI.notify('Please select a .docx or .pdf file.', 'error');
+        return;
+      }
+      UI.notify('Resume loaded. Click "Rate My Resume" to get Coach feedback.', 'success');
+    } catch (e) {
+      UI.notify('Could not read file — make sure it\'s a valid .docx or .pdf.', 'error');
+      _resumeText = '';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
+    }
+  }
+
+  async function _readDocx(file) {
+    if (typeof mammoth === 'undefined') throw new Error('mammoth not loaded');
+    const buffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawValue({ arrayBuffer: buffer });
+    return result.value;
+  }
+
+  async function _readPdf(file) {
+    if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js not loaded');
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      pages.push(content.items.map(item => item.str).join(' '));
+    }
+    return pages.join('\n');
+  }
+
+  async function rateWithCoach() {
+    if (!_resumeText) {
+      UI.notify('Select your resume file first.', 'error');
+      return;
+    }
+
+    const data = Storage.get('resume', _defaultData());
+    if (data.coach_feedback) {
+      const ok = window.confirm('This will update your previous Coach rating with a fresh assessment based on your current resume. Continue?');
+      if (!ok) return;
+    }
+
+    const btn = document.getElementById('rate-resume-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Rating…'; }
+
+    const notes = data.notes ? `\n\nNotes from candidate: ${data.notes}` : '';
+
+    try {
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 1400,
+          stream: false,
+          system: RATE_PROMPT,
+          messages: [{ role: 'user', content: `Rate this resume:${notes}\n\n${_resumeText}` }],
+        }),
+      });
+
+      const payload = await res.json();
+      const raw = payload.content?.[0]?.text || '';
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON in response');
+      const result = JSON.parse(jsonMatch[0]);
+
+      const fresh = Storage.get('resume', _defaultData());
+      SECTIONS.forEach(s => {
+        const v = result.scores?.[s.id];
+        if (typeof v === 'number') fresh.sections[s.id] = Math.max(0, Math.min(100, Math.round(v)));
+      });
+      fresh.coach_reviewed = true;
+      fresh.coach_feedback = result.feedback || null;
+      fresh.coach_notes = result.overall_notes || null;
+      fresh.last_updated = new Date().toISOString();
+      Storage.set('resume', fresh);
+
+      render();
+      UI.updateSidebar();
+      UI.notify('Resume rated by Coach!', 'success');
+
+      const score = _calcScore(fresh);
+      if (score > 30 && !Milestones.getMissionState('dossier').tasks['resume_draft']) {
+        Milestones.toggleTask('dossier', 'resume_draft');
+      }
+      const mResult = Milestones.toggleTask('dossier', 'coach_reviewed');
+      if (mResult.justCompleted) UI.showMissionComplete(mResult.mission);
+
+    } catch (e) {
+      UI.notify('Rating failed — please try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
+    }
   }
 
   function _calcScore(data) {
@@ -129,7 +352,6 @@ const Resume = (() => {
     data.last_updated = new Date().toISOString();
     Storage.set('resume', data);
 
-    // Check DOSSIER task
     const score = _calcScore(data);
     if (!Milestones.getMissionState('dossier').tasks['resume_draft'] && score > 30) {
       Milestones.toggleTask('dossier', 'resume_draft');
@@ -167,5 +389,5 @@ const Resume = (() => {
     Storage.set('resume', data);
   }
 
-  return { render, updateSection, toggleCoachReviewed, saveFileName, saveNotes };
+  return { render, updateSection, toggleCoachReviewed, saveFileName, saveNotes, selectFile, onFileSelected, rateWithCoach, toggleComment };
 })();
