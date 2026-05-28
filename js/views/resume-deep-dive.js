@@ -113,11 +113,12 @@ Begin by reading her resume carefully and opening with a specific observation ab
           </aside>
 
           <section class="deep-dive-chat-panel">
+            <div class="deep-dive-panel-title">Clarifying Discussion</div>
             <div class="deep-dive-chat-messages" id="deep-dive-chat-messages">
               ${_renderMessages(data.deep_dive_conversation)}
             </div>
             <div class="deep-dive-chat-input-row">
-              <textarea id="deep-dive-input" rows="1" placeholder="Answer the coach..." onkeydown="ResumeDeepDive.handleKeyDown(event)"></textarea>
+              <textarea id="deep-dive-input" rows="3" placeholder="Answer the coach..." onkeydown="ResumeDeepDive.handleKeyDown(event)"></textarea>
               <button class="btn btn-primary" id="deep-dive-send" onclick="ResumeDeepDive.send()">Send</button>
             </div>
           </section>

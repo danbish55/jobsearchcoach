@@ -1440,6 +1440,7 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
   display: grid;
   grid-template-columns: 25% 45% 30%;
   gap: 14px;
+  height: min(690px, calc(100vh - 145px));
   min-height: 0;
   flex: 1;
 }
@@ -1449,6 +1450,7 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  max-height: 100%;
   min-height: 0;
 }
 .deep-dive-resume-panel,
@@ -1482,6 +1484,7 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
 .deep-dive-rewrite-list,
 .deep-dive-chat-messages {
   overflow-y: auto;
+  scrollbar-gutter: stable;
   min-height: 0;
 }
 .deep-dive-resume-text {
@@ -1513,6 +1516,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 .deep-dive-chat-messages {
   flex: 1;
   padding: 18px;
+  scroll-behavior: smooth;
 }
 .deep-dive-message {
   display: flex;
@@ -1541,7 +1545,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 }
 .deep-dive-chat-input-row textarea {
   resize: none;
-  min-height: 40px;
+  min-height: 86px;
   max-height: 120px;
 }
 .deep-dive-rewrite-list {
@@ -1624,6 +1628,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 @media (max-width: 1100px) {
   .deep-dive-layout {
     grid-template-columns: 1fr;
+    height: auto;
     overflow-y: auto;
   }
   .deep-dive-resume-panel,
