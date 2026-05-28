@@ -1971,7 +1971,7 @@ body.light .gauge-card:hover { box-shadow: 0 12px 24px rgba(30,30,35,0.11); }
   flex: 2;
 }
 .gauge-card-title {
-  font-size: 8px;
+  font-size: 10.6px;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;

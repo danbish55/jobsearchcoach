@@ -362,8 +362,7 @@ const Settings = (() => {
   }
 
   function resetAll() {
-    if (!confirm('This will back up your data first, then clear ALL job search data from this browser. Continue?')) return;
-    if (!confirm('Really? This cannot be undone.')) return;
+    if (!confirm("I'll do a backup and then clear all data except your setup information.")) return;
     _downloadBackup();
     DATA_KEYS.forEach(k => Storage.remove(k));
     UI.notify('Backup created. Data cleared. Reloading...', 'info');

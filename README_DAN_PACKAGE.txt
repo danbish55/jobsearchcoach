@@ -29,4 +29,4 @@ The app opens Gmail compose for progress reports. It does not send email silentl
 Updates:
 - Make fixes in GitHub/Codex and push them.
 - Corinne can double-click "Update JobSearchCoach.command" inside her app folder.
-- The updater pulls the latest app files from the codex/dashboard-mission-refresh branch and preserves config.json.
+- The updater creates a fresh backup folder first, pulls the latest app files from the codex/dashboard-mission-refresh branch, and preserves config.json.

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 PACKAGE_NAME = os.environ.get("JSC_PACKAGE_NAME", "JobSearchCoach-Corinne")
 
-EXCLUDE_DIRS = {".git", "dist", "tools", "__pycache__"}
+EXCLUDE_DIRS = {".git", "dist", "tools", "backups", "__pycache__"}
 EXCLUDE_FILES = {"config.json", "launcher.bat"}
 
 

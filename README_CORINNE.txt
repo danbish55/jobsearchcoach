@@ -19,4 +19,4 @@ To stop the app, close the terminal window that opened with JobSearchCoach.
 
 Updates:
 
-If Dad sends an update, double-click "Update JobSearchCoach.command". It keeps your saved access key and Google Drive connection.
+If Dad sends an update, double-click "Update JobSearchCoach.command". It makes a fresh backup first, then keeps your saved access key and Google Drive connection.

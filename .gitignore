@@ -1,6 +1,7 @@
 # Never commit secrets
 config.json
 dist/
+backups/
 __pycache__/
 *.pyc
 
