@@ -183,7 +183,6 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
           <div class="resume-score-comparison-message">
             Complete a Deep Dive Interview to improve your score.
           </div>
-          <div class="resume-score-comparison-arrow">↓</div>
         </div>`;
     }
 

@@ -101,29 +101,33 @@ Begin by reading her resume carefully and opening with a specific observation ab
 
         <div class="deep-dive-layout">
           <aside class="deep-dive-resume-panel">
+            ${_scrollControls('deep-dive-resume-text')}
             <div class="deep-dive-panel-title">Your Current Resume</div>
             <div class="deep-dive-section-list">
               ${_resumeSections(data.resume_text).map((section, i) => `
                 <button class="deep-dive-section-link" onclick="ResumeDeepDive.scrollToSection(${i})">${_esc(section.title)}</button>
               `).join('')}
             </div>
-            <div class="deep-dive-resume-text">
+            <div class="deep-dive-resume-text" id="deep-dive-resume-text">
               ${_renderResumeReference(data.resume_text)}
             </div>
           </aside>
 
           <section class="deep-dive-chat-panel">
+            ${_scrollControls('deep-dive-chat-messages')}
             <div class="deep-dive-panel-title">Clarifying Discussion</div>
             <div class="deep-dive-chat-messages" id="deep-dive-chat-messages">
               ${_renderMessages(data.deep_dive_conversation)}
             </div>
             <div class="deep-dive-chat-input-row">
-              <textarea id="deep-dive-input" rows="3" placeholder="Answer the coach..." onkeydown="ResumeDeepDive.handleKeyDown(event)"></textarea>
+              <textarea id="deep-dive-input" rows="4" placeholder="Answer the coach..." onkeydown="ResumeDeepDive.handleKeyDown(event)"></textarea>
               <button class="btn btn-primary" id="deep-dive-send" onclick="ResumeDeepDive.send()">Send</button>
+              <div class="deep-dive-input-hint">Press Enter to send · Shift+Enter for new line</div>
             </div>
           </section>
 
           <aside class="deep-dive-rewrites-panel">
+            ${_scrollControls('deep-dive-rewrite-list')}
             <div class="deep-dive-panel-title">Suggested Rewrites</div>
             <div id="deep-dive-rewrite-list" class="deep-dive-rewrite-list">
               ${_renderRewrites(data.suggested_rewrites)}
@@ -136,6 +140,7 @@ Begin by reading her resume carefully and opening with a specific observation ab
       </div>`;
 
     _scrollChatToBottom();
+    _updateScrollControlsSoon();
     if (!data.deep_dive_conversation.length) {
       _startInterview();
     }
@@ -162,6 +167,14 @@ Begin by reading her resume carefully and opening with a specific observation ab
       _save(fresh);
     }
     _rerenderAll();
+  }
+
+  function _scrollControls(targetId) {
+    return `
+      <div class="deep-dive-scroll-controls" data-scroll-target="${targetId}" aria-hidden="true">
+        <button class="deep-dive-scroll-btn" onclick="ResumeDeepDive.scrollColumn('${targetId}', -200)" title="Scroll up">↑</button>
+        <button class="deep-dive-scroll-btn" onclick="ResumeDeepDive.scrollColumn('${targetId}', 200)" title="Scroll down">↓</button>
+      </div>`;
   }
 
   async function send() {
@@ -417,6 +430,10 @@ ${data.resume_text}`;
     document.getElementById('deep-dive-chat-messages')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function scrollColumn(targetId, amount) {
+    document.getElementById(targetId)?.scrollBy({ top: amount, behavior: 'smooth' });
+  }
+
   function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -428,6 +445,7 @@ ${data.resume_text}`;
     const area = document.getElementById('deep-dive-chat-messages');
     if (area) area.innerHTML = _renderMessages(getData().deep_dive_conversation);
     _scrollChatToBottom();
+    _updateScrollControlsSoon();
   }
 
   function _rerenderAll() {
@@ -435,11 +453,30 @@ ${data.resume_text}`;
     _rerenderMessages();
     const list = document.getElementById('deep-dive-rewrite-list');
     if (list) list.innerHTML = _renderRewrites(data.suggested_rewrites);
+    _scrollRewritesToBottom();
+    _updateScrollControlsSoon();
   }
 
   function _scrollChatToBottom() {
     const area = document.getElementById('deep-dive-chat-messages');
     if (area) area.scrollTop = area.scrollHeight;
+  }
+
+  function _scrollRewritesToBottom() {
+    const list = document.getElementById('deep-dive-rewrite-list');
+    if (list) list.scrollTop = list.scrollHeight;
+  }
+
+  function _updateScrollControlsSoon() {
+    requestAnimationFrame(_updateScrollControls);
+  }
+
+  function _updateScrollControls() {
+    document.querySelectorAll('.deep-dive-scroll-controls').forEach(control => {
+      const target = document.getElementById(control.dataset.scrollTarget);
+      const scrollable = !!target && target.scrollHeight > target.clientHeight + 4;
+      control.classList.toggle('visible', scrollable);
+    });
   }
 
   async function _copyText(text) {
@@ -474,6 +511,7 @@ ${data.resume_text}`;
     send,
     handleKeyDown,
     scrollToSection,
+    scrollColumn,
     parseSuggestedRewrites,
     toggleRewriteAccepted,
     copyRewrite,
