@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JobSearchCoach</title>
-  <link rel="stylesheet" href="css/styles.css?v=35">
+  <link rel="stylesheet" href="css/styles.css?v=36">
 </head>
 <body>
 
@@ -62,6 +62,9 @@
       <div class="nav-section-label">Job Search</div>
       <div class="nav-item" data-view="resume">
         <span class="nav-icon">📄</span> Resume
+      </div>
+      <div class="nav-item" data-view="resume-deep-dive">
+        <span class="nav-icon">🔍</span> Resume Deep Dive
       </div>
       <div class="nav-item" data-view="jobs">
         <span class="nav-icon">📋</span> Applications
@@ -218,6 +221,11 @@
       <div id="resume-content"></div>
     </div>
 
+    <!-- RESUME DEEP DIVE -->
+    <div id="view-resume-deep-dive" class="view">
+      <div id="resume-deep-dive-content"></div>
+    </div>
+
     <!-- JOBS -->
     <div id="view-jobs" class="view">
       <div class="view-header">
@@ -255,10 +263,10 @@
 
 <!-- Scripts — order matters -->
 <script src="js/config.js?v=12"></script>
-<script src="js/storage.js?v=14"></script>
+<script src="js/storage.js?v=15"></script>
 <script src="js/drive.js?v=14"></script>
 <script src="js/milestones.js?v=14"></script>
-<script src="js/ui.js?v=15"></script>
+<script src="js/ui.js?v=16"></script>
 <script src="js/claude.js?v=12"></script>
 <script src="js/onboarding.js?v=16"></script>
 <script src="js/views/gauges.js?v=19"></script>
@@ -267,11 +275,12 @@
 <script src="js/views/workflow-pages.js?v=4"></script>
 <script src="js/views/job-target-tracker.js?v=1"></script>
 <script src="js/views/coach.js?v=12"></script>
-<script src="js/views/resume.js?v=14"></script>
+<script src="js/views/resume.js?v=16"></script>
+<script src="js/views/resume-deep-dive.js?v=1"></script>
 <script src="js/views/jobs.js?v=14"></script>
 <script src="js/views/report.js?v=15"></script>
-<script src="js/views/settings.js?v=19"></script>
-<script src="js/app.js?v=15"></script>
+<script src="js/views/settings.js?v=20"></script>
+<script src="js/app.js?v=16"></script>
 
 </body>
 </html>

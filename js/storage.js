@@ -8,6 +8,7 @@ const Storage = (() => {
     'jobs',
     'usc',
     'resume',
+    'deep_dive',
     'gauges',
     'job_target_tracker',
     'mission_discussion_dossier',

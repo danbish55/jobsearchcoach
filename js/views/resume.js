@@ -103,15 +103,11 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
     const container = document.getElementById('resume-content');
 
     const score = _calcScore(data);
-    const quote = _dailyQuote();
-    const quoteFontSize = _quoteFontSize(quote);
     const hasCoachRating = !!data.coach_feedback;
 
     container.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:16px;margin-bottom:24px">
-        <div class="resume-quote-card">
-          <p class="resume-quote-text" style="font-size:${quoteFontSize}px">&ldquo;${quote}&rdquo;</p>
-        </div>
+        ${_scoreComparisonPanel(score)}
 
         <div class="card">
           <div class="card-title" style="margin-bottom:6px">Overall Score</div>
@@ -166,6 +162,51 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
         ${data.coach_notes ? `<div class="coach-overall-note">${data.coach_notes}</div>` : ''}
         <div class="resume-sections" id="resume-sections">
           ${SECTIONS.map(s => _renderSection(s, data.sections[s.id] || 0, data.coach_feedback?.[s.id])).join('')}
+        </div>
+        ${_renderDeepDiveTrigger(hasCoachRating)}
+      </div>`;
+  }
+
+  function _scoreComparisonPanel(score) {
+    const deepDive = typeof ResumeDeepDive !== 'undefined' ? ResumeDeepDive.getData() : {};
+    const history = Array.isArray(deepDive.resume_score_history) ? deepDive.resume_score_history : [];
+    const latest = history[history.length - 1];
+    const previous = history.length > 1 ? history[history.length - 2] : null;
+    const hasRescore = !!(deepDive.deep_dive_completed && latest && previous);
+
+    if (!hasRescore) {
+      return `
+        <div class="resume-score-comparison-card">
+          <div class="card-title">Score Snapshot</div>
+          <div class="resume-score-comparison-current">${score}%</div>
+          <div class="resume-score-comparison-label">${_scoreLabel(score)}</div>
+          <div class="resume-score-comparison-message">
+            Complete a Deep Dive Interview to improve your score.
+          </div>
+          <div class="resume-score-comparison-arrow">↓</div>
+        </div>`;
+    }
+
+    const delta = latest.score - previous.score;
+    const improved = delta >= 0;
+    return `
+      <div class="resume-score-comparison-card">
+        <div class="card-title">Score Comparison</div>
+        <div class="resume-score-previous">Previous Score: ${previous.score}%</div>
+        <div class="resume-score-new ${improved ? 'improved' : 'lower'}">→ New Score: ${latest.score}%</div>
+        <div class="resume-score-delta ${improved ? 'improved' : 'lower'}">${delta >= 0 ? '+' : ''}${delta} points</div>
+        <div class="resume-score-date">${_formatDate(latest.date)}</div>
+      </div>`;
+  }
+
+  function _renderDeepDiveTrigger(hasCoachRating) {
+    return `
+      <div class="resume-deep-dive-trigger">
+        <button class="btn btn-gold" onclick="Resume.startDeepDive()" ${hasCoachRating ? '' : 'style="display:none"'}>
+          Start Deep Dive Interview — Improve Your Score
+        </button>
+        <div id="resume-deep-dive-inline-message" class="resume-deep-dive-inline-message ${hasCoachRating ? 'hidden' : ''}">
+          Rate your resume first — click 'Rate My Resume' above to get your initial score.
         </div>
       </div>`;
   }
@@ -237,7 +278,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
       Storage.set('resume', fresh);
       UI.notify('Resume loaded. Click "Rate My Resume" to get Coach feedback.', 'success');
     } catch (e) {
-      UI.notify('Could not read file — make sure it\'s a valid .docx or .pdf.', 'error');
+      UI.notify(`Could not read file: ${e.message || 'make sure it is a valid .docx or .pdf.'}`, 'error');
       _resumeText = '';
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
@@ -318,8 +359,8 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
           fresh.resume_text = resumeText;
           fresh.last_updated = new Date().toISOString();
           Storage.set('resume', fresh);
-        } catch {
-          UI.notify('Could not read that resume file. Please select a .docx or .pdf file and try again.', 'error');
+        } catch (e) {
+          UI.notify(`Could not read that resume file: ${e.message || 'please select a .docx or .pdf file and try again.'}`, 'error');
           if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
           return;
         }
@@ -339,26 +380,8 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
     const btn = document.getElementById('rate-resume-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Rating…'; }
 
-    const notes = data.notes ? `\n\nNotes from candidate: ${data.notes}` : '';
-
     try {
-      const res = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
-          max_tokens: 1400,
-          stream: false,
-          system: RATE_PROMPT,
-          messages: [{ role: 'user', content: `Rate this resume:${notes}\n\n${resumeText}` }],
-        }),
-      });
-
-      const payload = await res.json();
-      const raw = payload.content?.[0]?.text || '';
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('No JSON in response');
-      const result = JSON.parse(jsonMatch[0]);
+      const result = await rateResumeText(resumeText, data.notes);
 
       const fresh = Storage.get('resume', _defaultData());
       fresh.sections = { ..._defaultData().sections, ...(fresh.sections || {}) };
@@ -371,6 +394,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
       fresh.coach_notes = result.overall_notes || null;
       fresh.last_updated = new Date().toISOString();
       Storage.set('resume', fresh);
+      _ensureInitialScoreHistory(fresh);
 
       render();
       UI.updateSidebar();
@@ -399,6 +423,63 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
     return Math.round(weighted / totalWeight);
   }
 
+  async function rateResumeText(resumeText, notes = '') {
+    const noteText = notes ? `\n\nNotes from candidate: ${notes}` : '';
+    const res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1400,
+        stream: false,
+        system: RATE_PROMPT,
+        messages: [{ role: 'user', content: `Rate this resume:${noteText}\n\n${resumeText}` }],
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || err.error || 'Resume rating failed');
+    }
+
+    const payload = await res.json();
+    const raw = payload.content?.[0]?.text || '';
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON in response');
+    return JSON.parse(jsonMatch[0]);
+  }
+
+  function applyRatingResult(result, resumeText, fileName = '') {
+    const fresh = Storage.get('resume', _defaultData());
+    fresh.sections = { ..._defaultData().sections, ...(fresh.sections || {}) };
+    SECTIONS.forEach(s => {
+      const v = result.scores?.[s.id];
+      if (typeof v === 'number') fresh.sections[s.id] = Math.max(0, Math.min(100, Math.round(v)));
+    });
+    if (resumeText) fresh.resume_text = resumeText;
+    if (fileName) fresh.file_name = fileName;
+    fresh.coach_reviewed = true;
+    fresh.coach_feedback = result.feedback || null;
+    fresh.coach_notes = result.overall_notes || null;
+    fresh.last_updated = new Date().toISOString();
+    Storage.set('resume', fresh);
+    return fresh;
+  }
+
+  function _ensureInitialScoreHistory(data) {
+    if (typeof ResumeDeepDive === 'undefined') return;
+    const deepDive = ResumeDeepDive.getData();
+    const history = Array.isArray(deepDive.resume_score_history) ? deepDive.resume_score_history : [];
+    if (history.length > 0) return;
+    deepDive.resume_score_history = [{
+      version: 1,
+      score: _calcScore(data),
+      date: new Date().toISOString(),
+      section_scores: { ...(data.sections || {}) },
+    }];
+    Storage.set('deep_dive', deepDive);
+  }
+
   function _scoreLabel(score) {
     if (score < 30) return 'Needs Work';
     if (score < 60) return 'In Progress';
@@ -412,6 +493,15 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
     return `<div style="height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
       <div style="height:100%;width:${score}%;background:${color};border-radius:4px;transition:width 0.5s ease"></div>
     </div>`;
+  }
+
+  function _formatDate(value) {
+    if (!value) return '';
+    try {
+      return `Rescored ${new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } catch {
+      return '';
+    }
   }
 
   function updateSection(sectionId, value) {
@@ -457,5 +547,52 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
     Storage.set('resume', data);
   }
 
-  return { render, updateSection, toggleCoachReviewed, saveFileName, saveNotes, selectFile, onFileSelected, rateWithCoach, toggleComment };
+  function startDeepDive() {
+    const data = Storage.get('resume', _defaultData());
+    if (!data.coach_feedback || !_calcScore(data)) {
+      const msg = document.getElementById('resume-deep-dive-inline-message');
+      if (msg) msg.classList.remove('hidden');
+      UI.notify("Rate your resume first — click 'Rate My Resume' above to get your initial score.", 'info');
+      return;
+    }
+    if (typeof ResumeDeepDive !== 'undefined') ResumeDeepDive.seedFromResume(data);
+    App.navigate('resume-deep-dive');
+  }
+
+  function getCurrentData() {
+    return Storage.get('resume', _defaultData());
+  }
+
+  function getResumeText() {
+    const data = Storage.get('resume', _defaultData());
+    return _resumeText || data.resume_text || '';
+  }
+
+  function calcScore(data = Storage.get('resume', _defaultData())) {
+    return _calcScore(data);
+  }
+
+  function getSections() {
+    return SECTIONS.map(s => ({ ...s }));
+  }
+
+  return {
+    render,
+    updateSection,
+    toggleCoachReviewed,
+    saveFileName,
+    saveNotes,
+    selectFile,
+    onFileSelected,
+    rateWithCoach,
+    toggleComment,
+    startDeepDive,
+    getCurrentData,
+    getResumeText,
+    getSections,
+    calcScore,
+    rateResumeText,
+    applyRatingResult,
+    readResumeFile: _readResumeFile,
+  };
 })();

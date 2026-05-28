@@ -15,6 +15,7 @@ const Settings = (() => {
     'jobs',
     'usc',
     'resume',
+    'deep_dive',
     'sessions',
     'gauges',
     'job_target_tracker',
@@ -288,13 +289,14 @@ const Settings = (() => {
   function _collectData() {
     return {
       config_status: Config.get() || {},
-      theme: localStorage.getItem('jsc_theme') || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+      theme: localStorage.getItem('jsc_theme') || 'light',
       last_view: sessionStorage.getItem('jsc_last_view') || 'dashboard',
       profile:    Storage.get('profile', {}),
       milestones: Storage.get('milestones', {}),
       jobs:       Storage.get('jobs', {}),
       usc:        Storage.get('usc', {}),
       resume:     Storage.get('resume', {}),
+      deep_dive:  Storage.get('deep_dive', {}),
       gauges:     Storage.get('gauges', {}),
       job_target_tracker: Storage.get('job_target_tracker', {}),
       mission_discussions: {
@@ -337,6 +339,7 @@ const Settings = (() => {
       _restoreKey('jobs', data.jobs);
       _restoreKey('usc', data.usc);
       _restoreKey('resume', data.resume);
+      _restoreKey('deep_dive', data.deep_dive);
       _restoreKey('gauges', data.gauges);
       _restoreKey('job_target_tracker', data.job_target_tracker);
       _restoreKey('sessions', data.sessions);

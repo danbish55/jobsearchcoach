@@ -63,6 +63,7 @@ const App = (() => {
       case 'dashboard': Dashboard.render(); break;
       case 'coach':     /* Coach already initialized, messages persist */; break;
       case 'resume':    Resume.render(); break;
+      case 'resume-deep-dive': ResumeDeepDive.render(); break;
       case 'jobs':      Jobs.render(); break;
       case 'report':    Report.render(); break;
       case 'settings':  Settings.render(); break;

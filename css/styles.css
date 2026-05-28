@@ -1350,6 +1350,289 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
   line-height: 1.5;
 }
 
+/* === Resume Deep Dive === */
+.resume-score-comparison-card {
+  background: linear-gradient(135deg, var(--accent), #5b1420);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  min-height: 170px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.resume-score-comparison-current {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--gold);
+  margin-top: 10px;
+}
+.resume-score-comparison-label,
+.resume-score-previous,
+.resume-score-date {
+  color: rgba(255,255,255,0.72);
+  font-size: 13px;
+}
+.resume-score-comparison-message {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 220px;
+}
+.resume-score-comparison-arrow {
+  position: absolute;
+  right: 20px;
+  bottom: 14px;
+  font-size: 28px;
+  color: var(--gold);
+}
+.resume-score-new {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 800;
+}
+.resume-score-new.improved,
+.resume-score-delta.improved { color: var(--gold); }
+.resume-score-new.lower,
+.resume-score-delta.lower { color: var(--danger); }
+.resume-score-delta {
+  font-size: 34px;
+  font-weight: 900;
+  margin-top: 12px;
+}
+.resume-deep-dive-trigger {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.resume-deep-dive-inline-message {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.deep-dive-empty-state {
+  max-width: 620px;
+  margin: 80px auto;
+  text-align: center;
+  color: var(--text);
+}
+.deep-dive-empty-state h2 {
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+.deep-dive-empty-state p {
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.deep-dive-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.deep-dive-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.deep-dive-layout {
+  display: grid;
+  grid-template-columns: 25% 45% 30%;
+  gap: 14px;
+  min-height: 0;
+  flex: 1;
+}
+.deep-dive-resume-panel,
+.deep-dive-chat-panel,
+.deep-dive-rewrites-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: 0;
+}
+.deep-dive-resume-panel,
+.deep-dive-rewrites-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.deep-dive-panel-title {
+  padding: 14px 14px 10px;
+  font-weight: 800;
+  color: var(--gold);
+  border-bottom: 1px solid var(--border);
+}
+.deep-dive-section-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.deep-dive-section-link {
+  background: var(--gold-dim);
+  color: var(--gold);
+  border: 1px solid var(--gold-border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.deep-dive-resume-text,
+.deep-dive-rewrite-list,
+.deep-dive-chat-messages {
+  overflow-y: auto;
+  min-height: 0;
+}
+.deep-dive-resume-text {
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: rgba(0,0,0,0.08);
+}
+body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
+.deep-dive-resume-section { margin-bottom: 18px; }
+.deep-dive-resume-heading {
+  display: block;
+  background: none;
+  color: var(--gold);
+  font-weight: 800;
+  margin-bottom: 8px;
+  padding: 0;
+  text-align: left;
+}
+.deep-dive-resume-line {
+  color: var(--text);
+  margin-bottom: 5px;
+}
+.deep-dive-chat-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.deep-dive-chat-messages {
+  flex: 1;
+  padding: 18px;
+}
+.deep-dive-message {
+  display: flex;
+  margin-bottom: 12px;
+}
+.deep-dive-message.user { justify-content: flex-end; }
+.deep-dive-message-bubble {
+  max-width: 82%;
+  padding: 11px 13px;
+  border-radius: 12px;
+  line-height: 1.45;
+  font-size: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+}
+.deep-dive-message.user .deep-dive-message-bubble {
+  background: var(--gold-dim);
+  border-color: var(--gold-border);
+}
+.deep-dive-chat-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+.deep-dive-chat-input-row textarea {
+  resize: none;
+  min-height: 40px;
+  max-height: 120px;
+}
+.deep-dive-rewrite-list {
+  flex: 1;
+  padding: 12px;
+}
+.deep-dive-rewrite-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 12px;
+}
+.deep-dive-rewrite-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+  animation: rewriteFadeIn 0.25s ease;
+}
+@keyframes rewriteFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.deep-dive-rewrite-section {
+  color: var(--gold);
+  font-weight: 800;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.deep-dive-rewrite-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+.deep-dive-rewrite-before {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.deep-dive-rewrite-after {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.deep-dive-rewrite-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.deep-dive-build-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--card-bg);
+}
+.deep-dive-build-footer .btn { width: 100%; }
+.deep-dive-modal-body textarea {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.deep-dive-modal-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 8px 0 16px;
+}
+.deep-dive-rescore-box {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.deep-dive-rescore-box p {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 6px 0 10px;
+}
+
+@media (max-width: 1100px) {
+  .deep-dive-layout {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .deep-dive-resume-panel,
+  .deep-dive-chat-panel,
+  .deep-dive-rewrites-panel {
+    min-height: 420px;
+  }
+}
+
 /* === Jobs View === */
 .jobs-toolbar {
   display: flex;
