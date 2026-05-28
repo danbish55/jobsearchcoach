@@ -45,6 +45,7 @@ const UI = (() => {
 
     // USC gauge
     updateGauge();
+    updateMissionPageButtons();
   }
 
   function updateGauge() {
@@ -55,6 +56,7 @@ const UI = (() => {
     document.querySelectorAll('.nav-item').forEach(el => {
       el.classList.toggle('active', el.dataset.view === viewId);
     });
+    updateMissionPageButtons(viewId);
   }
 
   function showView(viewId) {
@@ -62,6 +64,31 @@ const UI = (() => {
     const el = document.getElementById(`view-${viewId}`);
     if (el) el.classList.add('active');
     setActiveNav(viewId);
+  }
+
+  function updateMissionPageButtons(viewId = App.getCurrentView?.()) {
+    const wrap = document.getElementById('sidebar-mission-pages');
+    const target = document.getElementById('sidebar-mission-page-buttons');
+    if (!wrap || !target || typeof Milestones === 'undefined') return;
+
+    const show = viewId === 'mission-discussion';
+    wrap.classList.toggle('hidden', !show);
+    if (!show) return;
+
+    const activeMission = typeof MissionDiscussion !== 'undefined'
+      ? MissionDiscussion.getCurrentMissionId()
+      : null;
+
+    target.innerHTML = Milestones.getDefs().map(m => `
+      <button class="sidebar-mission-page-btn ${m.id === activeMission ? 'active' : ''}"
+        onclick="MissionDiscussion.open('${m.id}')">
+        <span class="sidebar-mission-page-icon">${m.icon}</span>
+        <span>
+          <span class="sidebar-mission-page-code">${m.codename}</span>
+          <span class="sidebar-mission-page-title">${m.title}</span>
+        </span>
+      </button>
+    `).join('');
   }
 
   // Notifications

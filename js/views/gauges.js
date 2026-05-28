@@ -6,13 +6,13 @@ const Gauges = (() => {
     { id: 'followups',      label: 'Follow-Ups',      group: 'Job Search', type: 'weekly',    target: 10,  icon: '📨', validate: false },
     { id: 'interviews',     label: 'Interviews',      group: 'Job Search', type: 'cumulative',target: null,icon: '🎤', validate: true,
       placeholder: 'Company and role? What stage is this interview?' },
-    { id: 'usc_eller',      label: 'USC / Eller',     group: 'Networking', type: 'weekly',    target: 6,   icon: '🎓', validate: true,
+    { id: 'usc_eller',      label: 'USC / Eller',     displayLabel: 'USC ELLER Networking', group: 'Networking', type: 'weekly',    target: 6,   icon: '🎓', validate: true,
       placeholder: 'Who did you reach out to? Include their name and USC/Eller connection.' },
-    { id: 'networking',     label: 'Networking',      group: 'Networking', type: 'weekly',    target: 6,   icon: '🤝', validate: true,
+    { id: 'networking',     label: 'Networking',      displayLabel: 'General Networking', group: 'Networking', type: 'weekly',    target: 6,   icon: '🤝', validate: true,
       placeholder: 'Who did you connect with and how? Be specific.' },
     { id: 'interview_prep', label: 'Interview Prep',  group: 'Skills',     type: 'weekly',    target: 6,   icon: '🧠', validate: true,
       placeholder: 'What did you practice? (mock Q&A, case study, STAR story, research...)' },
-    { id: 'linkedin',       label: 'LinkedIn',        group: 'Skills',     type: 'weekly',    target: 6,   icon: '💼', validate: true,
+    { id: 'linkedin',       label: 'LinkedIn',        displayLabel: 'Linked In', group: 'Skills',     type: 'weekly',    target: 6,   icon: '💼', validate: true,
       placeholder: 'What did you do on LinkedIn? (post, comment, connection, DM...)' },
     { id: 'portfolio',      label: 'Portfolio',       group: 'Content',    type: 'cap',       target: 3,   icon: '🗂️', validate: false },
     { id: 'resume_variants',label: 'Resume Variants', group: 'Content',    type: 'cap',       target: 3,   icon: '📄', validate: false },
@@ -83,89 +83,91 @@ Rules:
 
   // ── Render ───────────────────────────────────────────────────────────────
 
+  function _speedometerHTML({ pct, value, target, meta, complete }) {
+    const safePct = Math.max(0, Math.min(100, pct || 0));
+    return `<div class="speedometer ${complete ? 'speedometer-complete' : ''}" aria-hidden="true">
+      <svg class="speedometer-svg" viewBox="0 0 120 76" role="img">
+        <path class="speedometer-track" pathLength="100" d="M18 64 A42 42 0 0 1 102 64"></path>
+        <path class="speedometer-fill" pathLength="100" d="M18 64 A42 42 0 0 1 102 64"
+          style="stroke-dasharray:${safePct} 100"></path>
+      </svg>
+      <div class="speedometer-readout">
+        <span class="speedometer-value">${value}</span>
+        ${target ? `<span class="speedometer-target">${target}</span>` : ''}
+      </div>
+      <div class="speedometer-meta">${meta}</div>
+    </div>`;
+  }
+
   function _renderCard(def) {
     const data = _getData();
 
     if (def.type === 'dual') {
-      const sh        = data.side_hustle || { income: 0, items: 0 };
-      const incomePct = Math.min(100, Math.round((sh.income / def.incomeTarget) * 100));
-      const itemsPct  = sh.items >= def.itemsTarget ? 100 : 0;
-      return `<div class="gauge-card gauge-card-featured" onclick="Gauges.openPanel('side_hustle')">
-        <div class="gauge-card-title">${def.icon} ${def.label}</div>
-        <div class="gauge-dual-bars">
-          <div class="gauge-dual-row">
-            <span class="gauge-dual-label">Income</span>
-            <span class="gauge-dual-value">$${sh.income}<span class="gauge-count-target"> / $${def.incomeTarget}</span></span>
-          </div>
-          <div class="gauge-bar-track">
-            <div class="gauge-bar-fill gauge-bar-income" style="width:${incomePct}%"></div>
-          </div>
-          <div class="gauge-dual-row" style="margin-top:10px">
-            <span class="gauge-dual-label">Portfolio Item</span>
-            <span class="gauge-dual-value">${sh.items}<span class="gauge-count-target"> / ${def.itemsTarget}</span></span>
-          </div>
-          <div class="gauge-bar-track">
-            <div class="gauge-bar-fill gauge-bar-items" style="width:${itemsPct}%"></div>
-          </div>
-        </div>
-        <div class="gauge-card-foot">this week</div>
+      const sh = data.side_hustle || { income: 0, items: 0 };
+      const pct = Math.min(100, Math.round((sh.income / def.incomeTarget) * 100));
+      const complete = sh.income >= def.incomeTarget && sh.items >= def.itemsTarget;
+
+      return `<div class="gauge-card${complete ? ' gauge-card-done' : ''}" onclick="Gauges.openPanel('${def.id}')">
+        <div class="gauge-card-title">${def.icon} ${def.displayLabel || def.label}</div>
+        ${_speedometerHTML({
+          pct,
+          value: `$${sh.income}`,
+          target: `/ $${def.incomeTarget}`,
+          meta: `${sh.items} / ${def.itemsTarget} portfolio`,
+          complete,
+        })}
       </div>`;
     }
 
     const val    = data[def.id] || 0;
-    let barPct   = 0, countHTML = '', foot = '';
+    let pct      = 0, valueText = '', targetText = '', foot = '';
     let atCap    = false;
 
     if (def.type === 'weekly') {
-      barPct    = Math.min(100, Math.round((val / def.target) * 100));
-      countHTML = `${val}<span class="gauge-count-target"> / ${def.target}</span>`;
-      foot      = 'this week';
-      atCap     = val >= def.target;
+      pct        = Math.min(100, Math.round((val / def.target) * 100));
+      valueText  = `${val}`;
+      targetText = `/ ${def.target}`;
+      foot       = 'this week';
+      atCap      = val >= def.target;
     } else if (def.type === 'cap') {
-      barPct    = Math.min(100, Math.round((val / def.target) * 100));
-      countHTML = `${val}<span class="gauge-count-target"> of ${def.target}</span>`;
-      foot      = 'cumulative';
-      atCap     = val >= def.target;
+      pct        = Math.min(100, Math.round((val / def.target) * 100));
+      valueText  = `${val}`;
+      targetText = `of ${def.target}`;
+      foot       = 'cumulative';
+      atCap      = val >= def.target;
     } else {
-      countHTML = `${val}`;
-      foot      = 'total';
+      pct        = val > 0 ? 100 : 0;
+      valueText  = `${val}`;
+      foot       = 'total';
     }
 
-    const barHTML = def.type !== 'cumulative'
-      ? `<div class="gauge-bar-track"><div class="gauge-bar-fill${atCap ? ' gauge-bar-complete' : ''}" style="width:${barPct}%"></div></div>`
-      : `<div style="height:4px"></div>`;
-
     return `<div class="gauge-card${atCap ? ' gauge-card-done' : ''}" onclick="Gauges.openPanel('${def.id}')">
-      <div class="gauge-card-title">${def.icon} ${def.label}</div>
-      <div class="gauge-card-count">${countHTML}</div>
-      ${barHTML}
-      <div class="gauge-card-foot">${foot}</div>
+      <div class="gauge-card-title">${def.icon} ${def.displayLabel || def.label}</div>
+      ${_speedometerHTML({
+        pct,
+        value: valueText,
+        target: targetText,
+        meta: foot,
+        complete: atCap,
+      })}
     </div>`;
   }
 
   // Returns the inner HTML for #gauge-band-container
   function renderBand() {
-    const grouped = {};
-    GAUGE_DEFS.forEach(d => {
-      if (!grouped[d.group]) grouped[d.group] = [];
-      grouped[d.group].push(d);
-    });
+    const byId = Object.fromEntries(GAUGE_DEFS.map(def => [def.id, def]));
+    const rows = [
+      ['resume_variants', 'portfolio', 'side_hustle'],
+      ['networking', 'usc_eller', 'linkedin'],
+      ['apps', 'followups', 'interview_prep', 'interviews'],
+    ];
 
-    const row1 = ['Job Search', 'Networking', 'Skills'];
-    const row2 = ['Content'];  // Side Hustle lives next to Current Mission card
-
-    const renderRow = (groups) =>
-      `<div class="gauge-band-row">${
-        groups.map(g => `
-          <div class="gauge-section">
-            <div class="gauge-section-label">${g}</div>
-            <div class="gauge-cards-row">
-              ${(grouped[g] || []).map(def => _renderCard(def)).join('')}
-            </div>
-          </div>`).join('')
-      }</div>`;
-
-    return renderRow(row1) + renderRow(row2);
+    return `<img class="gauge-band-mark" src="assets/usc-trojan-logo-transparent.png" alt="">
+      <div class="gauge-grid">
+      ${rows.map(row => `<div class="gauge-grid-row">
+        ${row.map(id => _renderCard(byId[id])).join('')}
+      </div>`).join('')}
+    </div>`;
   }
 
   function renderSideHustlePanel() {

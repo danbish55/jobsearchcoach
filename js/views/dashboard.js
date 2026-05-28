@@ -46,27 +46,20 @@ const Dashboard = (() => {
     }).join('');
 
     document.getElementById('dash-mission-card').innerHTML = `
-      <div style="display:flex;gap:20px;margin-bottom:24px;align-items:stretch">
-        <div style="flex:2;min-width:0">
-          <div class="mission-card" style="height:100%;margin-bottom:0;box-sizing:border-box">
-            <div class="mission-codename">CURRENT MISSION: ${mission.codename}</div>
-            <div class="mission-title">${mission.title}</div>
-            <div class="mission-briefing">"${mission.briefing}"</div>
-            <div style="margin-bottom:16px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                <span style="font-size:12px;color:var(--text-muted)">Mission Progress</span>
-                <span style="font-size:12px;font-weight:700;color:var(--gold)">${progress.pct}%</span>
-              </div>
-              <div class="mission-progress-bar" style="height:6px">
-                <div class="mission-progress-fill" style="width:${progress.pct}%"></div>
-              </div>
-            </div>
-            <div class="mission-tasks">${tasksHTML}</div>
+      <div class="mission-card">
+        <div class="mission-codename">CURRENT MISSION: ${mission.codename}</div>
+        <div class="mission-title">${mission.title}</div>
+        <div class="mission-briefing">"${mission.briefing}"</div>
+        <div style="margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:12px;color:var(--text-muted)">Mission Progress</span>
+            <span style="font-size:12px;font-weight:700;color:var(--gold)">${progress.pct}%</span>
+          </div>
+          <div class="mission-progress-bar" style="height:6px">
+            <div class="mission-progress-fill" style="width:${progress.pct}%"></div>
           </div>
         </div>
-        <div id="side-hustle-panel" style="flex:1;min-width:0;display:flex;flex-direction:column">
-          ${Gauges.renderSideHustlePanel()}
-        </div>
+        <div class="mission-tasks">${tasksHTML}</div>
       </div>`;
   }
 
@@ -77,13 +70,13 @@ const Dashboard = (() => {
       const progress = Milestones.getMissionProgress(m.id);
       const isCurrent = !state.complete && m.id === Milestones.getCurrentMission().id;
 
-      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:16px">${state.complete ? '✅' : isCurrent ? '🎯' : '🔒'}</span>
+      return `<div class="mission-list-item" onclick="MissionDiscussion.open('${m.id}')">
+        <span style="font-size:14px">${m.icon}</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:700;color:${state.complete ? 'var(--success)' : isCurrent ? 'var(--gold)' : 'var(--text-muted)'}">${m.codename}</div>
-          <div style="font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.title}</div>
+          <div style="font-size:10px;font-weight:700;color:${state.complete ? 'var(--success)' : isCurrent ? 'var(--gold)' : 'var(--text-muted)'}">${m.codename}</div>
+          <div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.title}</div>
         </div>
-        ${!state.complete ? `<div style="font-size:11px;color:var(--text-muted)">${progress.pct}%</div>` : ''}
+        ${!state.complete ? `<div style="font-size:10px;color:var(--text-muted)">${progress.pct}%</div>` : ''}
       </div>`;
     }).join('');
 

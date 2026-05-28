@@ -66,6 +66,7 @@ const App = (() => {
       case 'jobs':      Jobs.render(); break;
       case 'report':    Report.render(); break;
       case 'settings':  Settings.render(); break;
+      case 'mission-discussion': MissionDiscussion.render(); break;
     }
   }
 
