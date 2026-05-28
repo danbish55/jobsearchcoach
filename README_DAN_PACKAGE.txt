@@ -1,6 +1,6 @@
 Build Corinne's Mac Package
 
-Before building the package, create a Google OAuth credential:
+Before building the final package, create a Google OAuth credential:
 - Application type: Desktop app
 - Enable Google Drive API
 - The app uses Drive app data scope
@@ -11,6 +11,7 @@ Build from PowerShell:
    powershell -ExecutionPolicy Bypass -File tools\build_corinne_package.ps1
 
 2. Paste the Google OAuth Desktop Client ID and Client Secret when asked.
+   For a work-computer test package, you can press Enter for both and connect Drive later from Settings.
 
 3. Send Corinne:
    dist\JobSearchCoach-Corinne.zip

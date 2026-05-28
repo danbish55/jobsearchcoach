@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Build a Mac-friendly JobSearchCoach package for Corinne.
 
-Required environment variables:
+Optional environment variables:
   JSC_GOOGLE_CLIENT_ID
   JSC_GOOGLE_CLIENT_SECRET
-
-Optional:
   JSC_PACKAGE_NAME
 """
 
@@ -27,11 +25,8 @@ EXCLUDE_DIRS = {".git", "dist", "tools", "__pycache__"}
 EXCLUDE_FILES = {"config.json", "launcher.bat"}
 
 
-def require_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-      raise SystemExit(f"Missing required environment variable: {name}")
-    return value
+def optional_env(name: str) -> str:
+    return os.environ.get(name, "").strip()
 
 
 def should_copy(path: Path) -> bool:
@@ -56,8 +51,8 @@ def copy_tree(target: Path) -> None:
 def write_config(target: Path) -> None:
     config = {
         "anthropic_api_key": "",
-        "google_client_id": require_env("JSC_GOOGLE_CLIENT_ID"),
-        "google_client_secret": require_env("JSC_GOOGLE_CLIENT_SECRET"),
+        "google_client_id": optional_env("JSC_GOOGLE_CLIENT_ID"),
+        "google_client_secret": optional_env("JSC_GOOGLE_CLIENT_SECRET"),
         "profile_complete": False,
     }
     (target / "config.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
