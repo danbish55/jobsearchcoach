@@ -8,7 +8,7 @@ const Milestones = (() => {
       title: 'Resume Dossier Complete',
       icon: '📁',
       briefing: 'Every field agent needs a bulletproof cover identity. Your resume is that identity — it must be sharp, tailored, and error-free.',
-      nextBriefing: 'Intelligence network next. No agent operates alone.',
+      nextBriefing: 'Dossier secured. Take a short 007 First Light break and run a clean stealth route. You earned a little Q Branch downtime before the next operation.',
       tasks: [
         { id: 'resume_draft',     label: 'Resume draft complete' },
         { id: 'coach_reviewed',   label: 'Coach has reviewed your resume' },
@@ -22,7 +22,7 @@ const Milestones = (() => {
       title: 'Intelligence Network Established',
       icon: '🕸️',
       briefing: 'Classified intelligence travels through people, not job boards. Build your network of contacts inside your target companies.',
-      nextBriefing: 'Network secured. Time to go operational — deploy applications.',
+      nextBriefing: 'Network mapped. Step away for a mission or two in First Light. Good agents know when to gather intel, when to move, and when to recharge.',
       tasks: [
         { id: 'linkedin_updated', label: 'LinkedIn profile updated' },
         { id: 'alumni_5',         label: '5 USC alumni messaged' },
@@ -36,7 +36,7 @@ const Milestones = (() => {
       title: 'Applications Deployed',
       icon: '🚀',
       briefing: 'Covert operations require volume and precision. Get your applications into the field. Quality AND quantity both matter.',
-      nextBriefing: 'Applications are live. Prepare for incoming contact — they will call.',
+      nextBriefing: 'Applications deployed. Cue the cinematic driving sequence: you handled the chase, now take the wheel in First Light and let the next signal come in.',
       tasks: [
         { id: 'first_app',  label: 'First application submitted' },
         { id: 'apps_10',    label: '10 applications submitted' },
@@ -49,7 +49,7 @@ const Milestones = (() => {
       title: 'Field Interrogation Survived',
       icon: '🎤',
       briefing: 'They want to know if you are the right asset. Prove it. Tell your story with confidence. Prepare your answers. Know the company cold.',
-      nextBriefing: 'You passed interrogation. Now: secure your terms.',
+      nextBriefing: 'Interrogation survived. Go enjoy a clean gadget play or Q-Watch trick in First Light. You stayed composed under pressure, exactly like the job required.',
       tasks: [
         { id: 'phone_screen',    label: 'Phone screen completed' },
         { id: 'formal_interview', label: 'Full interview completed' },
@@ -62,7 +62,7 @@ const Milestones = (() => {
       title: 'Terms Secured',
       icon: '🤝',
       briefing: 'Never accept the first offer. You have leverage — use it calmly and professionally. Know your number. State your case. Get what you deserve.',
-      nextBriefing: 'Terms accepted. Mission complete — report to HQ.',
+      nextBriefing: 'Terms secured. That was the boss-level negotiation. Take your victory lap in First Light before reporting back to HQ for extraction.',
       tasks: [
         { id: 'offer_received',  label: 'Offer received' },
         { id: 'counter_made',    label: 'Negotiation strategy executed' },
@@ -75,7 +75,7 @@ const Milestones = (() => {
       title: 'Mission Complete: Placed',
       icon: '🏆',
       briefing: 'Agent, you have successfully completed your mission. You have secured your position. The world is your next assignment.',
-      nextBriefing: 'Congratulations. Report back to update your Coach on how you are settling in.',
+      nextBriefing: 'Placed and extracted. Full 00 status earned. Take the night off, play First Light, and enjoy the part where all that effort turns into freedom.',
       tasks: [
         { id: 'start_confirmed', label: 'Start date confirmed' },
         { id: 'first_day',       label: 'First day completed' },
@@ -88,6 +88,7 @@ const Milestones = (() => {
 
   function _defaultData() {
     return {
+      active_mission_id: null,
       missions: MISSION_DEFS.reduce((acc, m) => {
         acc[m.id] = {
           complete: false,
@@ -101,6 +102,7 @@ const Milestones = (() => {
 
   function init() {
     _data = Storage.get('milestones', _defaultData());
+    if (_data.active_mission_id === undefined) _data.active_mission_id = null;
     // Ensure all mission defs exist (handles app updates adding new missions)
     for (const m of MISSION_DEFS) {
       if (!_data.missions[m.id]) {
@@ -135,11 +137,25 @@ const Milestones = (() => {
   }
 
   // Returns the first incomplete mission
-  function getCurrentMission() {
+  function _firstIncompleteMission() {
     for (const def of MISSION_DEFS) {
       if (!getMissionState(def.id).complete) return def;
     }
-    return MISSION_DEFS[MISSION_DEFS.length - 1]; // all done — show last
+    return MISSION_DEFS[MISSION_DEFS.length - 1]; // all done - show last
+  }
+
+  // Returns the manually selected mission, or the first incomplete mission.
+  function getCurrentMission() {
+    const active = MISSION_DEFS.find(def => def.id === _data.active_mission_id);
+    return active || _firstIncompleteMission();
+  }
+
+  function setCurrentMission(missionId) {
+    const def = MISSION_DEFS.find(m => m.id === missionId);
+    if (!def) return null;
+    _data.active_mission_id = missionId;
+    _save();
+    return def;
   }
 
   function toggleTask(missionId, taskId) {
@@ -154,8 +170,16 @@ const Milestones = (() => {
       if (allDone && !state.complete) {
         state.complete = true;
         state.unlocked_at = new Date().toISOString();
+        if (_data.active_mission_id === missionId) {
+          _data.active_mission_id = _firstIncompleteMission().id;
+        }
         _save();
         return { justCompleted: true, mission: def };
+      }
+      if (!allDone && state.complete) {
+        state.complete = false;
+        state.unlocked_at = null;
+        _data.active_mission_id = missionId;
       }
     }
     _save();
@@ -182,5 +206,5 @@ const Milestones = (() => {
 Overall progress: ${overall.done}/${overall.total} missions complete.${completedNames ? `\nCompleted missions: ${completedNames}.` : ''}`;
   }
 
-  return { init, getDefs, getMissionState, getMissionProgress, getCurrentMission, toggleTask, getOverallProgress, buildContextSummary };
+  return { init, getDefs, getMissionState, getMissionProgress, getCurrentMission, setCurrentMission, toggleTask, getOverallProgress, buildContextSummary };
 })();

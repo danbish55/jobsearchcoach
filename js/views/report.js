@@ -1,5 +1,10 @@
 /* Progress Report — mailto generator */
 const Report = (() => {
+  const DEFAULT_CONTACTS = {
+    name: 'Corinne',
+    parent1_email: 'contact@example.com',
+    parent2_email: 'supporter@example.com',
+  };
 
   const STATUSES = ['applied','phone','interview','offer','rejected'];
   const STATUS_LABELS = { applied:'Applied', phone:'Phone Screen', interview:'Interview', offer:'Offer', rejected:'Passed' };
@@ -39,17 +44,14 @@ const Report = (() => {
 
     const parent1Name = profile.parent1_name || 'Dad';
     const parent2Name = profile.parent2_name || 'Mom';
-    const hasParent2  = !!profile.parent2_email;
 
     // Auto-detect on first load; preserve user choices on re-render
     if (!_includes) _includes = _autoDetect();
 
     const pills = [
       { value: 'parent1', name: parent1Name },
-      ...(hasParent2 ? [
-        { value: 'parent2', name: parent2Name },
-        { value: 'both',    name: 'Both' },
-      ] : []),
+      { value: 'parent2', name: parent2Name },
+      { value: 'both',    name: 'Both' },
     ];
 
     container.innerHTML = `
@@ -90,12 +92,12 @@ const Report = (() => {
         </div>
 
         <div style="display:flex;gap:10px">
-          <button class="btn btn-primary" onclick="Report.send()">📨 Open in Email Client</button>
+          <button class="btn btn-primary" onclick="Report.send()">📨 Open in Gmail</button>
           <button class="btn btn-ghost" onclick="Report.copyToClipboard()">📋 Copy to Clipboard</button>
         </div>
 
         <div style="font-size:12px;color:var(--text-muted);margin-top:10px">
-          Opens your default email app with the report pre-filled. You can edit before sending.
+          Opens Gmail with the report pre-filled. You can edit before sending.
         </div>
       </div>`;
 
@@ -209,9 +211,11 @@ const Report = (() => {
 
   function _getRecipientEmails() {
     const profile = Storage.get('profile', {});
-    if (_recipient === 'parent1') return [profile.parent1_email].filter(Boolean);
-    if (_recipient === 'parent2') return [profile.parent2_email].filter(Boolean);
-    return [profile.parent1_email, profile.parent2_email].filter(Boolean);
+    const parent1 = profile.parent1_email || DEFAULT_CONTACTS.parent1_email;
+    const parent2 = profile.parent2_email || DEFAULT_CONTACTS.parent2_email;
+    if (_recipient === 'parent1') return [parent1].filter(Boolean);
+    if (_recipient === 'parent2') return [parent2].filter(Boolean);
+    return [parent1, parent2].filter(Boolean);
   }
 
   function send() {
@@ -224,9 +228,10 @@ const Report = (() => {
     const report  = _buildReport();
     const subject = encodeURIComponent(`${profile.name || 'Corinne'}'s Job Search Update — ${new Date().toLocaleDateString()}`);
     const body    = encodeURIComponent(report);
-    const to      = emails.map(encodeURIComponent).join(',');
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
-    UI.notify('Opening your email client...', 'success');
+    const to      = encodeURIComponent(emails.join(','));
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, '_blank', 'noopener');
+    UI.notify('Opening Gmail...', 'success');
   }
 
   function copyToClipboard() {

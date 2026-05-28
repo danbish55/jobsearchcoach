@@ -3,7 +3,7 @@ const UI = (() => {
 
   function init() {
     // Wire up sidebar nav
-    document.querySelectorAll('.nav-item[data-view]').forEach(el => {
+    document.querySelectorAll('[data-view]').forEach(el => {
       el.addEventListener('click', () => App.navigate(el.dataset.view));
     });
     loadTheme();
@@ -33,7 +33,7 @@ const UI = (() => {
   function updateSidebar() {
     const profile = Storage.get('profile', {});
     const nameEl = document.getElementById('sidebar-user-name');
-    if (nameEl) nameEl.textContent = profile.name ? `Hi, ${profile.name} 👋` : 'Welcome!';
+    if (nameEl) nameEl.textContent = profile.name ? `Hi, ${profile.name}` : 'Welcome!';
 
     // Mission progress
     const currentMission = Milestones.getCurrentMission();
@@ -53,7 +53,7 @@ const UI = (() => {
   }
 
   function setActiveNav(viewId) {
-    document.querySelectorAll('.nav-item').forEach(el => {
+    document.querySelectorAll('.nav-item, .sidebar-icon-btn[data-view]').forEach(el => {
       el.classList.toggle('active', el.dataset.view === viewId);
     });
     updateMissionPageButtons(viewId);

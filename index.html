@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JobSearchCoach</title>
-  <link rel="stylesheet" href="css/styles.css?v=24">
+  <link rel="stylesheet" href="css/styles.css?v=33">
 </head>
 <body>
 
@@ -22,7 +22,7 @@
     <div class="mission-complete-title" id="mc-title">Mission Complete</div>
     <div class="mission-complete-sub" id="mc-sub"></div>
     <div class="mission-complete-next" id="mc-next"></div>
-    <button class="btn btn-gold" onclick="UI.closeMissionComplete()">Continue to Next Mission ›</button>
+    <button class="btn btn-gold mission-break-btn" onclick="UI.closeMissionComplete()">Start the Debrief Break</button>
   </div>
 </div>
 
@@ -42,8 +42,25 @@
       <div class="sidebar-logo-sub" id="sidebar-user-name">Loading...</div>
     </div>
 
+    <!-- Current mission indicator -->
+    <div class="sidebar-mission" id="sidebar-mission">
+      <div class="sidebar-mission-label">Current Mission</div>
+      <div class="sidebar-mission-name" id="sidebar-mission-name">DOSSIER</div>
+      <div class="mission-progress-bar">
+        <div class="mission-progress-fill" id="sidebar-mission-progress" style="width:0%"></div>
+      </div>
+    </div>
+
     <div class="sidebar-nav">
-      <div class="nav-section-label">Overview</div>
+      <div class="nav-section-header">
+        <div class="nav-section-label">Overview</div>
+        <div class="sidebar-top-actions">
+          <button class="sidebar-icon-btn" data-view="settings" aria-label="Settings" title="Settings">⚙️</button>
+          <button class="sidebar-icon-btn theme-toggle" onclick="UI.toggleTheme()" aria-label="Toggle theme" title="Toggle light/dark mode">
+            <span class="theme-toggle-icon" id="theme-icon">🌙</span>
+          </button>
+        </div>
+      </div>
       <div class="nav-item active" data-view="dashboard">
         <span class="nav-icon">🏠</span> Dashboard
       </div>
@@ -58,33 +75,36 @@
       <div class="nav-item" data-view="jobs">
         <span class="nav-icon">📋</span> Applications
       </div>
+      <div class="nav-item" data-view="workflow-followups">
+        <span class="nav-icon">📞</span> Follow Ups
+      </div>
+      <div class="nav-item" data-view="workflow-networking">
+        <span class="nav-icon">🤝</span> Networking &mdash; General
+      </div>
+      <div class="nav-item" data-view="workflow-usc-eller">
+        <span class="nav-icon">🎓</span> USC/Eller Networking
+      </div>
+      <div class="nav-item" data-view="workflow-interview-prep">
+        <span class="nav-icon">🎤</span> Interview Prep
+      </div>
+      <div class="nav-item" data-view="workflow-linkedin">
+        <span class="nav-icon">🔗</span> LinkedIn Activity
+      </div>
+      <div class="nav-item" data-view="workflow-side-hustle">
+        <span class="nav-icon">💵</span> Side Hustle
+      </div>
+      <div class="nav-item" data-view="job-target-tracker">
+        <span class="nav-icon">🎯</span> Job Target Tracker
+      </div>
 
       <div class="nav-section-label">Reports</div>
       <div class="nav-item" data-view="report">
         <span class="nav-icon">📨</span> Progress Report
       </div>
-      <div class="nav-item" data-view="settings">
-        <span class="nav-icon">⚙️</span> Settings
-      </div>
       <div class="sidebar-mission-pages hidden" id="sidebar-mission-pages">
         <div class="nav-section-label">Mission Pages</div>
         <div id="sidebar-mission-page-buttons"></div>
       </div>
-    </div>
-
-    <!-- Current mission indicator -->
-    <div class="sidebar-mission" id="sidebar-mission">
-      <div class="sidebar-mission-label">Current Mission</div>
-      <div class="sidebar-mission-name" id="sidebar-mission-name">DOSSIER</div>
-      <div class="mission-progress-bar">
-        <div class="mission-progress-fill" id="sidebar-mission-progress" style="width:0%"></div>
-      </div>
-    </div>
-
-    <!-- Theme toggle -->
-    <div class="theme-toggle" onclick="UI.toggleTheme()">
-      <span class="theme-toggle-icon" id="theme-icon">🌙</span>
-      <span id="theme-label">Dark mode</span>
     </div>
 
   </nav>
@@ -136,6 +156,29 @@
     <!-- MISSION DISCUSSION -->
     <div id="view-mission-discussion" class="view">
       <div id="mission-discussion-root"></div>
+    </div>
+
+    <!-- GUIDED WORKFLOW PAGES -->
+    <div id="view-workflow-followups" class="view workflow-view">
+      <div id="workflow-followups-content"></div>
+    </div>
+    <div id="view-workflow-networking" class="view workflow-view">
+      <div id="workflow-networking-content"></div>
+    </div>
+    <div id="view-workflow-usc-eller" class="view workflow-view">
+      <div id="workflow-usc-eller-content"></div>
+    </div>
+    <div id="view-workflow-interview-prep" class="view workflow-view">
+      <div id="workflow-interview-prep-content"></div>
+    </div>
+    <div id="view-workflow-linkedin" class="view workflow-view">
+      <div id="workflow-linkedin-content"></div>
+    </div>
+    <div id="view-workflow-side-hustle" class="view workflow-view">
+      <div id="workflow-side-hustle-content"></div>
+    </div>
+    <div id="view-job-target-tracker" class="view">
+      <div id="job-target-tracker-content"></div>
     </div>
 
     <!-- COACH -->
@@ -221,21 +264,23 @@
 
 <!-- Scripts — order matters -->
 <script src="js/config.js?v=12"></script>
-<script src="js/storage.js?v=12"></script>
-<script src="js/drive.js?v=12"></script>
-<script src="js/milestones.js?v=12"></script>
-<script src="js/ui.js?v=13"></script>
+<script src="js/storage.js?v=14"></script>
+<script src="js/drive.js?v=14"></script>
+<script src="js/milestones.js?v=14"></script>
+<script src="js/ui.js?v=14"></script>
 <script src="js/claude.js?v=12"></script>
-<script src="js/onboarding.js?v=12"></script>
-<script src="js/views/gauges.js?v=16"></script>
+<script src="js/onboarding.js?v=16"></script>
+<script src="js/views/gauges.js?v=19"></script>
 <script src="js/views/dashboard.js?v=17"></script>
-<script src="js/views/mission-discussion.js?v=5"></script>
+<script src="js/views/mission-discussion.js?v=9"></script>
+<script src="js/views/workflow-pages.js?v=4"></script>
+<script src="js/views/job-target-tracker.js?v=1"></script>
 <script src="js/views/coach.js?v=12"></script>
 <script src="js/views/resume.js?v=12"></script>
-<script src="js/views/jobs.js?v=12"></script>
-<script src="js/views/report.js?v=12"></script>
-<script src="js/views/settings.js?v=12"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/views/jobs.js?v=14"></script>
+<script src="js/views/report.js?v=15"></script>
+<script src="js/views/settings.js?v=17"></script>
+<script src="js/app.js?v=15"></script>
 
 </body>
 </html>

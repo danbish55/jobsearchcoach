@@ -1,5 +1,8 @@
 # Never commit secrets
 config.json
+dist/
+__pycache__/
+*.pyc
 
 # OS
 .DS_Store

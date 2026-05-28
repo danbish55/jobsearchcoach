@@ -3,26 +3,38 @@ const MissionDiscussion = (() => {
   let _missionId = 'dossier';
   let _messages = [];
   let _loading = false;
+  let _currentQuote = '';
+
+  const MOTIVATION_QUOTES = [
+    'Your next breakthrough is just around the corner.',
+    'Believe in yourself. Your hard work will pay off.',
+    'Every effort matters. You are closer than yesterday.',
+    'All you need is for just one person to say yes.',
+    'Step outside your comfort zone and take that chance.',
+    'Progress over perfection. Just keep moving today.',
+    'Your resilience is your superpower. Keep moving forward!',
+    'Fight on to victory. Your next offer is waiting.',
+  ];
 
   const RESOURCE_LINKS = {
     dossier: [
       ['Harvard resume guide', 'https://careerservices.fas.harvard.edu/resources/bullet-point-resume-template/'],
-      ['USC Career Center resumes', 'https://careers.usc.edu/resources/resumes/'],
+      ['USC resume resources', 'https://careers.usc.edu/resources/resume-cover-letter-and-c-v-resources/'],
     ],
     network: [
-      ['USC Career Center networking', 'https://careers.usc.edu/resources/networking/'],
+      ['USC networking resources', 'https://careers.usc.edu/channels/network/'],
       ['LinkedIn alumni search', 'https://www.linkedin.com/school/usc/people/'],
     ],
     deploy: [
-      ['Indeed application tracking tips', 'https://www.indeed.com/career-advice/finding-a-job/job-application-tracker'],
+      ['Application tracker guide', 'https://applyarc.io/blog/job-application-tracker-template'],
       ['The Muse job search guide', 'https://www.themuse.com/advice/job-search'],
     ],
     interview: [
-      ['Big Interview answer guide', 'https://resources.biginterview.com/interviews-101/'],
+      ['Big Interview behavioral guide', 'https://www.biginterview.com/resources/behavioral-interview'],
       ['Google interview warmup', 'https://grow.google/certificates/interview-warmup/'],
     ],
     negotiate: [
-      ['Harvard salary negotiation', 'https://careerservices.fas.harvard.edu/blog/2023/06/07/salary-negotiation/'],
+      ['Harvard salary negotiation', 'https://www.pon.harvard.edu/daily/salary-negotiations/negotiating-for-a-higher-salary/'],
       ['Levels.fyi compensation data', 'https://www.levels.fyi/'],
     ],
     extraction: [
@@ -60,6 +72,8 @@ const MissionDiscussion = (() => {
 
   function open(missionId) {
     _missionId = missionId;
+    _currentQuote = _randomQuote(_currentQuote);
+    Milestones.setCurrentMission(missionId);
     _messages = _cleanMessages(Storage.get(`mission_discussion_${missionId}`, []));
     _save();
     App.navigate('mission-discussion');
@@ -70,7 +84,7 @@ const MissionDiscussion = (() => {
     const mission = _getMission();
     const root = document.getElementById('mission-discussion-root');
     if (!root || !mission) return;
-
+    if (!_currentQuote) _currentQuote = _randomQuote();
     root.innerHTML = `
       <div class="mission-discussion-shell">
         <div class="mission-discussion-header">
@@ -80,13 +94,20 @@ const MissionDiscussion = (() => {
             <div class="mission-discussion-title">${mission.title}</div>
             <div class="mission-discussion-brief">${mission.briefing}</div>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="MissionDiscussion.restart()">New Prompt</button>
+          <div class="mission-discussion-actions">
+            <button class="btn btn-ghost btn-sm" onclick="MissionDiscussion.restart()">New Prompt</button>
+          </div>
         </div>
 
         <div class="mission-discussion-body">
-          <div class="mission-resource-panel">
-            <div class="card-title">Resources</div>
-            ${_resourceHTML(mission.id)}
+          <div class="mission-left-panel">
+            <div class="resume-quote-card mission-quote-card">
+              <p class="resume-quote-text">&ldquo;${_escape(_currentQuote)}&rdquo;</p>
+            </div>
+            <div class="mission-resource-panel">
+              <div class="card-title">Resources</div>
+              ${_resourceHTML(mission.id)}
+            </div>
           </div>
 
           <div class="mission-chat-panel">
@@ -198,6 +219,15 @@ Respond like a thoughtful career coach. Acknowledge what she said, offer practic
     const starters = FALLBACK_STARTERS[mission.id] || FALLBACK_STARTERS.dossier;
     const thought = starters[Math.floor(Math.random() * starters.length)];
     return thought;
+  }
+
+  function _randomQuote(previous) {
+    if (MOTIVATION_QUOTES.length < 2) return MOTIVATION_QUOTES[0] || '';
+    let next = previous;
+    while (next === previous) {
+      next = MOTIVATION_QUOTES[Math.floor(Math.random() * MOTIVATION_QUOTES.length)];
+    }
+    return next;
   }
 
   function _fallbackReply(mission, userText) {

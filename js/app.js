@@ -67,6 +67,17 @@ const App = (() => {
       case 'report':    Report.render(); break;
       case 'settings':  Settings.render(); break;
       case 'mission-discussion': MissionDiscussion.render(); break;
+      case 'workflow-followups':
+      case 'workflow-networking':
+      case 'workflow-usc-eller':
+      case 'workflow-interview-prep':
+      case 'workflow-linkedin':
+      case 'workflow-side-hustle':
+        WorkflowPages.render(viewId);
+        break;
+      case 'job-target-tracker':
+        JobTargetTracker.render();
+        break;
     }
   }
 

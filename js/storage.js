@@ -1,6 +1,22 @@
 /* Storage — localStorage primary, Google Drive sync layer */
 const Storage = (() => {
   const PREFIX = 'jsc_';
+  const DRIVE_KEYS = [
+    'profile',
+    'sessions',
+    'milestones',
+    'jobs',
+    'usc',
+    'resume',
+    'gauges',
+    'job_target_tracker',
+    'mission_discussion_dossier',
+    'mission_discussion_network',
+    'mission_discussion_deploy',
+    'mission_discussion_interview',
+    'mission_discussion_negotiate',
+    'mission_discussion_extraction',
+  ];
 
   function get(key, fallback = null) {
     try {
@@ -20,6 +36,9 @@ const Storage = (() => {
 
   function remove(key) {
     localStorage.removeItem(PREFIX + key);
+    if (Drive.isConnected()) {
+      Drive.syncKey(key, null);
+    }
   }
 
   // Merge an object into an existing stored object
@@ -33,8 +52,7 @@ const Storage = (() => {
   // Called on startup to pull Drive data into localStorage
   async function syncFromDrive() {
     if (!Drive.isConnected()) return;
-    const keys = ['profile', 'sessions', 'milestones', 'jobs', 'usc', 'resume'];
-    for (const key of keys) {
+    for (const key of DRIVE_KEYS) {
       const driveData = await Drive.readKey(key);
       if (driveData !== null) {
         localStorage.setItem(PREFIX + key, JSON.stringify(driveData));
@@ -42,5 +60,17 @@ const Storage = (() => {
     }
   }
 
-  return { get, set, remove, merge, syncFromDrive };
+  async function syncAllToDrive() {
+    if (!Drive.isConnected()) return;
+    for (const key of DRIVE_KEYS) {
+      const raw = localStorage.getItem(PREFIX + key);
+      if (raw !== null) {
+        try {
+          await Drive.syncKey(key, JSON.parse(raw));
+        } catch {}
+      }
+    }
+  }
+
+  return { get, set, remove, merge, syncFromDrive, syncAllToDrive };
 })();

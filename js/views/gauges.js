@@ -32,6 +32,7 @@ Rules:
 
   const VALIDATION_HINTS = {
     interviews:     'Needs a company name or role title. "Had an interview" alone is not sufficient.',
+    followups:      'Needs a specific person, company, role, or original application/outreach timing. "I followed up" alone is not sufficient.',
     usc_eller:      'Needs a specific USC or Eller-affiliated person\'s name. Generic outreach without a real name is not valid.',
     networking:     'Needs to describe a real outreach action with a specific person or group, not just "I networked."',
     interview_prep: 'Needs to describe a specific prep activity, not just "I studied" or "I prepared."',
@@ -393,6 +394,7 @@ Rules:
       }),
     });
     const data = await r.json();
+    if (!r.ok) throw new Error(data.error?.message || data.error || 'Validation unavailable.');
     return data.content?.[0]?.text || '{"valid":false,"question":null,"reason":"No response."}';
   }
 
@@ -416,5 +418,83 @@ Rules:
     if (el) { el.textContent = msg; el.style.display = 'block'; }
   }
 
-  return { init, renderBand, renderSideHustlePanel, openPanel };
+  async function logWorkflowActivity(gaugeId, payload) {
+    const def = GAUGE_DEFS.find(g => g.id === gaugeId);
+    if (!def) return { ok: false, reason: 'Unknown activity.' };
+
+    if (def.type === 'dual') {
+      const income = Math.max(0, parseInt(payload?.income || '0', 10) || 0);
+      const item = payload?.portfolioEligible ? 1 : 0;
+      if (!income && !item) return { ok: false, reason: 'Log income, portfolio work, or both.' };
+      const data = _getData();
+      data.side_hustle = {
+        income: (data.side_hustle?.income || 0) + income,
+        items: Math.min((data.side_hustle?.items || 0) + item, 1),
+      };
+      Storage.set('gauges', data);
+      _reRenderBand();
+      return { ok: true };
+    }
+
+    const text = String(payload?.description || '').trim();
+    if (!text) return { ok: false, reason: 'Please describe what you did.' };
+
+    const needsValidation = def.validate || payload?.requireValidation;
+    if (!needsValidation) {
+      _increment(gaugeId);
+      _reRenderBand();
+      return { ok: true };
+    }
+
+    try {
+      const raw = await _callClaude(gaugeId, [{ role: 'user', content: text }]);
+      const parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
+      if (parsed.valid) {
+        _increment(gaugeId);
+        _reRenderBand();
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        question: parsed.question || null,
+        reason: parsed.reason || 'Please add more specific detail.',
+      };
+    } catch {
+      const local = _localValidate(gaugeId, text);
+      if (local.valid) {
+        _increment(gaugeId);
+        _reRenderBand();
+        return { ok: true, localFallback: true };
+      }
+      return {
+        ok: false,
+        question: local.question || null,
+        reason: local.reason || 'Validation is unavailable. Please add more specific detail and try again.',
+      };
+    }
+  }
+
+  function _localValidate(gaugeId, text) {
+    const words = text.split(/\s+/).filter(Boolean);
+    const hasName = /\b(Mr\.?|Ms\.?|Mrs\.?|Dr\.?)\s+[A-Z][a-z]+|\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/.test(text);
+    const hasCompanyOrRole = /\b(role|position|job|company|manager|recruiter|analyst|data|engineer|designer|consultant|developer|coordinator)\b/i.test(text);
+    const hasTiming = /\b(today|yesterday|week|month|day|applied|sent|emailed|messaged|called|followed up)\b/i.test(text);
+
+    if (words.length < 8) {
+      return { valid: false, question: 'Can you add who, what role or company, and when this happened?', reason: 'The entry is too short to confirm the activity.' };
+    }
+    if (gaugeId === 'followups') {
+      if (hasName && hasCompanyOrRole && hasTiming) return { valid: true };
+      return { valid: false, question: 'Who did you follow up with, for what role or company, and when did you apply or first reach out?', reason: 'Follow-ups need a person, role or company, and timing.' };
+    }
+    if (gaugeId === 'usc_eller' && (!hasName || !/\b(USC|Eller|Arizona|Marshall|alumni|alum)\b/i.test(text))) {
+      return { valid: false, question: 'What is the person’s name, and are they connected to USC or Eller?', reason: 'USC/Eller networking needs a named alumni contact.' };
+    }
+    if (['networking', 'linkedin', 'interview_prep', 'interviews'].includes(gaugeId)) {
+      return { valid: hasName || hasCompanyOrRole || hasTiming };
+    }
+    return { valid: true };
+  }
+
+  return { init, renderBand, renderSideHustlePanel, openPanel, logWorkflowActivity };
 })();

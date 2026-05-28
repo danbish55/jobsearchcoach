@@ -44,11 +44,19 @@ const Drive = (() => {
     const popup = window.open(url, 'GoogleAuth', 'width=500,height=650,left=200,top=100');
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Auth timeout')), 120000);
-      window.addEventListener('message', async function handler(e) {
+      let checkClosed = null;
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (checkClosed) clearInterval(checkClosed);
+        window.removeEventListener('message', handler);
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('Auth timeout'));
+      }, 120000);
+      async function handler(e) {
         if (e.data && e.data.type === 'oauth_code') {
-          clearTimeout(timeout);
-          window.removeEventListener('message', handler);
+          cleanup();
           try {
             const result = await handleOAuthCode(e.data.code);
             resolve(result);
@@ -56,19 +64,19 @@ const Drive = (() => {
             reject(err);
           }
         }
-      });
+      }
+      window.addEventListener('message', handler);
       // Detect popup close without completing
-      const checkClosed = setInterval(() => {
+      checkClosed = setInterval(() => {
         if (popup.closed) {
-          clearInterval(checkClosed);
-          clearTimeout(timeout);
-          window.removeEventListener('message', () => {});
+          cleanup();
+          reject(new Error('Google sign-in window was closed before setup finished'));
         }
       }, 1000);
     });
   }
 
-  async function _apiCall(method, path, body = null) {
+  async function _apiCall(method, path, body = null, retried = false) {
     if (!_accessToken) return null;
     const opts = {
       method,
@@ -81,8 +89,13 @@ const Drive = (() => {
     const r = await fetch(`https://www.googleapis.com/drive/v3${path}`, opts);
     if (r.status === 401) {
       // Token expired — refresh
-      await init();
-      return _apiCall(method, path, body); // retry once
+      if (retried) return null;
+      const refreshed = await init();
+      if (!refreshed) {
+        _accessToken = null;
+        return null;
+      }
+      return _apiCall(method, path, body, true);
     }
     if (!r.ok) return null;
     return r.json();
