@@ -14,6 +14,7 @@ import os
 import shutil
 import stat
 import zipfile
+import time
 from pathlib import Path
 
 
@@ -71,13 +72,26 @@ def zip_package(target: Path, zip_path: Path) -> None:
             zf.writestr(info, src.read_bytes())
 
 
+def remove_tree(path: Path) -> None:
+    def on_error(func, item, _exc_info):
+        try:
+            os.chmod(item, stat.S_IWRITE)
+            func(item)
+        except PermissionError:
+            time.sleep(0.2)
+            os.chmod(item, stat.S_IWRITE)
+            func(item)
+
+    shutil.rmtree(path, onerror=on_error)
+
+
 def main() -> None:
     DIST.mkdir(exist_ok=True)
     target = DIST / PACKAGE_NAME
     zip_path = DIST / f"{PACKAGE_NAME}.zip"
 
     if target.exists():
-        shutil.rmtree(target)
+        remove_tree(target)
     if zip_path.exists():
         zip_path.unlink()
 
