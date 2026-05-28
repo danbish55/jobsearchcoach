@@ -167,7 +167,7 @@ const Settings = (() => {
           ${!status.has_drive ? `
           ${status.google_client_id ? `
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-              Sign in with Corinne's Gmail account to save app data in Google Drive.
+              Sign in with the Google account where you want to save app data.
             </div>
           ` : `
             <div class="setting-row">
@@ -255,11 +255,13 @@ const Settings = (() => {
     if (!status.google_client_id) await Config.save({ google_client_id: clientId, google_client_secret: clientSecret });
     UI.notify('Opening Google auth window...', 'info');
     try {
-      await Drive.startOAuth(clientId);
-      UI.notify('Google Drive connected!', 'success');
+      const result = await Drive.startOAuth(clientId);
+      if (!result.ok) throw new Error(result.error || 'Google Drive connection failed.');
       await Config.load();
-      await Drive.init();
+      const connected = await Drive.init();
+      if (!connected) throw new Error('Google Drive connection could not be verified.');
       await Storage.syncAllToDrive();
+      UI.notify('Google Drive connected!', 'success');
       render();
     } catch (err) {
       UI.notify(`Drive auth failed: ${err.message}`, 'error');
@@ -286,7 +288,7 @@ const Settings = (() => {
   function _collectData() {
     return {
       config_status: Config.get() || {},
-      theme: localStorage.getItem('jsc_theme') || 'dark',
+      theme: localStorage.getItem('jsc_theme') || 'light',
       last_view: sessionStorage.getItem('jsc_last_view') || 'dashboard',
       profile:    Storage.get('profile', {}),
       milestones: Storage.get('milestones', {}),

@@ -42,6 +42,9 @@ const Drive = (() => {
     });
     const url = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
     const popup = window.open(url, 'GoogleAuth', 'width=500,height=650,left=200,top=100');
+    if (!popup) {
+      return Promise.reject(new Error('The Google sign-in popup was blocked. Please allow popups for JobSearchCoach and try again.'));
+    }
 
     return new Promise((resolve, reject) => {
       let checkClosed = null;
@@ -55,10 +58,14 @@ const Drive = (() => {
         reject(new Error('Auth timeout'));
       }, 120000);
       async function handler(e) {
+        if (e.origin !== window.location.origin) return;
         if (e.data && e.data.type === 'oauth_code') {
           cleanup();
           try {
             const result = await handleOAuthCode(e.data.code);
+            if (!result.ok) {
+              throw new Error(result.error || 'Google did not return a usable sign-in token.');
+            }
             resolve(result);
           } catch (err) {
             reject(err);

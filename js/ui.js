@@ -11,7 +11,7 @@ const UI = (() => {
   }
 
   function loadTheme() {
-    const saved = localStorage.getItem('jsc_theme') || 'dark';
+    const saved = localStorage.getItem('jsc_theme') || 'light';
     applyTheme(saved);
   }
 

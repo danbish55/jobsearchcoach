@@ -9,26 +9,42 @@ import threading
 import webbrowser
 import urllib.request
 import urllib.parse
+import html as html_lib
+import tempfile
 from urllib.parse import urlparse, parse_qs
 
 PORT = 8765
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
+CONFIG_LOCK = threading.Lock()
 
 
 def load_config():
-    try:
-        with open(CONFIG_FILE) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+    with CONFIG_LOCK:
+        return _load_config_unlocked()
 
 
 def save_config(updates):
-    cfg = load_config()
-    cfg.update(updates)
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(cfg, f, indent=2)
+    with CONFIG_LOCK:
+        cfg = _load_config_unlocked()
+        cfg.update(updates)
+        fd, tmp_path = tempfile.mkstemp(prefix='config.', suffix='.tmp', dir=BASE_DIR, text=True)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(cfg, f, indent=2)
+                f.write('\n')
+            os.replace(tmp_path, CONFIG_FILE)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+
+def _load_config_unlocked():
+    try:
+        with open(CONFIG_FILE, encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 
 class AppHandler(http.server.SimpleHTTPRequestHandler):
@@ -68,7 +84,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        body = self._read_body()
+        try:
+            body = self._read_body()
+        except json.JSONDecodeError:
+            self._json({'ok': False, 'error': 'Invalid JSON request body'}, 400)
+            return
 
         if path == '/api/config':
             save_config(body)
@@ -93,13 +113,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         error = params.get('error', [None])[0]
 
         if error:
-            msg = f'<h2 style="color:#e74c3c">Auth Error: {error}</h2><p>You can close this window and try again.</p>'
+            msg = f'<h2 style="color:#e74c3c">Auth Error: {html_lib.escape(error)}</h2><p>You can close this window and try again.</p>'
         elif code:
             msg = f'<h2 style="color:#FFCC00">&#10003; Google Drive Connected!</h2><p>This window will close automatically...</p>'
         else:
             msg = '<h2>No authorization code received.</h2>'
 
-        html = f'''<!DOCTYPE html><html>
+        code_json = json.dumps(code or '')
+        page_html = f'''<!DOCTYPE html><html>
 <head><title>JobSearchCoach</title>
 <style>
   body{{font-family:system-ui,sans-serif;background:#1a1a2e;color:#e8eaf0;
@@ -108,8 +129,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 </style></head>
 <body><div>{msg}</div>
 <script>
-  if(window.opener && '{code or ""}'){{
-    window.opener.postMessage({{type:'oauth_code',code:'{code or ""}'}}, 'http://localhost:{PORT}');
+  const oauthCode = {code_json};
+  if(window.opener && oauthCode){{
+    window.opener.postMessage({{type:'oauth_code',code:oauthCode}}, 'http://localhost:{PORT}');
   }}
   setTimeout(()=>window.close(), 2000);
 </script></body></html>'''
@@ -117,7 +139,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(html.encode())
+        self.wfile.write(page_html.encode())
 
     def _token_exchange(self, data):
         cfg = load_config()
@@ -232,7 +254,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 def main():
     os.chdir(BASE_DIR)
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(('', PORT), AppHandler) as httpd:
+    with socketserver.ThreadingTCPServer(('', PORT), AppHandler) as httpd:
         print(f'\n  JobSearchCoach running at http://localhost:{PORT}\n')
         print('  Press Ctrl+C to stop.\n')
         threading.Timer(1.2, lambda: webbrowser.open(f'http://localhost:{PORT}')).start()

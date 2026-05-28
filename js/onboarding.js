@@ -127,7 +127,7 @@ const Onboarding = (() => {
           </div>
 
           <div class="security-note">
-            Sign in with Corinne's Gmail account. Google will ask for permission to store app data in Drive.
+            Sign in with the Google account where you want to save app data. Google will ask for permission to store JobSearchCoach data in Drive.
           </div>
 
           <div id="drive-connect-status" style="font-size:13px;margin-bottom:10px;color:var(--text-muted)">
@@ -239,9 +239,11 @@ const Onboarding = (() => {
           statusEl.textContent = 'Opening Google sign-in...';
           statusEl.style.color = 'var(--text-muted)';
           try {
-            await Drive.startOAuth(clientId);
+            const result = await Drive.startOAuth(clientId);
+            if (!result.ok) throw new Error(result.error || 'Google Drive connection failed.');
             await Config.load();
-            await Drive.init();
+            const connected = await Drive.init();
+            if (!connected) throw new Error('Google Drive connection could not be verified.');
             await Storage.syncAllToDrive();
             statusEl.textContent = '✓ Google Drive connected';
             statusEl.style.color = 'var(--success)';

@@ -1,9 +1,11 @@
-Build Corinne's Mac Package
+Build JobSearchCoach Install Package
 
 Before building the final package, create a Google OAuth credential:
 - Application type: Desktop app
 - Enable Google Drive API
 - The app uses Drive app data scope
+
+See GOOGLE_DRIVE_SETUP.md for step-by-step Google Cloud instructions.
 
 Build from PowerShell:
 
@@ -11,16 +13,16 @@ Build from PowerShell:
    powershell -ExecutionPolicy Bypass -File tools\build_corinne_package.ps1
 
 2. Paste the Google OAuth Desktop Client ID and Client Secret when asked.
-   For a work-computer test package, you can press Enter for both and connect Drive later from Settings.
 
-3. Send Corinne:
-   dist\JobSearchCoach-Corinne.zip
+3. Send the installer:
+   dist\JobSearchCoach-Install.zip
 
 Do not put the Claude/Anthropic access key in the package. Give that to Corinne separately so she can paste it during setup.
 
 Corinne's setup:
 - Unzip the file
-- Double-click Start JobSearchCoach.command
+- Windows: double-click Start JobSearchCoach.bat
+- Mac: double-click Start JobSearchCoach.command
 - Enter contact info and the access key
 - Connect Google Drive with her Gmail account
 

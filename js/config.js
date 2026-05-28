@@ -15,11 +15,15 @@ const Config = (() => {
   }
 
   async function save(updates) {
-    await fetch('/api/config', {
+    const response = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(data.error || 'Could not save settings');
+    }
     await load(); // Refresh status
   }
 

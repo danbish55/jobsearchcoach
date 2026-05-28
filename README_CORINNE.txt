@@ -2,14 +2,16 @@ JobSearchCoach
 
 How to start:
 
-1. Double-click "Start JobSearchCoach.command".
-2. Your browser will open automatically.
-3. Enter your setup info when the app asks:
+1. Read INSTALL.md if this is the first time setting up JobSearchCoach.
+2. Windows: double-click "Start JobSearchCoach.bat".
+3. Mac: double-click "Start JobSearchCoach.command".
+4. Your browser will open automatically.
+5. Enter your setup info when the app asks:
    - your email
    - Dad's email
    - Mom's email
    - the access key Dad gave you
-4. When asked, connect Google Drive using your Gmail account.
+6. When asked, connect Google Drive using your Gmail account.
 
 Your job search data, chats, mission progress, resume notes, and gauges are saved to your Google Drive app data.
 
