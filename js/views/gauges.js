@@ -406,6 +406,11 @@ Rules:
     Storage.set('gauges', data);
   }
 
+  function increment(gaugeId, amount = 1) {
+    _increment(gaugeId, amount);
+    _reRenderBand();
+  }
+
   // ── Modal helpers ─────────────────────────────────────────────────────────
 
   function _setSubmitting(loading) {
@@ -496,5 +501,5 @@ Rules:
     return { valid: true };
   }
 
-  return { init, renderBand, renderSideHustlePanel, openPanel, logWorkflowActivity };
+  return { init, renderBand, renderSideHustlePanel, openPanel, logWorkflowActivity, increment };
 })();

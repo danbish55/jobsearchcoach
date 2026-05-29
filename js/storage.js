@@ -3,6 +3,7 @@ const Storage = (() => {
   const PREFIX = 'jsc_';
   const DRIVE_KEYS = [
     'profile',
+    'progress',
     'sessions',
     'milestones',
     'jobs',

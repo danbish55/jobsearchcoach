@@ -107,11 +107,6 @@ Begin by reading her resume carefully and opening with a specific observation ab
           <aside class="deep-dive-resume-panel">
             ${_scrollControls('deep-dive-resume-text')}
             <div class="deep-dive-panel-title">Your Current Resume</div>
-            <div class="deep-dive-section-list">
-              ${_resumeSections(data.resume_text).map((section, i) => `
-                <button class="deep-dive-section-link" onclick="ResumeDeepDive.scrollToSection(${i})">${_esc(section.title)}</button>
-              `).join('')}
-            </div>
             <div class="deep-dive-resume-text" id="deep-dive-resume-text">
               ${_renderResumeReference(data.resume_text)}
             </div>

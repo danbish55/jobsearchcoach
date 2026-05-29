@@ -11,6 +11,7 @@ const Settings = (() => {
 
   const DATA_KEYS = [
     'profile',
+    'progress',
     'milestones',
     'jobs',
     'usc',
@@ -292,6 +293,7 @@ const Settings = (() => {
       theme: localStorage.getItem('jsc_theme') || 'light',
       last_view: sessionStorage.getItem('jsc_last_view') || 'dashboard',
       profile:    Storage.get('profile', {}),
+      progress:   Storage.get('progress', {}),
       milestones: Storage.get('milestones', {}),
       jobs:       Storage.get('jobs', {}),
       usc:        Storage.get('usc', {}),
@@ -335,6 +337,7 @@ const Settings = (() => {
       const data = backup.data || backup;
       if (!data || typeof data !== 'object') throw new Error('Backup file is empty.');
       _restoreKey('profile', data.profile);
+      _restoreKey('progress', data.progress);
       _restoreKey('milestones', data.milestones);
       _restoreKey('jobs', data.jobs);
       _restoreKey('usc', data.usc);
@@ -369,6 +372,7 @@ const Settings = (() => {
   function resetAll() {
     if (!confirm("I'll do a backup and then clear all data except your setup information.")) return;
     _downloadBackup();
+    SampleData.disableAfterReset();
     DATA_KEYS.forEach(k => Storage.remove(k));
     UI.notify('Backup created. Data cleared. Reloading...', 'info');
     setTimeout(() => location.reload(), 1500);

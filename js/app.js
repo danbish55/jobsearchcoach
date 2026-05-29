@@ -48,6 +48,8 @@ const App = (() => {
       await _syncProgressFromDrive();
     }
 
+    SampleData.seedIfEmpty();
+
     // Initialize milestone data
     Milestones.init();
 

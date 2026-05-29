@@ -1500,16 +1500,61 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
 .deep-dive-chat-messages {
   overflow-y: scroll;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201,168,76,0.72) rgba(255,255,255,0.08);
   min-height: 0;
+}
+.deep-dive-resume-text::-webkit-scrollbar,
+.deep-dive-rewrite-list::-webkit-scrollbar,
+.deep-dive-chat-messages::-webkit-scrollbar {
+  width: 12px;
+}
+.deep-dive-resume-text::-webkit-scrollbar-track,
+.deep-dive-rewrite-list::-webkit-scrollbar-track,
+.deep-dive-chat-messages::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+}
+.deep-dive-resume-text::-webkit-scrollbar-thumb,
+.deep-dive-rewrite-list::-webkit-scrollbar-thumb,
+.deep-dive-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(201,168,76,0.72);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+.deep-dive-resume-text::-webkit-scrollbar-thumb:hover,
+.deep-dive-rewrite-list::-webkit-scrollbar-thumb:hover,
+.deep-dive-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(201,168,76,0.95);
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
 .deep-dive-resume-text {
   flex: 1;
-  padding: 14px 42px 14px 14px;
+  padding: 14px 48px 14px 14px;
   font-size: 13px;
   line-height: 1.5;
   background: rgba(0,0,0,0.08);
 }
 body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
+body.light .deep-dive-resume-text,
+body.light .deep-dive-rewrite-list,
+body.light .deep-dive-chat-messages {
+  scrollbar-color: rgba(184,146,10,0.76) rgba(0,0,0,0.08);
+}
+body.light .deep-dive-resume-text::-webkit-scrollbar-track,
+body.light .deep-dive-rewrite-list::-webkit-scrollbar-track,
+body.light .deep-dive-chat-messages::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.08);
+}
+body.light .deep-dive-resume-text::-webkit-scrollbar-thumb,
+body.light .deep-dive-rewrite-list::-webkit-scrollbar-thumb,
+body.light .deep-dive-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(184,146,10,0.76);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
 .deep-dive-resume-section { margin-bottom: 18px; }
 .deep-dive-resume-heading {
   display: block;
@@ -1531,7 +1576,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 }
 .deep-dive-chat-messages {
   flex: 1;
-  padding: 12px 42px 12px 12px;
+  padding: 12px 48px 12px 12px;
   scroll-behavior: smooth;
 }
 .deep-dive-message {
@@ -1574,7 +1619,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 }
 .deep-dive-rewrite-list {
   flex: 1;
-  padding: 12px 42px 12px 12px;
+  padding: 12px 48px 12px 12px;
 }
 .deep-dive-scroll-controls {
   position: absolute;
@@ -1586,7 +1631,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  width: 32px;
+  width: 34px;
   padding: 8px 5px;
   border-radius: 0 var(--radius) var(--radius) 0;
   background: rgba(0,0,0,0.10);
