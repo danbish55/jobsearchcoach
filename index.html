@@ -4,9 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JobSearchCoach</title>
-  <link rel="stylesheet" href="css/styles.css?v=41">
+  <link rel="stylesheet" href="css/styles.css?v=42">
 </head>
 <body>
+<script>
+  try {
+    if ((localStorage.getItem('jsc_theme') || 'light') === 'light') {
+      document.body.classList.add('light');
+    }
+  } catch {}
+</script>
 
 <!-- Onboarding overlay — shown until setup is complete -->
 <div id="onboarding-overlay" class="hidden">
@@ -281,7 +288,7 @@
 <script src="js/views/jobs.js?v=15"></script>
 <script src="js/views/report.js?v=15"></script>
 <script src="js/views/settings.js?v=21"></script>
-<script src="js/app.js?v=17"></script>
+<script src="js/app.js?v=19"></script>
 
 </body>
 </html>

@@ -174,14 +174,20 @@ const App = (() => {
       .dashboard-about-btn:hover { border-color: var(--gold); color: var(--gold); }
       .welcome-modal-body p { margin: 0 0 14px; line-height: 1.65; color: var(--text); }
       .welcome-modal-body p:first-child { color: var(--gold-light); font-weight: 800; }
-      .welcome-modal {
-        background: #0d1b2a;
-        border-color: rgba(201,168,76,0.38);
-        box-shadow: 0 28px 90px rgba(0,0,0,0.55);
+      .welcome-modal-body {
+        max-height: calc(100vh - 260px);
+        overflow-y: auto;
+        padding-right: 8px;
+        scrollbar-gutter: stable;
       }
-      .welcome-modal .modal-title { color: #f0f4f8; }
-      .welcome-modal .welcome-modal-body p { color: #f0f4f8; }
-      .welcome-modal .welcome-modal-body p:first-child { color: #e8c96a; }
+      .welcome-modal {
+        background: var(--card-bg);
+        border-color: var(--gold-border);
+        box-shadow: var(--shadow);
+      }
+      .welcome-modal .modal-title { color: var(--text); }
+      .welcome-modal .welcome-modal-body p { color: var(--text); }
+      .welcome-modal .welcome-modal-body p:first-child { color: var(--gold); }
       .page-chat-redirect {
         margin-top: 7px;
         font-size: 12px;
