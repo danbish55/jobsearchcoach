@@ -1,5 +1,7 @@
 /* Resume Deep Dive Interview view */
 const ResumeDeepDive = (() => {
+  let _scrollHoldTimer = null;
+
   const SYSTEM_PROMPT = `"You are conducting a structured resume deep dive interview for Corinne, a USC Marshall MSBA graduate targeting data analytics roles in Los Angeles. You have her current resume in front of you. Your job is to ask specific probing questions about her actual resume content — not generic questions — to extract the real substance behind each bullet point. Then use her answers to suggest improved bullets.
 
 Use this structure for every suggested rewrite:
@@ -174,8 +176,18 @@ Begin by reading her resume carefully and opening with a specific observation ab
   function _scrollControls(targetId) {
     return `
       <div class="deep-dive-scroll-controls" data-scroll-target="${targetId}" aria-hidden="true">
-        <button class="deep-dive-scroll-btn" onclick="ResumeDeepDive.scrollColumn('${targetId}', -200)" title="Scroll up">↑</button>
-        <button class="deep-dive-scroll-btn" onclick="ResumeDeepDive.scrollColumn('${targetId}', 200)" title="Scroll down">↓</button>
+        <button class="deep-dive-scroll-btn deep-dive-scroll-up"
+          onpointerdown="ResumeDeepDive.startColumnScroll(event, '${targetId}', -1)"
+          onpointerup="ResumeDeepDive.stopColumnScroll()"
+          onpointercancel="ResumeDeepDive.stopColumnScroll()"
+          onpointerleave="ResumeDeepDive.stopColumnScroll()"
+          title="Scroll up">&uarr;</button>
+        <button class="deep-dive-scroll-btn deep-dive-scroll-down"
+          onpointerdown="ResumeDeepDive.startColumnScroll(event, '${targetId}', 1)"
+          onpointerup="ResumeDeepDive.stopColumnScroll()"
+          onpointercancel="ResumeDeepDive.stopColumnScroll()"
+          onpointerleave="ResumeDeepDive.stopColumnScroll()"
+          title="Scroll down">&darr;</button>
       </div>`;
   }
 
@@ -484,6 +496,24 @@ ${data.resume_text}`;
     document.getElementById(targetId)?.scrollBy({ top: amount, behavior: 'smooth' });
   }
 
+  function startColumnScroll(event, targetId, direction) {
+    event?.preventDefault();
+    stopColumnScroll();
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    const step = 18 * direction;
+    target.scrollBy({ top: step, behavior: 'auto' });
+    _scrollHoldTimer = setInterval(() => {
+      target.scrollBy({ top: step, behavior: 'auto' });
+    }, 24);
+  }
+
+  function stopColumnScroll() {
+    if (!_scrollHoldTimer) return;
+    clearInterval(_scrollHoldTimer);
+    _scrollHoldTimer = null;
+  }
+
   function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -562,6 +592,8 @@ ${data.resume_text}`;
     handleKeyDown,
     scrollToSection,
     scrollColumn,
+    startColumnScroll,
+    stopColumnScroll,
     parseSuggestedRewrites,
     toggleRewriteAccepted,
     copyRewrite,

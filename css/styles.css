@@ -1498,13 +1498,13 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
 .deep-dive-resume-text,
 .deep-dive-rewrite-list,
 .deep-dive-chat-messages {
-  overflow-y: auto;
+  overflow-y: scroll;
   scrollbar-gutter: stable;
   min-height: 0;
 }
 .deep-dive-resume-text {
   flex: 1;
-  padding: 14px;
+  padding: 14px 42px 14px 14px;
   font-size: 13px;
   line-height: 1.5;
   background: rgba(0,0,0,0.08);
@@ -1531,7 +1531,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 }
 .deep-dive-chat-messages {
   flex: 1;
-  padding: 18px;
+  padding: 12px 42px 12px 12px;
   scroll-behavior: smooth;
 }
 .deep-dive-message {
@@ -1540,7 +1540,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 }
 .deep-dive-message.user { justify-content: flex-end; }
 .deep-dive-message-bubble {
-  max-width: 82%;
+  max-width: 100%;
   padding: 11px 13px;
   border-radius: 12px;
   line-height: 1.45;
@@ -1574,18 +1574,22 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 }
 .deep-dive-rewrite-list {
   flex: 1;
-  padding: 12px;
+  padding: 12px 42px 12px 12px;
 }
 .deep-dive-scroll-controls {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 3;
   display: none;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 999px;
-  background: rgba(0,0,0,0.18);
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 32px;
+  padding: 8px 5px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: rgba(0,0,0,0.10);
   backdrop-filter: blur(4px);
 }
 .deep-dive-scroll-controls.visible {
@@ -1594,7 +1598,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
 .deep-dive-scroll-btn {
   width: 22px;
   height: 22px;
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgba(255,255,255,0.14);
   border: 1px solid var(--border);
   color: var(--text);
@@ -1608,7 +1612,7 @@ body.light .deep-dive-resume-text { background: rgba(0,0,0,0.025); }
   background: rgba(255,255,255,0.24);
 }
 body.light .deep-dive-scroll-controls {
-  background: rgba(255,255,255,0.72);
+  background: rgba(255,255,255,0.64);
 }
 body.light .deep-dive-scroll-btn {
   background: rgba(0,0,0,0.06);
