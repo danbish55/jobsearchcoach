@@ -22,9 +22,15 @@ const Onboarding = (() => {
   function start() {
     _step = 0;
     _answers = {};
+    _applySetupTheme();
     document.getElementById('onboarding-overlay').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
     render();
+  }
+
+  function _applySetupTheme() {
+    const prefersDark = !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    document.body.classList.toggle('light', !prefersDark);
   }
 
   function render() {

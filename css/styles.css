@@ -1885,7 +1885,7 @@ body.light .deep-dive-scroll-btn {
   line-height: 1.2;
 }
 .onboarding-desc {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-muted);
   margin-bottom: 28px;
   line-height: 1.6;
@@ -1927,7 +1927,7 @@ body.light .deep-dive-scroll-btn {
   border: 1px solid var(--gold-border);
   border-radius: var(--radius);
   padding: 10px 14px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--gold);
   margin-bottom: 16px;
   display: flex;
