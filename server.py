@@ -168,6 +168,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'google_refresh_token': tokens.get('refresh_token'),
             })
             self._json({'ok': True})
+        except urllib.error.HTTPError as e:
+            self._json({'ok': False, 'error': self._google_error_message(e)}, e.code)
         except Exception as e:
             self._json({'ok': False, 'error': str(e)}, 500)
 
@@ -188,8 +190,23 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 tokens = json.loads(r.read())
             save_config({'google_access_token': tokens.get('access_token')})
             self._json({'access_token': tokens.get('access_token')})
+        except urllib.error.HTTPError as e:
+            self._json({'ok': False, 'error': self._google_error_message(e)}, e.code)
         except Exception as e:
             self._json({'ok': False, 'error': str(e)}, 500)
+
+    def _google_error_message(self, error):
+        try:
+            payload = json.loads(error.read().decode('utf-8'))
+            code = payload.get('error')
+            description = payload.get('error_description')
+            if code and description:
+                return f'Google OAuth error: {code} - {description}'
+            if code:
+                return f'Google OAuth error: {code}'
+        except Exception:
+            pass
+        return f'Google OAuth HTTP {error.code}: {error.reason}'
 
     def _extract_resume(self, payload):
         filename = (payload.get('filename') or '').lower()

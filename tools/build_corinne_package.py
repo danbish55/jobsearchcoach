@@ -194,6 +194,19 @@ def optional_env(name: str) -> str:
     return os.environ.get(name, "").strip()
 
 
+def validate_google_credentials(client_id: str, client_secret: str) -> None:
+    if not client_id.endswith(".apps.googleusercontent.com"):
+        raise SystemExit(
+            "Google OAuth Client ID looks invalid. Paste only the Desktop app "
+            "client_id value ending in .apps.googleusercontent.com."
+        )
+    if not client_secret.startswith("GOCSPX-") or any(ch in client_secret for ch in ['"', "'", ",", "{", "}"]):
+        raise SystemExit(
+            "Google OAuth Client Secret looks invalid. Paste only the Desktop app "
+            "client_secret value, not the whole downloaded JSON file."
+        )
+
+
 def should_copy(path: Path) -> bool:
     rel_parts = set(path.relative_to(ROOT).parts)
     if rel_parts & EXCLUDE_DIRS:
@@ -232,6 +245,7 @@ def require_google_credentials() -> tuple[str, str]:
             f"Missing {names}. Create a Google OAuth Desktop client, then set these "
             "environment variables before building the install package."
         )
+    validate_google_credentials(client_id, client_secret)
     return client_id, client_secret
 
 
