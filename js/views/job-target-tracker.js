@@ -46,15 +46,6 @@ const JobTargetTracker = (() => {
     ],
   };
 
-  const STATUS_LABELS = {
-    'not-applied': 'Not Applied',
-    applied: 'Applied',
-    following: 'Following Up',
-    interviewing: 'Interviewing',
-    offer: 'Offer',
-    rejected: 'Rejected',
-  };
-
   function render() {
     const el = document.getElementById('job-target-tracker-content');
     if (!el) return;
@@ -68,7 +59,7 @@ const JobTargetTracker = (() => {
             <div class="target-callout">70% of jobs are never publicly posted. Use the links to find open roles, then use your network to get a referral.</div>
           </div>
         </div>
-        <div class="target-summary" id="target-summary"></div>
+        ${_resourcesHTML()}
         <div class="target-toolbar">
           <input id="target-search" type="text" placeholder="Search companies..." oninput="JobTargetTracker.applyFilters()">
           ${_filterButton('all', 'All Tiers')}
@@ -98,6 +89,25 @@ const JobTargetTracker = (() => {
     return `<button class="target-filter ${_activeTier === tier ? 'active' : ''}" onclick="JobTargetTracker.filterTier('${tier}')">${label}</button>`;
   }
 
+  function _resourcesHTML() {
+    const links = [
+      { icon: '🔗', label: 'Comp Research', url: 'https://www.levels.fyi/?compare=Google,Meta,Amazon&track=Data%20Analyst' },
+      { icon: '🔗', label: 'Active LA Listings', url: 'https://www.linkedin.com/jobs/search/?keywords=data%20analyst&location=Los%20Angeles%2C%20CA&f_E=2' },
+      { icon: '🔗', label: 'Glassdoor Salaries', url: 'https://www.glassdoor.com/Salaries/los-angeles-data-analyst-salary-SRCH_IL.0,11_IM508_KO12,24.htm' },
+    ];
+    return `<div class="target-resources" data-resource-section>
+      <div class="resource-section-header"><span>Resources</span></div>
+      <div class="resource-card-row">
+        ${links.map(link => `
+          <a class="resource-card" href="${_escAttr(link.url)}" target="_blank" rel="noopener noreferrer" title="${_escAttr(link.url)}">
+            <span class="resource-card-icon">${_esc(link.icon)}</span>
+            <span class="resource-card-label">${_esc(link.label)}</span>
+          </a>
+        `).join('')}
+      </div>
+    </div>`;
+  }
+
   function _tierHTML(tier, label, badge, desc) {
     return `<section class="target-tier ${tier}" id="target-${tier}">
       <div class="target-tier-label">
@@ -112,9 +122,9 @@ const JobTargetTracker = (() => {
   }
 
   function _cardHTML(company, tier) {
-    const state = _state()[company.name] || { status: 'not-applied', notes: '' };
+    const state = _state()[company.name] || { notes: '' };
     const liUrl = _linkedInUrl(company.name, company.li);
-    return `<div class="target-company-card status-${state.status}" data-tier="${tier}" data-name="${_esc(company.name.toLowerCase())}">
+    return `<div class="target-company-card" data-tier="${tier}" data-name="${_esc(company.name.toLowerCase())}">
       <div class="target-company-info">
         <div class="target-company-name">${_esc(company.name)}</div>
         <div class="target-company-meta">${_esc(company.location)}</div>
@@ -122,9 +132,6 @@ const JobTargetTracker = (() => {
       </div>
       <input class="target-notes-input" type="text" value="${_esc(state.notes || '')}" placeholder="Notes: role, contact, next step..."
         onblur="JobTargetTracker.updateNotes('${_escAttr(company.name)}', this.value)">
-      <select class="target-status-select" onchange="JobTargetTracker.updateStatus('${_escAttr(company.name)}', this.value, this.closest('.target-company-card'))">
-        ${Object.entries(STATUS_LABELS).map(([value, label]) => `<option value="${value}" ${state.status === value ? 'selected' : ''}>${label}</option>`).join('')}
-      </select>
       <div class="target-search-links">
         <a class="target-search-link linkedin" href="${liUrl}" target="_blank" rel="noopener">LinkedIn Jobs</a>
         <a class="target-search-link careers" href="${company.careers}" target="_blank" rel="noopener">Careers Page</a>
@@ -140,55 +147,11 @@ const JobTargetTracker = (() => {
     Storage.set(STORAGE_KEY, state);
   }
 
-  async function updateStatus(key, status, cardEl) {
-    const state = _state();
-    if (!state[key]) state[key] = {};
-    const prev = state[key].status || 'not-applied';
-    state[key].status = status;
-    _save(state);
-
-    if (cardEl) {
-      cardEl.classList.forEach(cls => {
-        if (cls.startsWith('status-')) cardEl.classList.remove(cls);
-      });
-      cardEl.classList.add(`status-${status}`);
-    }
-
-    _renderSummary();
-
-    if (status === 'applied' && prev !== 'applied') {
-      Gauges.logWorkflowActivity('apps', { description: `Applied to ${key} from Job Target Tracker.` })
-        .then(result => {
-          if (result?.ok) UI.notify(`Application logged for ${key}. Applications gauge updated.`, 'success');
-          else UI.notify(`${key} marked applied. Gauge update needs more detail.`, 'info');
-        })
-        .catch(() => UI.notify(`${key} marked applied. Gauge update did not complete.`, 'error'));
-    }
-  }
-
   function updateNotes(key, value) {
     const state = _state();
     if (!state[key]) state[key] = {};
     state[key].notes = value;
     _save(state);
-  }
-
-  function _renderSummary() {
-    const counts = { applied: 0, following: 0, interviewing: 0, offer: 0 };
-    Object.values(_state()).forEach(item => {
-      if (counts[item.status] !== undefined) counts[item.status]++;
-    });
-    const el = document.getElementById('target-summary');
-    if (!el) return;
-    el.innerHTML = `
-      ${_summaryItem('applied', counts.applied, 'Applied')}
-      ${_summaryItem('following', counts.following, 'Following Up')}
-      ${_summaryItem('interviewing', counts.interviewing, 'Interviewing')}
-      ${_summaryItem('offer', counts.offer, 'Offers')}`;
-  }
-
-  function _summaryItem(cls, count, label) {
-    return `<div class="target-summary-item ${cls}"><strong>${count}</strong><span>${label}</span></div>`;
   }
 
   function filterTier(tier) {
@@ -270,5 +233,5 @@ const JobTargetTracker = (() => {
     return _esc(str).replace(/'/g, '&#39;');
   }
 
-  return { render, updateStatus, updateNotes, filterTier, applyFilters, sendChat };
+  return { render, updateNotes, filterTier, applyFilters, sendChat };
 })();

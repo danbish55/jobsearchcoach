@@ -26,6 +26,14 @@ const WorkflowPages = (() => {
         'Log every follow-up here so your gauge reflects your actual effort.',
       ],
       prompt: 'Who did you follow up with, for which role, and when did you originally apply?',
+      resources: {
+        label: 'Resources',
+        links: [
+          { icon: '📄', label: 'Follow-Up Templates', url: 'https://www.indeed.com/career-advice/finding-a-job/follow-up-email-after-application' },
+          { icon: '📄', label: 'Post-Interview Email', url: 'https://www.indeed.com/career-advice/interviewing/follow-up-email-examples-after-interview' },
+          { icon: '📄', label: 'Recruiter Follow-Up Guide', url: 'https://juicebox.ai/blog/follow-up-email-recruiter' },
+        ],
+      },
     },
     'workflow-networking': {
       key: 'networking',
@@ -43,6 +51,14 @@ const WorkflowPages = (() => {
         'Log every networking touch here. Each one counts toward your weekly gauge.',
       ],
       prompt: 'Who did you reach out to, what company do they work at, and what did you say?',
+      resources: {
+        label: 'Resources',
+        links: [
+          { icon: '🔗', label: 'LinkedIn Alumni Tool', url: 'https://www.linkedin.com/alumni/' },
+          { icon: '📄', label: 'Outreach That Works', url: 'https://www.linkedin.com/posts/davidfano_the-follow-up-that-gets-responses-activity-7387112192778592256-Yxot' },
+          { icon: '🔗', label: 'Comp Research', url: 'https://www.levels.fyi' },
+        ],
+      },
     },
     'workflow-usc-eller': {
       key: 'usc_eller',
@@ -62,6 +78,14 @@ const WorkflowPages = (() => {
       ],
       prompt: 'Give me a specific name - who did you reach out to, what school are they from, where do they work, and what did you say?',
       note: 'Vague answers do not count here. A real name and a real company is the minimum. If you are finding it hard to take this step, type that into the chat box below and talk it through.',
+      resources: {
+        label: 'Resources — Your Alumni Networks',
+        links: [
+          { icon: '🔗', label: 'Trojan Network', url: 'https://careers.usc.edu/experiences/trojan-network-find-a-mentor/' },
+          { icon: '🔗', label: 'Marshall Alumni Hub', url: 'https://www.marshall.usc.edu/alumni' },
+          { icon: '🔗', label: 'Eller Career Lab', url: 'https://eller.arizona.edu/engage/alumni/career-advancement' },
+        ],
+      },
     },
     'workflow-interview-prep': {
       key: 'interview_prep',
@@ -76,6 +100,14 @@ const WorkflowPages = (() => {
         'Use the chat box below to run a mock interview question right now. Ask for a behavioral question, a technical question, or a case-style analytics problem.',
       ],
       prompt: 'What did you practice, for how long, and what format - behavioral, technical, or company-specific? Minimum 30 minutes to count.',
+      resources: {
+        label: 'Resources',
+        links: [
+          { icon: '▶️', label: 'Alex The Analyst', url: 'https://www.youtube.com/@AlexTheAnalyst' },
+          { icon: '▶️', label: 'Ken Jee', url: 'https://www.youtube.com/@KenJee_DS' },
+          { icon: '🔗', label: 'Interview Query', url: 'https://www.interviewquery.com' },
+        ],
+      },
     },
     'workflow-linkedin': {
       key: 'linkedin',
@@ -90,6 +122,14 @@ const WorkflowPages = (() => {
         'Update your Featured section with links to your portfolio projects as you publish them.',
       ],
       prompt: 'What did you post or comment on, and where? A like does not count - it needs to be a post you wrote or a substantive comment.',
+      resources: {
+        label: 'Resources',
+        links: [
+          { icon: '🔗', label: 'Profile Optimization', url: 'https://www.linkedin.com/help/linkedin/answer/a554288' },
+          { icon: '▶️', label: 'LinkedIn Tips — YouTube', url: 'https://www.youtube.com/results?search_query=linkedin+profile+optimization+data+analyst+2026' },
+          { icon: '🔗', label: 'LA Data Analyst Jobs', url: 'https://www.linkedin.com/jobs/search/?keywords=data%20analyst&location=Los%20Angeles%2C%20CA' },
+        ],
+      },
     },
     'workflow-side-hustle': {
       key: 'side_hustle',
@@ -104,6 +144,14 @@ const WorkflowPages = (() => {
         'Log income honestly. Green tracks dollars. Maroon tracks portfolio-eligible work.',
       ],
       sideHustle: true,
+      resources: {
+        label: 'Resources — Find Your First Gigs',
+        links: [
+          { icon: '🔗', label: 'Upwork Gigs', url: 'https://www.upwork.com/freelance-jobs/data-analytics/' },
+          { icon: '🔗', label: 'Fiverr Projects', url: 'https://www.fiverr.com/categories/data/data-analysis' },
+          { icon: '🔗', label: 'Toptal (Higher Rates)', url: 'https://www.toptal.com/freelance-jobs/developers/data-analysis' },
+        ],
+      },
     },
   };
 
@@ -142,6 +190,8 @@ const WorkflowPages = (() => {
           </ol>
         </div>
 
+        ${_resourcesHTML(page.resources)}
+
         <div class="card workflow-section">
           <div class="card-title">Log Your Activity</div>
           ${page.sideHustle ? _sideHustleLogHTML(viewId) : _descriptionLogHTML(viewId, page)}
@@ -167,6 +217,21 @@ const WorkflowPages = (() => {
       <label class="workflow-log-label">${page.prompt}</label>
       <textarea id="${viewId}-log-description" rows="4" placeholder="Describe what you did..."></textarea>
       <button class="btn btn-gold" onclick="WorkflowPages.submitLog('${viewId}')">Submit</button>`;
+  }
+
+  function _resourcesHTML(resources) {
+    if (!resources?.links?.length) return '';
+    return `<div class="workflow-resources" data-resource-section>
+      <div class="resource-section-header"><span>${_esc(resources.label || 'Resources')}</span></div>
+      <div class="resource-card-row">
+        ${resources.links.slice(0, 3).map(link => `
+          <a class="resource-card" href="${_escAttr(link.url)}" target="_blank" rel="noopener noreferrer" title="${_escAttr(link.url)}">
+            <span class="resource-card-icon">${_esc(link.icon || '🔗')}</span>
+            <span class="resource-card-label">${_esc(link.label)}</span>
+          </a>
+        `).join('')}
+      </div>
+    </div>`;
   }
 
   function _sideHustleLogHTML(viewId) {
@@ -269,6 +334,10 @@ const WorkflowPages = (() => {
 
   function _esc(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _escAttr(str) {
+    return _esc(str).replace(/'/g, '&#39;');
   }
 
   function _plainTitle(page) {
