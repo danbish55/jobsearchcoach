@@ -392,6 +392,90 @@ body.light .sidebar-icon-btn:hover {
 .btn-danger:hover { background: #c0392b; }
 
 /* === Dashboard === */
+.daily-briefing-card {
+  position: relative;
+  margin-bottom: 16px;
+  padding: 20px 22px 18px;
+  background: linear-gradient(135deg, #151515, #271318);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius-lg);
+  color: #f5f5f5;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.daily-briefing-kicker {
+  position: relative;
+  z-index: 1;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.daily-briefing-divider {
+  position: relative;
+  z-index: 1;
+  height: 1px;
+  margin: 12px 0 14px;
+  background: var(--gold-border);
+}
+.daily-briefing-content {
+  position: relative;
+  z-index: 1;
+  max-width: 880px;
+  color: #f4f4f4;
+  font-size: 15px;
+  line-height: 1.58;
+}
+.daily-briefing-card.loading .daily-briefing-content::after {
+  content: '';
+  display: inline-block;
+  width: 22px;
+  height: 10px;
+  margin-left: 8px;
+  background: radial-gradient(circle, var(--gold) 35%, transparent 38%) 0 50% / 7px 7px repeat-x;
+  animation: briefingDots 0.9s linear infinite;
+}
+@keyframes briefingDots {
+  from { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-1px); }
+  to { opacity: 0.3; transform: translateY(0); }
+}
+.daily-briefing-retry {
+  position: relative;
+  z-index: 1;
+  margin-top: 12px;
+}
+.daily-briefing-footer {
+  position: relative;
+  z-index: 1;
+  margin-top: 14px;
+  color: rgba(255,255,255,0.58);
+  font-size: 12px;
+}
+.daily-briefing-watermark {
+  position: absolute;
+  right: 28px;
+  bottom: -22px;
+  color: rgba(255,255,255,0.045);
+  font-size: 112px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+.daily-briefing-stamp {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  transform: rotate(-10deg);
+  color: rgba(157,34,53,0.58);
+  border: 2px solid rgba(157,34,53,0.42);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
 .dashboard-top {
   display: grid;
   grid-template-columns: minmax(240px, 0.8fr) minmax(420px, 1.8fr);
@@ -582,19 +666,20 @@ body.light .mission-list-item:hover { background: rgba(0,0,0,0.04); }
   display: flex;
   align-items: center;
   gap: 9px;
-  color: var(--text);
-  border: 1px solid var(--border);
+  color: #fff;
+  border: 1px solid rgba(157,34,53,0.55);
   border-radius: var(--radius);
   padding: 10px 12px;
   margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
+  background: var(--accent);
   transition: border-color var(--ease), background var(--ease);
 }
 .mission-resource-link:hover {
-  border-color: var(--gold-border);
-  background: var(--card-hover);
+  border-color: rgba(157,34,53,0.8);
+  background: #7f1b2a;
 }
 .mission-resource-icon {
   width: 20px;
@@ -604,9 +689,9 @@ body.light .mission-list-item:hover { background: rgba(0,0,0,0.04); }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: var(--gold-dim);
-  border: 1px solid var(--gold-border);
-  color: var(--gold);
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #fff;
   font-size: 12px;
   font-weight: 900;
 }
@@ -715,18 +800,18 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
   min-height: 34px;
   padding: 7px 11px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.04);
-  color: var(--text-muted);
+  border: 1px solid rgba(157,34,53,0.55);
+  background: var(--accent);
+  color: #fff;
   font-size: 12px;
   font-weight: 800;
   text-decoration: none;
   transition: border-color 0.2s, color 0.2s, background 0.2s, transform 0.2s;
 }
 .resource-card:hover {
-  border-color: var(--gold);
-  color: var(--gold);
-  background: var(--gold-dim);
+  border-color: rgba(157,34,53,0.8);
+  color: #fff;
+  background: #7f1b2a;
   transform: translateY(-1px);
 }
 .resource-card-icon {
