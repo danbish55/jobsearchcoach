@@ -17,7 +17,8 @@ const Resources = (() => {
       id: 'briefing_room',
       title: 'BRIEFING ROOM',
       description: 'Recent video briefings for interviews, computer knowledge, portfolios, and analyst careers.',
-      prompt: "Search for recent, relevant YouTube videos published in the last 30 days about data analyst interview prep, data analytics portfolio building, computer knowledge for data analysts, or data analyst career advice. Find 4 videos and strongly prioritize these channels/content producers: Alex The Analyst, Luke Barousse, Ken Jee, StatQuest with Josh Starmer, Data School, codebasics, Chandoo, Keith Galli, Tina Huang, 3Blue1Brown, Sundas Khalid, and Sabrina Romonov. Only include videos that are genuinely useful for an entry-level data analytics job search, interview prep, portfolio building, or practical analytics skill development. For each result return: video title (max 10 words), channel name, approximate publish date, one-sentence description of what makes it useful, and the YouTube URL. Format as JSON array.",
+      prompt: "Search YouTube for recent, relevant videos about data analyst interview prep, data analytics portfolio building, computer knowledge for data analysts, or data analyst career advice. Find 4 videos and strongly prioritize these channels/content producers: Alex The Analyst, Luke Barousse, Ken Jee, StatQuest with Josh Starmer, Data School, codebasics, Chandoo, Keith Galli, Tina Huang, 3Blue1Brown, Sundas Khalid, and Sabrina Romonov. Prefer videos from the last 90 days, but if fewer than 4 strong matches exist, include the most recent relevant videos from those channels rather than returning an empty result. Only include videos that are genuinely useful for an entry-level data analytics job search, interview prep, portfolio building, or practical analytics skill development. For each result return: video title (max 10 words), channel name, approximate publish date, one-sentence description of what makes it useful, and the YouTube URL. Format as JSON array.",
+      webSearch: { max_uses: 8, allowed_domains: ['youtube.com', 'youtu.be'] },
     },
   ];
 
@@ -107,7 +108,7 @@ const Resources = (() => {
       return;
     }
     try {
-      const items = await _fetchIntel(def.prompt);
+      const items = await _fetchIntel(def);
       if (!items.length) throw new Error('No results');
       const progress = _progress();
       progress[_itemsKey(sectionId)] = items.map(item => ({ ...item, section: sectionId }));
@@ -138,7 +139,7 @@ const Resources = (() => {
     </div>`;
   }
 
-  async function _fetchIntel(prompt) {
+  async function _fetchIntel(def) {
     const response = await fetch('/api/claude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -146,8 +147,8 @@ const Resources = (() => {
         model: 'claude-sonnet-4-5',
         max_tokens: 1400,
         stream: false,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
-        messages: [{ role: 'user', content: prompt }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5, ...(def.webSearch || {}) }],
+        messages: [{ role: 'user', content: def.prompt }],
       }),
     });
     if (!response.ok) {
@@ -165,7 +166,7 @@ const Resources = (() => {
   function _parseItems(text) {
     const raw = String(text || '').replace(/```json|```/g, '').trim();
     const match = raw.match(/\[[\s\S]*\]/);
-    if (!match) return [];
+    if (!match) return _parseLooseVideoItems(raw);
     try {
       const parsed = JSON.parse(match[0]);
       if (!Array.isArray(parsed)) return [];
@@ -177,8 +178,35 @@ const Resources = (() => {
         url: _firstValue(item, ['url', 'URL', 'youtube_url', 'youtubeUrl', 'youtube URL', 'YouTube URL', 'video_url', 'videoUrl', 'video URL']),
       })).filter(item => item.headline && item.url);
     } catch {
-      return [];
+      return _parseLooseVideoItems(raw);
     }
+  }
+
+  function _parseLooseVideoItems(text) {
+    const urlPattern = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=[^\s),\]]+|youtu\.be\/[^\s),\]]+)/gi;
+    const lines = String(text || '').split(/\n+/);
+    const items = [];
+    lines.forEach(line => {
+      const urls = line.match(urlPattern);
+      if (!urls) return;
+      const url = urls[0].replace(/[.]+$/, '');
+      const cleaned = line
+        .replace(urlPattern, '')
+        .replace(/^[-*\d.\s"']+/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const parts = cleaned.split(/\s+-\s+|\s+\|\s+/).map(part => part.trim()).filter(Boolean);
+      items.push({
+        headline: parts[0] || 'YouTube briefing',
+        source: parts[1] || 'YouTube',
+        publication_date: parts[2] || '',
+        summary: parts.slice(3).join(' - '),
+        url,
+      });
+    });
+    return items.filter((item, index, all) =>
+      item.url && all.findIndex(candidate => candidate.url === item.url) === index
+    ).slice(0, 4);
   }
 
   function _firstValue(item, keys) {
