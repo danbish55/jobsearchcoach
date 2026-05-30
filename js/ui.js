@@ -7,6 +7,8 @@ const UI = (() => {
       el.addEventListener('click', () => App.navigate(el.dataset.view));
     });
     loadTheme();
+    _ensureSidebarTooltips();
+    _loadSidebarState();
     updateSidebar();
   }
 
@@ -32,6 +34,43 @@ const UI = (() => {
     const label = document.getElementById('theme-label');
     if (icon)  icon.textContent  = theme === 'light' ? '🌙' : '☀️';
     if (label) label.textContent = theme === 'light' ? 'Dark mode' : 'Light mode';
+  }
+
+  function toggleSidebarCollapsed() {
+    const next = !document.body.classList.contains('sidebar-collapsed');
+    _applySidebarCollapsed(next);
+    try {
+      localStorage.setItem('jsc_sidebar_collapsed', next ? 'true' : 'false');
+    } catch {}
+  }
+
+  function _loadSidebarState() {
+    let collapsed = false;
+    try {
+      collapsed = localStorage.getItem('jsc_sidebar_collapsed') === 'true';
+    } catch {}
+    _applySidebarCollapsed(collapsed);
+  }
+
+  function _applySidebarCollapsed(collapsed) {
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    const btn = document.getElementById('sidebar-collapse-btn');
+    const icon = document.getElementById('sidebar-collapse-icon');
+    if (btn) {
+      btn.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
+      btn.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
+    }
+    if (icon) icon.textContent = collapsed ? '›' : '‹';
+  }
+
+  function _ensureSidebarTooltips() {
+    document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+      const label = item.textContent.replace(/\s+/g, ' ').trim();
+      if (label) {
+        item.setAttribute('title', label);
+        item.setAttribute('aria-label', label);
+      }
+    });
   }
 
   function updateSidebar() {
@@ -207,5 +246,5 @@ const UI = (() => {
     ]);
   }
 
-  return { init, updateSidebar, updateGauge, setActiveNav, showView, notify, showModal, closeModal, showMissionComplete, closeMissionComplete, showGaugeModal, toggleTheme };
+  return { init, updateSidebar, updateGauge, setActiveNav, showView, notify, showModal, closeModal, showMissionComplete, closeMissionComplete, showGaugeModal, toggleTheme, toggleSidebarCollapsed };
 })();

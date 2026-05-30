@@ -19,6 +19,7 @@
   --danger:       #e74c3c;
   --border:       rgba(255,255,255,0.08);
   --sidebar-w:    240px;
+  --sidebar-collapsed-w: 72px;
   --radius:       8px;
   --radius-lg:    12px;
   --ease:         0.2s ease;
@@ -112,22 +113,52 @@ select option { background: var(--card-bg); }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.28s ease, min-width 0.28s ease;
 }
 
 .sidebar-logo {
   padding: 16px 16px 9px;
   border-bottom: 1px solid var(--border);
 }
+.sidebar-logo-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
 .sidebar-logo-title {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--gold);
+  white-space: nowrap;
+  transition: opacity 0.18s ease;
 }
 .sidebar-logo-sub {
   font-size: 14px;
   color: var(--text-muted);
   margin-top: 3px;
+  white-space: nowrap;
+  transition: opacity 0.18s ease;
+}
+.sidebar-collapse-btn {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  transition: background var(--ease), color var(--ease), border-color var(--ease), transform 0.18s ease;
+}
+.sidebar-collapse-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold-border);
+  background: var(--gold-dim);
 }
 
 .sidebar-nav {
@@ -148,10 +179,17 @@ select option { background: var(--card-bg); }
   font-size: 14px;
   font-weight: 500;
   user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
 .nav-item.active { background: var(--gold-dim); color: var(--gold); }
-.nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; filter: saturate(1.12) contrast(1.08); }
+.nav-item[data-view="coach"] .nav-icon,
+.nav-item[data-view="resume"] .nav-icon {
+  font-size: 18px;
+  filter: saturate(1.35) contrast(1.18);
+}
 
 .nav-section-label {
   font-size: 10px;
@@ -176,6 +214,7 @@ select option { background: var(--card-bg); }
   display: flex;
   align-items: center;
   gap: 6px;
+  transition: gap 0.2s ease;
 }
 .sidebar-icon-btn {
   width: 26px;
@@ -204,6 +243,68 @@ body.light .sidebar-icon-btn {
 }
 body.light .sidebar-icon-btn:hover {
   background: rgba(255,255,255,0.95);
+}
+body.sidebar-collapsed #sidebar {
+  width: var(--sidebar-collapsed-w);
+  min-width: var(--sidebar-collapsed-w);
+}
+body.sidebar-collapsed .sidebar-logo {
+  padding: 14px 10px 9px;
+}
+body.sidebar-collapsed .sidebar-logo-row {
+  justify-content: center;
+}
+body.sidebar-collapsed .sidebar-logo-title,
+body.sidebar-collapsed .sidebar-logo-sub {
+  opacity: 0;
+  width: 0;
+  pointer-events: none;
+}
+body.sidebar-collapsed .sidebar-nav {
+  padding: 6px 8px;
+  overflow-x: hidden;
+}
+body.sidebar-collapsed .nav-section-header {
+  justify-content: center;
+  padding-right: 0;
+}
+body.sidebar-collapsed .nav-section-header .nav-section-label,
+body.sidebar-collapsed .nav-section-label {
+  height: 8px;
+  padding: 4px 0 0;
+  opacity: 0;
+  overflow: hidden;
+}
+body.sidebar-collapsed .sidebar-top-actions {
+  flex-direction: column;
+  gap: 7px;
+}
+body.sidebar-collapsed .nav-item {
+  justify-content: center;
+  gap: 0;
+  padding: 8px 0;
+  font-size: 0;
+}
+body.sidebar-collapsed .nav-item .nav-icon {
+  width: 34px;
+  font-size: 18px;
+}
+body.sidebar-collapsed .nav-item[data-view="coach"] .nav-icon,
+body.sidebar-collapsed .nav-item[data-view="resume"] .nav-icon {
+  font-size: 20px;
+}
+body.sidebar-collapsed .sidebar-mission-pages {
+  display: none;
+}
+@media (max-width: 760px) {
+  #sidebar {
+    width: min(var(--sidebar-w), 42vw);
+    min-width: min(var(--sidebar-w), 42vw);
+  }
+  body.sidebar-collapsed #sidebar {
+    width: var(--sidebar-collapsed-w);
+    min-width: var(--sidebar-collapsed-w);
+  }
 }
 .sidebar-mission-pages {
   margin-top: 6px;
@@ -329,6 +430,7 @@ body.light .sidebar-icon-btn:hover {
   overflow-y: auto;
   background: var(--bg);
   position: relative;
+  transition: background var(--ease);
 }
 
 .view { display: none; padding: 28px 32px; }

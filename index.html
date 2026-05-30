@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JobSearchCoach</title>
-  <link rel="stylesheet" href="css/styles.css?v=45">
+  <link rel="stylesheet" href="css/styles.css?v=46">
 </head>
 <body>
 <script>
@@ -55,8 +55,15 @@
   <!-- Sidebar -->
   <nav id="sidebar">
     <div class="sidebar-logo">
-      <div class="sidebar-logo-title">JobSearchCoach</div>
-      <div class="sidebar-logo-sub" id="sidebar-user-name">Loading...</div>
+      <div class="sidebar-logo-row">
+        <div>
+          <div class="sidebar-logo-title">JobSearchCoach</div>
+          <div class="sidebar-logo-sub" id="sidebar-user-name">Loading...</div>
+        </div>
+        <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="UI.toggleSidebarCollapsed()" aria-label="Collapse navigation" title="Collapse navigation">
+          <span id="sidebar-collapse-icon">‹</span>
+        </button>
+      </div>
     </div>
 
     <div class="sidebar-nav">
@@ -73,12 +80,12 @@
         <span class="nav-icon">🏠</span> Dashboard
       </div>
       <div class="nav-item" data-view="coach">
-        <span class="nav-icon">💬</span> Coach
+        <span class="nav-icon">🎯</span> Coach
       </div>
 
       <div class="nav-section-label">Job Search</div>
       <div class="nav-item" data-view="resume">
-        <span class="nav-icon">📄</span> Resume
+        <span class="nav-icon">📋</span> Resume
       </div>
       <div class="nav-item" data-view="resume-deep-dive">
         <span class="nav-icon">🔍</span> Resume Deep Dive
@@ -294,7 +301,7 @@
 <script src="js/drive.js?v=15"></script>
 <script src="js/sample-data.js?v=2"></script>
 <script src="js/milestones.js?v=14"></script>
-<script src="js/ui.js?v=16"></script>
+<script src="js/ui.js?v=17"></script>
 <script src="js/claude.js?v=12"></script>
 <script src="js/onboarding.js?v=17"></script>
 <script src="js/views/gauges.js?v=26"></script>
