@@ -17,7 +17,7 @@ const Resources = (() => {
       id: 'briefing_room',
       title: 'BRIEFING ROOM',
       description: 'Recent video briefings for interviews, computer knowledge, portfolios, and analyst careers.',
-      prompt: "Search for YouTube videos published in the last 30 days about data analyst interview prep, data analytics portfolio building, SQL for data analysts, or data analyst career advice. Find 4 videos from reputable channels - prioritize Alex The Analyst, Ken Jee, Luke Barousse, and similar established creators. For each result return: video title (max 10 words), channel name, approximate publish date, one-sentence description of what makes it useful, and the YouTube URL. Format as JSON array.",
+      prompt: "Search for recent, relevant YouTube videos published in the last 30 days about data analyst interview prep, data analytics portfolio building, computer knowledge for data analysts, or data analyst career advice. Find 4 videos and strongly prioritize these channels/content producers: Alex The Analyst, Luke Barousse, Ken Jee, StatQuest with Josh Starmer, Data School, codebasics, Chandoo, Keith Galli, Tina Huang, 3Blue1Brown, Sundas Khalid, and Sabrina Romonov. Only include videos that are genuinely useful for an entry-level data analytics job search, interview prep, portfolio building, or practical analytics skill development. For each result return: video title (max 10 words), channel name, approximate publish date, one-sentence description of what makes it useful, and the YouTube URL. Format as JSON array.",
     },
   ];
 
@@ -170,15 +170,22 @@ const Resources = (() => {
       const parsed = JSON.parse(match[0]);
       if (!Array.isArray(parsed)) return [];
       return parsed.map(item => ({
-        headline: item.headline || item.title || item.video_title || '',
-        source: item.source || item.source_name || item.channel || item.channel_name || '',
-        publication_date: item.publication_date || item.publish_date || item.approximate_publish_date || item.date || '',
-        summary: item.summary || item.description || item.insight || '',
-        url: item.url || '',
+        headline: _firstValue(item, ['headline', 'title', 'video_title', 'videoTitle', 'video title']),
+        source: _firstValue(item, ['source', 'source_name', 'sourceName', 'channel', 'channel_name', 'channelName', 'channel name']),
+        publication_date: _firstValue(item, ['publication_date', 'publicationDate', 'publish_date', 'publishDate', 'approximate_publish_date', 'approximatePublishDate', 'approximate publish date', 'date']),
+        summary: _firstValue(item, ['summary', 'description', 'insight']),
+        url: _firstValue(item, ['url', 'URL', 'youtube_url', 'youtubeUrl', 'youtube URL', 'YouTube URL', 'video_url', 'videoUrl', 'video URL']),
       })).filter(item => item.headline && item.url);
     } catch {
       return [];
     }
+  }
+
+  function _firstValue(item, keys) {
+    for (const key of keys) {
+      if (item[key]) return item[key];
+    }
+    return '';
   }
 
   function openItem(url) {
