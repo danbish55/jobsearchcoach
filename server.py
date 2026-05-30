@@ -282,14 +282,17 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         body = json.dumps(payload).encode()
+        headers = {
+            'x-api-key': api_key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        }
+        if payload.get('tools'):
+            headers['anthropic-beta'] = 'web-search-2025-03-05'
         req = urllib.request.Request(
             'https://api.anthropic.com/v1/messages',
             data=body, method='POST',
-            headers={
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            }
+            headers=headers
         )
 
         is_stream = payload.get('stream', False)

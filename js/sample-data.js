@@ -45,7 +45,7 @@ const SampleData = (() => {
 
   function _seedJobs() {
     const current = Storage.get('jobs', { applications: [] });
-    if (Array.isArray(current.applications) && current.applications.length >= 10) return;
+    if (Array.isArray(current.applications) && current.applications.length > 0) return;
     Storage.set('jobs', {
       applications: [
         { company: 'Google', role: 'Data Analyst, YouTube', date: '2026-05-20', status: 'applied', url: 'https://careers.google.com', notes: 'Sample entry: Tier 1 target. Look for USC alumni referral path.' },

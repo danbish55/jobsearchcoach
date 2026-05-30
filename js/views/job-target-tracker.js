@@ -80,7 +80,6 @@ const JobTargetTracker = (() => {
           </div>
         </div>
       </div>`;
-    _renderSummary();
     _renderChat();
     applyFilters();
   }

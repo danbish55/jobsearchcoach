@@ -3,6 +3,8 @@ const Drive = (() => {
   const FOLDER = 'appDataFolder';
   let _accessToken = null;
   let _fileCache = {}; // filename → Drive file ID
+  let _fileCacheLoaded = false;
+  let _fileCacheLoadPromise = null;
 
   function isConnected() {
     return Config.hasDrive() && !!_accessToken;
@@ -108,7 +110,28 @@ const Drive = (() => {
     return r.json();
   }
 
+  async function _loadFileCache() {
+    if (_fileCacheLoaded) return;
+    if (_fileCacheLoadPromise) return _fileCacheLoadPromise;
+    _fileCacheLoadPromise = (async () => {
+      try {
+        const data = await _apiCall('GET', `/files?spaces=${FOLDER}&fields=files(id,name)`);
+        if (data?.files) {
+          data.files.forEach(file => {
+            if (file.name && file.id) _fileCache[file.name] = file.id;
+          });
+          _fileCacheLoaded = true;
+        }
+      } finally {
+        _fileCacheLoadPromise = null;
+      }
+    })();
+    return _fileCacheLoadPromise;
+  }
+
   async function _findFile(filename) {
+    if (_fileCache[filename]) return _fileCache[filename];
+    await _loadFileCache();
     if (_fileCache[filename]) return _fileCache[filename];
     const q = encodeURIComponent(`name='${filename}' and trashed=false`);
     const data = await _apiCall('GET', `/files?spaces=${FOLDER}&q=${q}&fields=files(id)`);

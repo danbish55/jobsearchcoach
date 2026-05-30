@@ -43,9 +43,8 @@ const App = (() => {
 
     // Initialize Drive if connected
     if (Config.hasDrive()) {
-      await Drive.init();
-      await Storage.syncFromDrive();
-      await _syncProgressFromDrive();
+      const connected = await Drive.init();
+      if (connected) _syncFromDriveInBackground();
     }
 
     SampleData.seedIfEmpty();
@@ -121,6 +120,15 @@ const App = (() => {
   }
 
   function getCurrentView() { return _currentView; }
+
+  async function _syncFromDriveInBackground() {
+    try {
+      await Storage.syncFromDrive();
+      await _syncProgressFromDrive();
+      const view = getCurrentView();
+      if (view && view !== 'coach') navigate(view);
+    } catch {}
+  }
 
   async function _syncProgressFromDrive() {
     if (!Drive.isConnected()) return;
