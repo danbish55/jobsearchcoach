@@ -77,7 +77,6 @@ const WorkflowPages = (() => {
         'If you do not hear back in 7 days, one follow-up is appropriate and professional.',
       ],
       prompt: 'Give me a specific name - who did you reach out to, what school are they from, where do they work, and what did you say?',
-      note: 'Vague answers do not count here. A real name and a real company is the minimum. If you are finding it hard to take this step, type that into the chat box below and talk it through.',
       resources: {
         label: 'Resources — Your Alumni Networks',
         links: [
@@ -669,7 +668,7 @@ const WorkflowPages = (() => {
       return {
         income: Math.max(0, parseInt(payload?.income || '0', 10) || 0),
         portfolioEligible: !!payload?.portfolioEligible,
-        note: String(payload?.note || '').trim(),
+        note: _normalizeNoteText(String(payload?.note || '').trim()),
       };
     }
     return { description: _historyDescription(page, payload?.description || '') };
@@ -680,7 +679,7 @@ const WorkflowPages = (() => {
       return {
         income: Math.max(0, parseInt(document.getElementById('activity-history-income')?.value || '0', 10) || 0),
         portfolioEligible: !!document.getElementById('activity-history-portfolio')?.checked,
-        note: document.getElementById('activity-history-note')?.value.trim() || '',
+        note: _normalizeNoteText(document.getElementById('activity-history-note')?.value.trim() || ''),
       };
     }
     const description = _historyDescription(page, document.getElementById('activity-history-edit')?.value || '');
@@ -716,13 +715,13 @@ const WorkflowPages = (() => {
     if (page.sideHustle) {
       const amount = `$${Math.max(0, parseInt(entry.income || '0', 10) || 0)}`;
       const eligible = entry.portfolioEligible ? 'Portfolio eligible' : 'Not portfolio eligible';
-      return `${amount} - ${eligible} - ${entry.note || 'No note'}`;
+      return `${amount} - ${eligible} - ${_normalizeNoteText(entry.note || 'No note')}`;
     }
     return _historyDescription(page, entry.description || '');
   }
 
   function _historyDescription(page, value) {
-    return page.key === 'followups' ? _normalizeFollowupDescription(value) : String(value || '').trim();
+    return page.key === 'followups' ? _normalizeFollowupDescription(value) : _normalizeSimpleActivityDescription(value);
   }
 
   function _historyStorageKey(page) {
@@ -840,6 +839,25 @@ const WorkflowPages = (() => {
     return null;
   }
 
+  function _normalizeSimpleActivityDescription(description) {
+    const text = String(description || '').trim();
+    const parsed = _parseSimpleActivityDescription(text);
+    if (!parsed) return text;
+    return `${_titleCaseName(parsed.company)} - ${_titleCaseName(parsed.name)}, ${parsed.note}`;
+  }
+
+  function _parseSimpleActivityDescription(text) {
+    const parts = String(text || '').split(',').map(part => part.trim()).filter(Boolean);
+    if (parts.length < 3) return null;
+    if (_looksLikePerson(parts[0])) {
+      return { name: parts[0], company: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+    if (_looksLikePerson(parts[1])) {
+      return { company: parts[0], name: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+    return null;
+  }
+
   function _extractDateAndNote(text) {
     const match = String(text || '').trim().match(/^(today|yesterday|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b[\s,;:-]*(.*)$/i);
     if (!match) return null;
@@ -856,6 +874,19 @@ const WorkflowPages = (() => {
     return String(name || '').replace(/\b([a-z][a-z'-]*)\b/gi, word => (
       word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     ));
+  }
+
+  function _sentenceCase(value) {
+    const text = String(value || '').trim();
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+  }
+
+  function _normalizeNoteText(value) {
+    const text = _sentenceCase(value);
+    const titled = text.replace(/\b(mr|ms|mrs|dr)\.?\s+([a-z][a-z'-]*)\b/gi, (match, title, name) => (
+      `${_titleCaseName(title)} ${_titleCaseName(name)}`
+    ));
+    return titled.replace(/^([a-z][a-z'-]*\s+[a-z][a-z'-]*)(?=,)/i, name => _titleCaseName(name));
   }
 
   async function ask(viewId) {

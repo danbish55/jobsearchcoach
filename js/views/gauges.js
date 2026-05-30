@@ -444,7 +444,7 @@ Rules:
     const text = String(payload?.description || '').trim();
     if (!text) return { ok: false, reason: 'Please describe what you did.' };
 
-    if (gaugeId === 'followups') {
+    if (['followups', 'networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId)) {
       const local = _localValidate(gaugeId, text);
       if (local.valid) {
         _increment(gaugeId);
@@ -454,7 +454,7 @@ Rules:
       return {
         ok: false,
         question: local.question || null,
-        reason: local.reason || 'Please add who, date, and a short note.',
+        reason: local.reason || 'Please add a little more detail.',
       };
     }
 
@@ -499,13 +499,18 @@ Rules:
     const hasCompanyOrRole = /\b(role|position|job|company|manager|recruiter|analyst|data|engineer|designer|consultant|developer|coordinator)\b/i.test(text);
     const hasTiming = /\b(today|yesterday|week|month|day|applied|sent|emailed|messaged|called|followed up)\b/i.test(text) || /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/.test(text);
 
-    if (gaugeId !== 'followups' && words.length < 8) {
+    if (!['followups', 'networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId) && words.length < 8) {
       return { valid: false, question: 'Can you add who, what role or company, and when this happened?', reason: 'The entry is too short to confirm the activity.' };
     }
     if (gaugeId === 'followups') {
       const parsed = _parseFollowupLog(text);
       if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
       return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'Follow-ups need company, name, and a short comment.' };
+    }
+    if (['networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId)) {
+      const parsed = _parseSimpleActivityLog(text);
+      if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
+      return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'This activity needs company, name, and a short comment.' };
     }
     if (gaugeId === 'usc_eller' && (!hasName || !/\b(USC|Eller|Arizona|Marshall|alumni|alum)\b/i.test(text))) {
       return { valid: false, question: 'What is the person’s name, and are they connected to USC or Eller?', reason: 'USC/Eller networking needs a named alumni contact.' };
@@ -538,6 +543,18 @@ Rules:
       return { company: parts[0], name: parts[1], note: parts.slice(2).join(', ').trim() };
     }
 
+    return null;
+  }
+
+  function _parseSimpleActivityLog(text) {
+    const parts = String(text || '').split(',').map(part => part.trim()).filter(Boolean);
+    if (parts.length < 3) return null;
+    if (_looksLikeFollowupPerson(parts[0])) {
+      return { name: parts[0], company: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+    if (_looksLikeFollowupPerson(parts[1])) {
+      return { company: parts[0], name: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
     return null;
   }
 
