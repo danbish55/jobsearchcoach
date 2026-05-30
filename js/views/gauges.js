@@ -32,7 +32,7 @@ Rules:
 
   const VALIDATION_HINTS = {
     interviews:     'Needs a company name or role title. "Had an interview" alone is not sufficient.',
-    followups:      'Needs a specific person, company, role, or original application/outreach timing. "I followed up" alone is not sufficient.',
+    followups:      'Needs who was contacted, the date, and a short note about the follow-up. "I followed up" alone is not sufficient.',
     usc_eller:      'Needs a specific USC or Eller-affiliated person\'s name. Generic outreach without a real name is not valid.',
     networking:     'Needs to describe a real outreach action with a specific person or group, not just "I networked."',
     interview_prep: 'Needs to describe a specific prep activity, not just "I studied" or "I prepared."',
@@ -444,6 +444,20 @@ Rules:
     const text = String(payload?.description || '').trim();
     if (!text) return { ok: false, reason: 'Please describe what you did.' };
 
+    if (gaugeId === 'followups') {
+      const local = _localValidate(gaugeId, text);
+      if (local.valid) {
+        _increment(gaugeId);
+        _reRenderBand();
+        return { ok: true, localFallback: true };
+      }
+      return {
+        ok: false,
+        question: local.question || null,
+        reason: local.reason || 'Please add who, date, and a short note.',
+      };
+    }
+
     const needsValidation = def.validate || payload?.requireValidation;
     if (!needsValidation) {
       _increment(gaugeId);
@@ -483,14 +497,15 @@ Rules:
     const words = text.split(/\s+/).filter(Boolean);
     const hasName = /\b(Mr\.?|Ms\.?|Mrs\.?|Dr\.?)\s+[A-Z][a-z]+|\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/.test(text);
     const hasCompanyOrRole = /\b(role|position|job|company|manager|recruiter|analyst|data|engineer|designer|consultant|developer|coordinator)\b/i.test(text);
-    const hasTiming = /\b(today|yesterday|week|month|day|applied|sent|emailed|messaged|called|followed up)\b/i.test(text);
+    const hasTiming = /\b(today|yesterday|week|month|day|applied|sent|emailed|messaged|called|followed up)\b/i.test(text) || /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/.test(text);
 
-    if (words.length < 8) {
+    if (gaugeId !== 'followups' && words.length < 8) {
       return { valid: false, question: 'Can you add who, what role or company, and when this happened?', reason: 'The entry is too short to confirm the activity.' };
     }
     if (gaugeId === 'followups') {
-      if (hasName && hasCompanyOrRole && hasTiming) return { valid: true };
-      return { valid: false, question: 'Who did you follow up with, for what role or company, and when did you apply or first reach out?', reason: 'Follow-ups need a person, role or company, and timing.' };
+      const parsed = _parseFollowupLog(text);
+      if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
+      return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'Follow-ups need company, name, and a short comment.' };
     }
     if (gaugeId === 'usc_eller' && (!hasName || !/\b(USC|Eller|Arizona|Marshall|alumni|alum)\b/i.test(text))) {
       return { valid: false, question: 'What is the person’s name, and are they connected to USC or Eller?', reason: 'USC/Eller networking needs a named alumni contact.' };
@@ -499,6 +514,43 @@ Rules:
       return { valid: hasName || hasCompanyOrRole || hasTiming };
     }
     return { valid: true };
+  }
+
+  function _parseFollowupLog(text) {
+    const parts = String(text || '').split(',').map(part => part.trim()).filter(Boolean);
+    if (parts.length < 3) return null;
+
+    const companyFirstDate = _extractFollowupDateAndNote(parts[1]);
+    if (parts.length >= 4 && companyFirstDate && _looksLikeFollowupPerson(parts[2])) {
+      return { company: parts[0], name: parts[2], note: parts.slice(3).join(', ').trim() };
+    }
+
+    const nameFirstDate = _extractFollowupDateAndNote(parts.slice(2).join(', '));
+    if (nameFirstDate && _looksLikeFollowupPerson(parts[0])) {
+      return { name: parts[0], company: parts[1], note: nameFirstDate.note };
+    }
+
+    if (_looksLikeFollowupPerson(parts[0])) {
+      return { name: parts[0], company: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+
+    if (_looksLikeFollowupPerson(parts[1])) {
+      return { company: parts[0], name: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+
+    return null;
+  }
+
+  function _extractFollowupDateAndNote(text) {
+    const match = String(text || '').trim().match(/^(today|yesterday|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b[\s,;:-]*(.*)$/i);
+    if (!match) return null;
+    return { date: match[1], note: match[2].trim() };
+  }
+
+  function _looksLikeFollowupPerson(text) {
+    return /\b(?:mr|ms|mrs|dr)\.?\s+[a-z][a-z'-]*\b/i.test(text)
+      || /\b(?:man|woman|person|guy|lady|recruiter|manager)\s+named\s+[a-z][a-z'-]*\b/i.test(text)
+      || /\b[a-z][a-z'-]*\s+[a-z][a-z'-]*\b/i.test(text);
   }
 
   return { init, renderBand, renderSideHustlePanel, openPanel, logWorkflowActivity, increment };
