@@ -67,25 +67,17 @@
     </div>
 
     <div class="sidebar-nav">
-      <div class="nav-section-header">
-        <div class="nav-section-label">Overview</div>
-        <div class="sidebar-top-actions">
-          <button class="sidebar-icon-btn" data-view="settings" aria-label="Settings" title="Settings">⚙️</button>
-          <button class="sidebar-icon-btn theme-toggle" onclick="UI.toggleTheme()" aria-label="Toggle theme" title="Toggle light/dark mode">
-            <span class="theme-toggle-icon" id="theme-icon">🌙</span>
-          </button>
-        </div>
-      </div>
+      <div class="nav-section-label">Overview</div>
       <div class="nav-item active" data-view="dashboard">
         <span class="nav-icon">🏠</span> Dashboard
       </div>
       <div class="nav-item" data-view="coach">
-        <span class="nav-icon">🎯</span> Coach
+        <span class="nav-icon">🧢</span> Coach
       </div>
 
       <div class="nav-section-label">Job Search</div>
       <div class="nav-item" data-view="resume">
-        <span class="nav-icon">📋</span> Resume
+        <span class="nav-icon">✍️</span> Resume
       </div>
       <div class="nav-item" data-view="resume-deep-dive">
         <span class="nav-icon">🔍</span> Resume Deep Dive
@@ -106,7 +98,7 @@
         <span class="nav-icon">🎤</span> Interview Prep
       </div>
       <div class="nav-item" data-view="workflow-linkedin">
-        <span class="nav-icon">🔗</span> LinkedIn Activity
+        <span class="nav-icon linkedin-nav-icon">in</span> LinkedIn Activity
       </div>
       <div class="nav-item" data-view="workflow-side-hustle">
         <span class="nav-icon">💵</span> Side Hustle
@@ -117,12 +109,20 @@
 
       <div class="nav-section-label">Intelligence</div>
       <div class="nav-item" data-view="resources">
-        <span class="nav-icon">🗞️</span> Resources
+        <span class="nav-icon">🏆</span> Resources
       </div>
 
       <div class="nav-section-label">Reports</div>
       <div class="nav-item" data-view="report">
         <span class="nav-icon">📨</span> Progress Report
+      </div>
+      <div class="sidebar-utility-actions">
+        <button class="sidebar-utility-btn" data-view="settings" aria-label="Settings" title="Settings">
+          <span class="nav-icon">⚙️</span><span class="sidebar-utility-label">Settings</span>
+        </button>
+        <button class="sidebar-utility-btn theme-toggle" onclick="UI.toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+          <span class="nav-icon theme-toggle-icon" id="theme-icon">🌙</span><span class="sidebar-utility-label" id="theme-label">Dark mode</span>
+        </button>
       </div>
       <div class="sidebar-mission-pages hidden" id="sidebar-mission-pages">
         <div class="nav-section-label">Mission Pages</div>

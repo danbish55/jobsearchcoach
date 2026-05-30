@@ -64,7 +64,7 @@ const UI = (() => {
   }
 
   function _ensureSidebarTooltips() {
-    document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+    document.querySelectorAll('.nav-item[data-view], .sidebar-utility-btn').forEach(item => {
       const label = item.textContent.replace(/\s+/g, ' ').trim();
       if (label) {
         item.setAttribute('title', label);

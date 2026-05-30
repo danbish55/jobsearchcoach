@@ -167,7 +167,8 @@ select option { background: var(--card-bg); }
   overflow-y: auto;
 }
 
-.nav-item {
+.nav-item,
+.sidebar-utility-btn {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -182,13 +183,43 @@ select option { background: var(--card-bg); }
   white-space: nowrap;
   overflow: hidden;
 }
-.nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
-.nav-item.active { background: var(--gold-dim); color: var(--gold); }
-.nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; filter: saturate(1.12) contrast(1.08); }
+.sidebar-utility-btn {
+  width: 100%;
+  background: transparent;
+}
+.nav-item:hover,
+.sidebar-utility-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.nav-item.active,
+.sidebar-utility-btn.active { background: var(--gold-dim); color: var(--gold); }
+.nav-item .nav-icon,
+.sidebar-utility-btn .nav-icon { font-size: 16px; width: 20px; text-align: center; filter: saturate(1.12) contrast(1.08); }
 .nav-item[data-view="coach"] .nav-icon,
 .nav-item[data-view="resume"] .nav-icon {
   font-size: 18px;
   filter: saturate(1.35) contrast(1.18);
+}
+.linkedin-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px !important;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 3px;
+  background: #0A66C2;
+  color: #fff;
+  font-size: 14px !important;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  line-height: 1;
+  filter: none !important;
+}
+.sidebar-utility-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding-top: 4px;
 }
 
 .nav-section-label {
@@ -279,19 +310,27 @@ body.sidebar-collapsed .sidebar-top-actions {
   flex-direction: column;
   gap: 7px;
 }
-body.sidebar-collapsed .nav-item {
+body.sidebar-collapsed .nav-item,
+body.sidebar-collapsed .sidebar-utility-btn {
   justify-content: center;
   gap: 0;
   padding: 8px 0;
   font-size: 0;
 }
-body.sidebar-collapsed .nav-item .nav-icon {
+body.sidebar-collapsed .nav-item .nav-icon,
+body.sidebar-collapsed .sidebar-utility-btn .nav-icon {
   width: 34px;
   font-size: 18px;
 }
 body.sidebar-collapsed .nav-item[data-view="coach"] .nav-icon,
 body.sidebar-collapsed .nav-item[data-view="resume"] .nav-icon {
   font-size: 20px;
+}
+body.sidebar-collapsed .linkedin-nav-icon {
+  width: 20px !important;
+  height: 20px;
+  flex-basis: 20px;
+  font-size: 14px !important;
 }
 body.sidebar-collapsed .sidebar-mission-pages {
   display: none;
