@@ -23,10 +23,10 @@ if ($clientSecret -notmatch '^GOCSPX-[A-Za-z0-9_-]+$') {
 
 $env:JSC_GOOGLE_CLIENT_ID = $clientId
 $env:JSC_GOOGLE_CLIENT_SECRET = $clientSecret
-$env:JSC_PACKAGE_NAME = "JobSearchCoach-Install"
+Remove-Item Env:\JSC_PACKAGE_NAME -ErrorAction SilentlyContinue
 
 python tools\build_corinne_package.py
 
 Write-Host ""
 Write-Host "Package is ready:"
-Write-Host "  dist\JobSearchCoach-Install.zip"
+Write-Host "  See the Built zip package line above."

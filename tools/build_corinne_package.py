@@ -7,12 +7,14 @@ executables. It is a zip folder containing plain text launcher scripts.
 Environment variables:
   JSC_GOOGLE_CLIENT_ID      Required for a production package.
   JSC_GOOGLE_CLIENT_SECRET  Required for a production package.
-  JSC_PACKAGE_NAME          Optional, defaults to JobSearchCoach-Install.
+  JSC_PACKAGE_NAME          Optional, defaults to install-vN-YYYYMMDD.
+  JSC_PACKAGE_VERSION       Optional, defaults to 2.
   JSC_ALLOW_EMPTY_GOOGLE    Set to 1 only for local packaging tests.
 """
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import shutil
@@ -24,7 +26,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-PACKAGE_NAME = os.environ.get("JSC_PACKAGE_NAME", "JobSearchCoach-Install").strip() or "JobSearchCoach-Install"
+
+
+def default_package_name() -> str:
+    version = os.environ.get("JSC_PACKAGE_VERSION", "2").strip() or "2"
+    stamp = dt.datetime.now().strftime("%Y%m%d")
+    return f"install-v{version}-{stamp}"
+
+
+PACKAGE_NAME = os.environ.get("JSC_PACKAGE_NAME", "").strip() or default_package_name()
 
 EXCLUDE_DIRS = {
     ".git",
@@ -59,6 +69,8 @@ echo Your browser should open automatically.
 echo.
 echo To stop JobSearchCoach, close this window.
 echo.
+
+call :create_desktop_shortcut
 
 set "PYTHON_EXE="
 set "PY_LAUNCHER_ARGS="
@@ -139,13 +151,19 @@ if defined PYTHON_EXE exit /b
 if %errorlevel%==0 set "PYTHON_EXE=%~1"
 exit /b
 
+:create_desktop_shortcut
+set "SHORTCUT_PATH=%USERPROFILE%\\Desktop\\JobSearchCoach.lnk"
+if exist "%SHORTCUT_PATH%" exit /b
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\\JobSearchCoach.lnk'); $s.TargetPath='%~f0'; $s.WorkingDirectory='%~dp0'; $s.IconLocation='%SystemRoot%\\System32\\shell32.dll,13'; $s.Save()" >nul 2>&1
+exit /b
+
 :done
 echo.
 pause
 """
 
 MAC_LAUNCHER = """#!/bin/bash
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 clear
 echo "=============================================="
 echo " JobSearchCoach"
@@ -157,13 +175,76 @@ echo
 echo "To stop JobSearchCoach, close this window."
 echo
 
-if command -v python3 >/dev/null 2>&1; then
-  python3 server.py
-elif command -v python >/dev/null 2>&1; then
-  python server.py
+create_desktop_launcher() {
+  local desktop="$HOME/Desktop"
+  local launcher="$desktop/JobSearchCoach.command"
+  mkdir -p "$desktop"
+  if [ ! -e "$launcher" ]; then
+    cat > "$launcher" <<EOF
+#!/bin/bash
+cd "$PWD" || exit 1
+./Start\\ JobSearchCoach.command
+EOF
+    chmod +x "$launcher"
+  fi
+}
+
+create_desktop_launcher
+
+PYTHON_EXE=""
+PYTHON_TEST='import sys; raise SystemExit(0 if sys.version_info >= (3,8) else 1)'
+
+try_python() {
+  local candidate="$1"
+  if [ -x "$candidate" ] && "$candidate" -c "$PYTHON_TEST" >/dev/null 2>&1; then
+    PYTHON_EXE="$candidate"
+    return 0
+  fi
+  return 1
+}
+
+try_python_command() {
+  local command_name="$1"
+  if command -v "$command_name" >/dev/null 2>&1; then
+    local candidate
+    candidate="$(command -v "$command_name")"
+    try_python "$candidate"
+  fi
+}
+
+try_python_command python3 || true
+try_python_command python || true
+
+if [ -z "$PYTHON_EXE" ]; then
+  for candidate in \\
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \\
+    /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 \\
+    /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 \\
+    /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 \\
+    /Library/Frameworks/Python.framework/Versions/3.10/bin/python3 \\
+    /usr/local/bin/python3 \\
+    /opt/homebrew/bin/python3 \\
+    /usr/bin/python3; do
+    try_python "$candidate" && break
+  done
+fi
+
+if [ -z "$PYTHON_EXE" ]; then
+  for candidate in /Library/Frameworks/Python.framework/Versions/*/bin/python3; do
+    try_python "$candidate" && break
+  done
+fi
+
+if [ -n "$PYTHON_EXE" ]; then
+  echo "Found Python: $PYTHON_EXE"
+  echo "Opening JobSearchCoach in your browser..."
+  open "http://localhost:8765" >/dev/null 2>&1 &
+  echo
+  "$PYTHON_EXE" -u server.py
 else
   echo "Python 3 is required to run JobSearchCoach."
   echo
+  echo "Python may be installed only as IDLE, but Terminal could not find the Python interpreter."
   echo "Opening the Python download page..."
   open "https://www.python.org/downloads/macos/"
   echo
@@ -179,6 +260,10 @@ Start here:
 1. Open INSTALL.md and follow the steps for your computer.
 2. Windows users double-click: Start JobSearchCoach.bat
 3. Mac users double-click: Start JobSearchCoach.command
+
+This package extracts to a dated folder so it will not overwrite an older
+JobSearchCoach install folder. The first launch also creates a Desktop
+JobSearchCoach launcher.
 
 Your setup is private to this computer and your Google account:
 
@@ -293,16 +378,22 @@ def remove_tree(path: Path) -> None:
     shutil.rmtree(path, onerror=on_error)
 
 
+def unique_package_paths(package_name: str) -> tuple[Path, Path]:
+    candidate = package_name
+    suffix = 2
+    while True:
+        target = DIST / candidate
+        zip_path = DIST / f"{candidate}.zip"
+        if not target.exists() and not zip_path.exists():
+            return target, zip_path
+        candidate = f"{package_name}-{suffix}"
+        suffix += 1
+
+
 def main() -> None:
     client_id, client_secret = require_google_credentials()
     DIST.mkdir(exist_ok=True)
-    target = DIST / PACKAGE_NAME
-    zip_path = DIST / f"{PACKAGE_NAME}.zip"
-
-    if target.exists():
-        remove_tree(target)
-    if zip_path.exists():
-        zip_path.unlink()
+    target, zip_path = unique_package_paths(PACKAGE_NAME)
 
     target.mkdir(parents=True)
     copy_tree(target)

@@ -19,7 +19,13 @@ from urllib.parse import urlparse, parse_qs
 
 PORT = 8765
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
+BUNDLED_CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
+USER_CONFIG_DIR = (
+    os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'JobSearchCoach')
+    if os.name == 'nt'
+    else os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', 'JobSearchCoach')
+)
+CONFIG_FILE = os.path.join(USER_CONFIG_DIR, 'config.json')
 CONFIG_LOCK = threading.Lock()
 
 
@@ -32,7 +38,8 @@ def save_config(updates):
     with CONFIG_LOCK:
         cfg = _load_config_unlocked()
         cfg.update(updates)
-        fd, tmp_path = tempfile.mkstemp(prefix='config.', suffix='.tmp', dir=BASE_DIR, text=True)
+        os.makedirs(USER_CONFIG_DIR, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(prefix='config.', suffix='.tmp', dir=USER_CONFIG_DIR, text=True)
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(cfg, f, indent=2)
@@ -44,8 +51,20 @@ def save_config(updates):
 
 
 def _load_config_unlocked():
+    bundled = _read_config_file(BUNDLED_CONFIG_FILE)
+    user = _read_config_file(CONFIG_FILE)
+    cfg = {}
+    cfg.update(bundled)
+    cfg.update(user)
+    for key in ('google_client_id', 'google_client_secret'):
+        if bundled.get(key):
+            cfg[key] = bundled[key]
+    return cfg
+
+
+def _read_config_file(path):
     try:
-        with open(CONFIG_FILE, encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
