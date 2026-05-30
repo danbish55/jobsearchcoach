@@ -100,20 +100,25 @@ select option { background: var(--card-bg); }
 
 /* === Layout === */
 #app {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   height: 100vh;
+  transition: grid-template-columns 0.32s ease;
+}
+body.sidebar-collapsed #app {
+  grid-template-columns: var(--sidebar-collapsed-w) minmax(0, 1fr);
 }
 
 /* === Sidebar === */
 #sidebar {
-  width: var(--sidebar-w);
-  min-width: var(--sidebar-w);
+  width: 100%;
+  min-width: 0;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: width 0.28s ease, min-width 0.28s ease;
+  transition: border-color var(--ease);
 }
 
 .sidebar-logo {
@@ -175,13 +180,23 @@ select option { background: var(--card-bg); }
   padding: 6px 10px;
   border-radius: var(--radius);
   cursor: pointer;
-  transition: background var(--ease), color var(--ease);
+  transition: background var(--ease), color var(--ease), gap 0.24s ease, padding 0.24s ease;
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 500;
   user-select: none;
   white-space: nowrap;
   overflow: hidden;
+}
+.nav-label,
+.sidebar-utility-label {
+  display: inline-block;
+  max-width: 170px;
+  opacity: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  transition: max-width 0.24s ease, opacity 0.16s ease, transform 0.24s ease;
 }
 .sidebar-utility-btn {
   width: 100%;
@@ -276,8 +291,8 @@ body.light .sidebar-icon-btn:hover {
   background: rgba(255,255,255,0.95);
 }
 body.sidebar-collapsed #sidebar {
-  width: var(--sidebar-collapsed-w);
-  min-width: var(--sidebar-collapsed-w);
+  width: 100%;
+  min-width: 0;
 }
 body.sidebar-collapsed .sidebar-logo {
   padding: 14px 10px 9px;
@@ -315,7 +330,12 @@ body.sidebar-collapsed .sidebar-utility-btn {
   justify-content: center;
   gap: 0;
   padding: 8px 0;
-  font-size: 0;
+}
+body.sidebar-collapsed .nav-label,
+body.sidebar-collapsed .sidebar-utility-label {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-6px);
 }
 body.sidebar-collapsed .nav-item .nav-icon,
 body.sidebar-collapsed .sidebar-utility-btn .nav-icon {
@@ -337,12 +357,12 @@ body.sidebar-collapsed .sidebar-mission-pages {
 }
 @media (max-width: 760px) {
   #sidebar {
-    width: min(var(--sidebar-w), 42vw);
-    min-width: min(var(--sidebar-w), 42vw);
+    width: 100%;
+    min-width: 0;
   }
   body.sidebar-collapsed #sidebar {
-    width: var(--sidebar-collapsed-w);
-    min-width: var(--sidebar-collapsed-w);
+    width: 100%;
+    min-width: 0;
   }
 }
 .sidebar-mission-pages {
