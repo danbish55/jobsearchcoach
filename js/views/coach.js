@@ -7,8 +7,13 @@ const Coach = (() => {
   function init() {
     if (_initialized) return;
     _initialized = true;
-    _session = [];
-    _renderWelcome();
+    _session = Storage.get('coach_current_session', []);
+    if (Array.isArray(_session) && _session.length) {
+      _renderPersistedSession();
+    } else {
+      _session = [];
+      _renderWelcome();
+    }
   }
 
   function _renderWelcome() {
@@ -44,6 +49,16 @@ What would you like to focus on? I can help you with:
     area.appendChild(div);
     area.scrollTop = area.scrollHeight;
     return id;
+  }
+
+  function _renderPersistedSession() {
+    const area = document.getElementById('messages-area');
+    if (area) area.innerHTML = '';
+    _session.forEach(msg => _appendMessage(msg.role === 'assistant' ? 'coach' : msg.role, msg.content));
+  }
+
+  function _saveCurrentSession() {
+    Storage.set('coach_current_session', _session);
   }
 
   function _showTyping() {
@@ -89,6 +104,7 @@ What would you like to focus on? I can help you with:
 
     // Add user message to session and UI
     _session.push({ role: 'user', content: text });
+    _saveCurrentSession();
     _appendMessage('user', text);
 
     _streaming = true;
@@ -127,6 +143,7 @@ What would you like to focus on? I can help you with:
             const bubble = document.querySelector(`#${streamMsgId} .msg-bubble`);
             if (bubble) bubble.innerHTML = _formatContent(fullText);
             _session.push({ role: 'assistant', content: fullText });
+            _saveCurrentSession();
           }
         }
       );
@@ -160,6 +177,7 @@ What would you like to focus on? I can help you with:
     if (_session.length > 0) {
       document.getElementById('coach-status-label').textContent = '● Saving session...';
       await Claude.saveSession([..._session]);
+      Storage.remove('coach_current_session');
       UI.notify('Session saved', 'success');
     }
     _session = [];

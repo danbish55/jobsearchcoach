@@ -18,6 +18,7 @@ const Settings = (() => {
     'resume',
     'deep_dive',
     'sessions',
+    'coach_current_session',
     'gauges',
     'job_target_tracker',
     'mission_discussion_dossier',

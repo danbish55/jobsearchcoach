@@ -1,5 +1,13 @@
 /* Dashboard view */
 const Dashboard = (() => {
+  const SAMPLE_BRIEFING_TEXT = "Intelligence indicates Agent Bish has enough momentum to make today useful, provided she does not mistake planning for movement. The market remains selective, but analytics candidates with USC Marshall credentials and a defensible project story are still in the game. Today's mission: identify one hiring manager or USC alum at a target Los Angeles company, send the outreach message, and log the follow-up before closing the laptop. MI6 does not award medals for refreshing job boards.";
+  const PREVIEW_BRIEFINGS = [
+    SAMPLE_BRIEFING_TEXT,
+    "The field reports suggest applications are moving, but networking is still behaving like a locked door no one has tried the handle on. Los Angeles analytics hiring remains competitive, yet candidates who can connect business judgment to technical execution are still getting through. Today's mission: find one USC Marshall alum at Disney, Snap, or Capital Group and send a specific outreach note tied to analytics work. No grand campaign required. One clean contact, one logged action, then move.",
+    "Agent Bish's activity log shows progress in the dossier, but interview preparation needs a sharper edge before the next recruiter screen appears. The advantage remains clear: USC Marshall, MIS foundations, and real analytics work are a credible package when defended with specifics. Today's mission: rehearse one analytics project story out loud using situation, task, action, result, and one metric or decision influenced. If the number is imperfect, estimate it intelligently. The room will not grade itself.",
+    "Intelligence indicates the job boards are not the enemy, but they are also not a strategy. Data analytics roles continue to reward candidates who show proof of work, especially when the portfolio connects tools to decisions instead of screenshots. Today's mission: spend forty-five minutes improving one portfolio bullet so it names the dataset, method, tool, and business question. Then stop polishing and publish the improvement. Perfection is not a deployment plan.",
+  ];
+
   const BRIEFING_SYSTEM_PROMPT = `You are generating a daily mission briefing for Corinne, a USC Marshall MSBA graduate conducting a job search in Los Angeles. You write in the style of a James Bond MI6 mission briefing — professional, dry wit, direct, occasionally sardonic, never cheesy. Think M briefing Bond, not a parody. The briefing should feel like it was written by someone who takes the mission seriously and expects her to as well.
 
 The briefing has four parts delivered as flowing prose, not bullet points:
@@ -21,6 +29,7 @@ Total length: 100-150 words maximum. Punchy. She is an ESTP — she wants action
 Never use bullet points. Never use headers within the briefing itself — it should read as a single cohesive document. Never be sycophantic.`;
 
   let _briefingInFlight = false;
+  let _briefingMemory = '';
 
   function _briefingDefaults() {
     return {
@@ -93,6 +102,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
     _briefingInFlight = true;
 
     try {
+      const memory = await _loadBriefingMemory();
       const payload = _buildBriefingPayload();
       const res = await fetch('/api/claude', {
         method: 'POST',
@@ -101,7 +111,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
           model: 'claude-sonnet-4-5',
           max_tokens: 500,
           stream: false,
-          system: BRIEFING_SYSTEM_PROMPT,
+          system: `${BRIEFING_SYSTEM_PROMPT}\n\n---\n\n${memory}`,
           messages: [{ role: 'user', content: JSON.stringify(payload, null, 2) }],
         }),
       });
@@ -120,11 +130,23 @@ Never use bullet points. Never use headers within the briefing itself — it sho
     } catch {
       _renderDailyBriefingCard({
         state: 'error',
-        text: 'Mission briefing unavailable. Check your API connection and try again.',
+        text: SAMPLE_BRIEFING_TEXT,
+        sample: true,
       });
     } finally {
       _briefingInFlight = false;
     }
+  }
+
+  async function _loadBriefingMemory() {
+    if (_briefingMemory) return _briefingMemory;
+    try {
+      const res = await fetch('/context/daily_mission_briefing.md');
+      _briefingMemory = res.ok ? await res.text() : '';
+    } catch {
+      _briefingMemory = '';
+    }
+    return _briefingMemory;
   }
 
   function _buildBriefingPayload() {
@@ -189,7 +211,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
     _generateDailyBriefing();
   }
 
-  function _renderDailyBriefingCard({ state, text }) {
+  function _renderDailyBriefingCard({ state, text, sample = false }) {
     const gaugeContainer = document.getElementById('gauge-band-container');
     if (!gaugeContainer) return;
 
@@ -211,9 +233,25 @@ Never use bullet points. Never use headers within the briefing itself — it sho
         <div class="daily-briefing-kicker">DAILY MISSION BRIEFING · ${today}</div>
         <div class="daily-briefing-divider"></div>
         <div class="daily-briefing-content">${_esc(text || '')}</div>
-        ${state === 'error' ? `<button class="btn btn-ghost btn-sm daily-briefing-retry" onclick="Dashboard.retryDailyBriefing()">Retry</button>` : ''}
+        ${state === 'error' && !sample ? `<button class="btn btn-ghost btn-sm daily-briefing-retry" onclick="Dashboard.retryDailyBriefing()">Retry</button>` : ''}
         <div class="daily-briefing-footer">This briefing will self-destruct at midnight.</div>
+        <button class="daily-briefing-calendar-btn" onclick="Dashboard.showBriefingPreviews()" aria-label="Open briefing previews" title="Preview briefings">📅</button>
       </section>`;
+  }
+
+  function showBriefingPreviews() {
+    const body = `
+      <div class="briefing-preview-scroll">
+        ${PREVIEW_BRIEFINGS.map((text, index) => `
+          <article class="briefing-preview-item">
+            <div class="briefing-preview-label">Preview ${index + 1}</div>
+            <p>${_esc(text)}</p>
+          </article>
+        `).join('')}
+      </div>`;
+    UI.showModal('Daily Briefing Previews', body, [
+      { id: 'close', label: 'Close', class: 'btn-gold' },
+    ]);
   }
 
 
@@ -284,5 +322,5 @@ Never use bullet points. Never use headers within the briefing itself — it sho
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { render, toggleTask, retryDailyBriefing };
+  return { render, toggleTask, retryDailyBriefing, showBriefingPreviews };
 })();

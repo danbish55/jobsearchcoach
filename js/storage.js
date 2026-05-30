@@ -5,6 +5,7 @@ const Storage = (() => {
     'profile',
     'progress',
     'sessions',
+    'coach_current_session',
     'milestones',
     'jobs',
     'usc',
