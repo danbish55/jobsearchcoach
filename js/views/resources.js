@@ -1,5 +1,6 @@
 /* Resources view */
 const Resources = (() => {
+  const sectionStates = {};
   const SECTION_DEFS = [
     {
       id: 'market_intel',
@@ -58,7 +59,18 @@ const Resources = (() => {
         <div class="resources-card-grid" id="resources-list-${def.id}">
           ${items.length ? items.map(item => _cardHTML(item, def.id, false, progress)).join('') : _emptyHTML(def.id)}
         </div>
+        ${_sectionStatus(def.id) === 'loading' ? _loadingOverlayHTML(def.title) : ''}
       </section>`;
+  }
+
+  function _loadingOverlayHTML(title) {
+    return `<div class="resources-loading-overlay">
+      <div class="resources-loading-panel">
+        <div class="resources-loading-title">${_esc(title)}</div>
+        <div class="resources-loading-text">Scanning intelligence feeds...</div>
+        <div class="resources-loading-bar"><span></span></div>
+      </div>
+    </div>`;
   }
 
   function _emptyHTML(sectionId) {
@@ -113,6 +125,7 @@ const Resources = (() => {
       const progress = _progress();
       progress[_itemsKey(sectionId)] = items.map(item => ({ ...item, section: sectionId }));
       progress[_updatedKey(sectionId)] = new Date().toISOString();
+      sectionStates[sectionId] = 'loaded';
       Storage.set('progress', progress);
       render();
     } catch {
@@ -125,18 +138,30 @@ const Resources = (() => {
   }
 
   function _setSectionLoading(sectionId) {
-    const list = document.getElementById(`resources-list-${sectionId}`);
-    if (!list) return;
-    list.innerHTML = `<div class="resources-skeleton-card">Scanning intelligence feeds...</div>`;
+    sectionStates[sectionId] = 'loading';
+    _showSectionOverlay(sectionId);
   }
 
   function _setSectionError(sectionId) {
+    sectionStates[sectionId] = 'error';
+    _removeSectionOverlay(sectionId);
     const list = document.getElementById(`resources-list-${sectionId}`);
     if (!list) return;
     list.innerHTML = `<div class="resources-empty-card">
       Intelligence unavailable. Check your API connection or try refreshing.
       <div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="Resources.refreshSection('${sectionId}')">Retry</button></div>
     </div>`;
+  }
+
+  function _showSectionOverlay(sectionId) {
+    const section = document.getElementById(`resources-section-${sectionId}`);
+    if (!section || section.querySelector('.resources-loading-overlay')) return;
+    const def = SECTION_DEFS.find(item => item.id === sectionId);
+    section.insertAdjacentHTML('beforeend', _loadingOverlayHTML(def?.title || 'INTEL'));
+  }
+
+  function _removeSectionOverlay(sectionId) {
+    document.querySelector(`#resources-section-${sectionId} .resources-loading-overlay`)?.remove();
   }
 
   async function _fetchIntel(def) {
@@ -278,6 +303,11 @@ const Resources = (() => {
 
   function _isSaved(url, progress = _progress()) {
     return !!url && (progress.saved_resources || []).some(item => item.url === url);
+  }
+
+  function _sectionStatus(sectionId, progress = _progress()) {
+    if (sectionStates[sectionId]) return sectionStates[sectionId];
+    return (progress[_itemsKey(sectionId)] || []).length ? 'loaded' : 'waiting';
   }
 
   function _formatTime(value) {

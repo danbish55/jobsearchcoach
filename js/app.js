@@ -25,11 +25,13 @@ const App = (() => {
   };
 
   async function init() {
+    _setStartupPreloader('Checking installation files and secure settings...');
     // Load server-side config status
     const status = await Config.load();
 
     // First run: no API key or profile
     if (!status.has_api_key || !status.profile_complete) {
+      _hideStartupPreloader();
       Onboarding.start();
       return;
     }
@@ -38,11 +40,13 @@ const App = (() => {
   }
 
   async function launch() {
+    _setStartupPreloader('Loading coaching context...');
     // Load coaching context file fresh from disk
     await Claude.loadContext();
 
     // Initialize Drive if connected
     if (Config.hasDrive()) {
+      _setStartupPreloader('Checking Google Drive sync...');
       const connected = await Drive.init();
       if (connected) _syncFromDriveInBackground();
     }
@@ -58,6 +62,7 @@ const App = (() => {
     // Show the app shell
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('onboarding-overlay').classList.add('hidden');
+    _hideStartupPreloader();
 
     // Initialize UI (wires sidebar nav, gauge, etc.)
     UI.init();
@@ -120,6 +125,17 @@ const App = (() => {
   }
 
   function getCurrentView() { return _currentView; }
+
+  function _setStartupPreloader(message) {
+    const overlay = document.getElementById('startup-preloader');
+    const text = document.getElementById('startup-preloader-text');
+    if (text && message) text.textContent = message;
+    overlay?.classList.remove('hidden');
+  }
+
+  function _hideStartupPreloader() {
+    document.getElementById('startup-preloader')?.classList.add('hidden');
+  }
 
   async function _syncFromDriveInBackground() {
     try {

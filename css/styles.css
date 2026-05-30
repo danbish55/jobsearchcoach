@@ -847,10 +847,77 @@ body.light .mission-chat-panel { background: rgba(0,0,0,0.015); }
 }
 .resources-intel-section,
 .resources-saved {
+  position: relative;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px;
+}
+.resources-loading-overlay,
+.resume-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  border-radius: inherit;
+  background: rgba(10,15,26,0.78);
+  backdrop-filter: blur(2px);
+}
+body.light .resources-loading-overlay,
+body.light .resume-loading-overlay {
+  background: rgba(255,255,255,0.82);
+}
+.resources-loading-panel,
+.resume-loading-panel {
+  width: min(320px, 100%);
+  background: var(--card-bg);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.resources-loading-title,
+.resume-loading-title {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.resources-loading-text,
+.resume-loading-text {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+  margin-top: 6px;
+}
+.resources-loading-bar,
+.resume-loading-bar {
+  position: relative;
+  overflow: hidden;
+  height: 6px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+body.light .resources-loading-bar,
+body.light .resume-loading-bar {
+  background: rgba(0,0,0,0.08);
+}
+.resources-loading-bar span,
+.resume-loading-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--maroon), var(--gold));
+  animation: sectionLoadingSlide 1.1s ease-in-out infinite;
+}
+@keyframes sectionLoadingSlide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(250%); }
 }
 .resources-section-top {
   display: flex;
@@ -901,6 +968,77 @@ body.light .resources-result-card,
 body.light .resources-empty-card,
 body.light .resources-skeleton-card {
   background: rgba(0,0,0,0.025);
+}
+/* === Startup Preloader === */
+.startup-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+}
+.startup-preloader.hidden {
+  display: none;
+}
+.startup-preloader-card {
+  width: min(420px, 100%);
+  position: relative;
+  overflow: hidden;
+  background: var(--card-bg);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+.startup-preloader-mark {
+  position: absolute;
+  right: 18px;
+  bottom: 8px;
+  color: var(--gold);
+  font-size: 74px;
+  font-weight: 900;
+  opacity: 0.06;
+  line-height: 1;
+}
+.startup-preloader-title {
+  position: relative;
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.startup-preloader-text {
+  position: relative;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.45;
+}
+.startup-preloader-bar {
+  position: relative;
+  overflow: hidden;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  margin-top: 18px;
+}
+body.light .startup-preloader-bar {
+  background: rgba(0,0,0,0.08);
+}
+.startup-preloader-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--maroon), var(--gold));
+  animation: startupPreloaderSlide 1.15s ease-in-out infinite;
+}
+@keyframes startupPreloaderSlide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(250%); }
 }
 .resources-source {
   color: var(--gold);
@@ -1529,6 +1667,7 @@ body.light .resources-skeleton-card {
   line-height: 1;
 }
 .resume-score-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.resume-file-card { position: relative; }
 .resume-sections { display: flex; flex-direction: column; }
 .resume-section-row {
   display: grid;

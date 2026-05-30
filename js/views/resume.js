@@ -121,7 +121,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
           </label>
         </div>
 
-        <div class="card">
+        <div class="card resume-file-card" id="resume-file-card">
           <div class="card-title">Resume File</div>
           <div class="form-row">
             <label>File Name / Location</label>
@@ -260,6 +260,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
 
     const btn = document.getElementById('rate-resume-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Reading file…'; }
+    _setResumeLoading('Loading resume', 'Extracting text from your file...');
 
     try {
       if (file.name.toLowerCase().endsWith('.docx')) {
@@ -280,6 +281,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
       UI.notify(`Could not read file: ${e.message || 'make sure it is a valid .docx or .pdf.'}`, 'error');
       _resumeText = '';
     } finally {
+      _hideResumeLoading();
       if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
     }
   }
@@ -350,6 +352,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
       if (selectedFile) {
         const btn = document.getElementById('rate-resume-btn');
         if (btn) { btn.disabled = true; btn.textContent = 'Reading file…'; }
+        _setResumeLoading('Loading resume', 'Extracting text from your file...');
         try {
           resumeText = await _readResumeFile(selectedFile);
           _resumeText = resumeText;
@@ -360,6 +363,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
           Storage.set('resume', fresh);
         } catch (e) {
           UI.notify(`Could not read that resume file: ${e.message || 'please select a .docx or .pdf file and try again.'}`, 'error');
+          _hideResumeLoading();
           if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
           return;
         }
@@ -378,6 +382,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
 
     const btn = document.getElementById('rate-resume-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Rating…'; }
+    _setResumeLoading('Rating resume', 'Coach is reviewing the resume sections...');
 
     try {
       const result = await rateResumeText(resumeText, data.notes);
@@ -409,7 +414,32 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
     } catch (e) {
       UI.notify('Rating failed — please try again.', 'error');
       if (btn) { btn.disabled = false; btn.textContent = '🎓 Rate My Resume'; }
+    } finally {
+      _hideResumeLoading();
     }
+  }
+
+  function _setResumeLoading(title, message) {
+    const card = document.getElementById('resume-file-card');
+    if (!card) return;
+    let overlay = card.querySelector('.resume-loading-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'resume-loading-overlay';
+      overlay.innerHTML = `
+        <div class="resume-loading-panel">
+          <div class="resume-loading-title"></div>
+          <div class="resume-loading-text"></div>
+          <div class="resume-loading-bar"><span></span></div>
+        </div>`;
+      card.appendChild(overlay);
+    }
+    overlay.querySelector('.resume-loading-title').textContent = title;
+    overlay.querySelector('.resume-loading-text').textContent = message;
+  }
+
+  function _hideResumeLoading() {
+    document.querySelector('#resume-file-card .resume-loading-overlay')?.remove();
   }
 
   function _calcScore(data) {
