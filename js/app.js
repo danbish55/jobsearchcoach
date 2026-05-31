@@ -29,8 +29,8 @@ const App = (() => {
     // Load server-side config status
     const status = await Config.load();
 
-    // First run: no API key or profile
-    if (!status.has_api_key || !status.profile_complete) {
+    // First run for this install package, or missing API key
+    if (!status.setup_complete) {
       _hideStartupPreloader();
       Onboarding.start();
       return;

@@ -70,6 +70,24 @@ def _read_config_file(path):
         return {}
 
 
+def _status_payload(bundled, user, cfg):
+    install_id = str(bundled.get('install_build_id') or '').strip()
+    api_key = str(user.get('anthropic_api_key') or cfg.get('anthropic_api_key') or '').strip()
+    has_api_key = bool(api_key)
+    if install_id:
+        setup_complete = user.get('completed_install_id') == install_id and has_api_key
+    else:
+        setup_complete = has_api_key and bool(cfg.get('profile_complete', False))
+    return {
+        'has_api_key': has_api_key,
+        'has_drive': bool(cfg.get('google_refresh_token')),
+        'google_client_id': cfg.get('google_client_id', ''),
+        'profile_complete': setup_complete,
+        'setup_complete': setup_complete,
+        'install_build_id': install_id,
+    }
+
+
 class AppHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=BASE_DIR, **kwargs)
@@ -86,12 +104,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == '/api/status':
             cfg = load_config()
-            self._json({
-                'has_api_key': bool(cfg.get('anthropic_api_key')),
-                'has_drive': bool(cfg.get('google_refresh_token')),
-                'google_client_id': cfg.get('google_client_id', ''),
-                'profile_complete': cfg.get('profile_complete', False),
-            })
+            bundled = _read_config_file(BUNDLED_CONFIG_FILE)
+            user = _read_config_file(CONFIG_FILE)
+            self._json(_status_payload(bundled, user, cfg))
         elif path == '/api/context':
             ctx_path = os.path.join(BASE_DIR, 'context', 'corinne_claude_context.md')
             try:

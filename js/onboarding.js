@@ -263,7 +263,11 @@ const Onboarding = (() => {
 
       case 'complete':
         document.getElementById('ob-launch').addEventListener('click', async () => {
-          await Config.save({ profile_complete: true });
+          const installId = Config.get()?.install_build_id || '';
+          await Config.save({
+            profile_complete: true,
+            completed_install_id: installId,
+          });
           document.getElementById('onboarding-overlay').classList.add('hidden');
           App.launch();
         });

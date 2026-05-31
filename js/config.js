@@ -9,7 +9,7 @@ const Config = (() => {
       return _status;
     } catch {
       // Server not running — shouldn't happen, but graceful fallback
-      _status = { has_api_key: false, has_drive: false, profile_complete: false, google_client_id: '' };
+      _status = { has_api_key: false, has_drive: false, profile_complete: false, setup_complete: false, google_client_id: '', install_build_id: '' };
       return _status;
     }
   }

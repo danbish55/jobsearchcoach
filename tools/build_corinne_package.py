@@ -340,6 +340,7 @@ def write_config(target: Path, client_id: str, client_secret: str) -> None:
         "google_client_id": client_id,
         "google_client_secret": client_secret,
         "profile_complete": False,
+        "install_build_id": PACKAGE_NAME,
     }
     (target / "config.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
