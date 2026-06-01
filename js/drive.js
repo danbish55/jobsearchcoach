@@ -36,7 +36,7 @@ const Drive = (() => {
   function startOAuth(clientId) {
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: `http://localhost:8765/oauth2callback`,
+      redirect_uri: `${window.location.origin}/oauth2callback`,
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/drive.appdata',
       access_type: 'offline',
