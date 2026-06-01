@@ -1,0 +1,25 @@
+name: Corinne
+target_titles:
+  - Data Analyst
+  - Business Analyst
+  - Analytics Consultant
+  - Product Analyst
+skills:
+  - SQL
+  - Python
+  - Tableau
+  - Power BI
+  - Excel
+  - A/B testing
+  - forecasting
+preferred_locations:
+  - Los Angeles
+  - Remote
+must_have_keywords:
+  - stakeholder
+  - dashboard
+  - insights
+excluded_keywords:
+  - unpaid
+  - commission only
+  - door-to-door
