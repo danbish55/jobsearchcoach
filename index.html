@@ -4,9 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JobSearchCoach</title>
-  <link rel="stylesheet" href="css/styles.css?v=12">
+  <link rel="stylesheet" href="css/styles.css?v=49">
 </head>
 <body>
+<script>
+  try {
+    if ((localStorage.getItem('jsc_theme') || 'light') === 'light') {
+      document.body.classList.add('light');
+    }
+  } catch {}
+</script>
+
+<!-- Startup preloader — visible while the install/startup handshake finishes -->
+<div id="startup-preloader" class="startup-preloader">
+  <div class="startup-preloader-card">
+    <div class="startup-preloader-mark">007</div>
+    <div class="startup-preloader-title">Preparing JobSearchCoach</div>
+    <div class="startup-preloader-text" id="startup-preloader-text">Checking installation files and secure settings...</div>
+    <div class="startup-preloader-bar"><span></span></div>
+  </div>
+</div>
 
 <!-- Onboarding overlay — shown until setup is complete -->
 <div id="onboarding-overlay" class="hidden">
@@ -22,7 +39,7 @@
     <div class="mission-complete-title" id="mc-title">Mission Complete</div>
     <div class="mission-complete-sub" id="mc-sub"></div>
     <div class="mission-complete-next" id="mc-next"></div>
-    <button class="btn btn-gold" onclick="UI.closeMissionComplete()">Continue to Next Mission ›</button>
+    <button class="btn btn-gold mission-break-btn" onclick="UI.closeMissionComplete()">Start the Debrief Break</button>
   </div>
 </div>
 
@@ -38,49 +55,79 @@
   <!-- Sidebar -->
   <nav id="sidebar">
     <div class="sidebar-logo">
-      <div class="sidebar-logo-title">JobSearchCoach</div>
-      <div class="sidebar-logo-sub" id="sidebar-user-name">Loading...</div>
+      <div class="sidebar-logo-row">
+        <div>
+          <div class="sidebar-logo-title">JobSearchCoach</div>
+          <div class="sidebar-logo-sub" id="sidebar-user-name">Loading...</div>
+        </div>
+        <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="UI.toggleSidebarCollapsed()" aria-label="Collapse navigation" title="Collapse navigation">
+          <span id="sidebar-collapse-icon">‹</span>
+        </button>
+      </div>
     </div>
 
     <div class="sidebar-nav">
       <div class="nav-section-label">Overview</div>
       <div class="nav-item active" data-view="dashboard">
-        <span class="nav-icon">🏠</span> Dashboard
+        <span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
       </div>
       <div class="nav-item" data-view="coach">
-        <span class="nav-icon">💬</span> Coach
+        <span class="nav-icon">🧢</span><span class="nav-label">Coach</span>
       </div>
 
       <div class="nav-section-label">Job Search</div>
       <div class="nav-item" data-view="resume">
-        <span class="nav-icon">📄</span> Resume
+        <span class="nav-icon">✍️</span><span class="nav-label">Resume</span>
+      </div>
+      <div class="nav-item" data-view="resume-deep-dive">
+        <span class="nav-icon">🔍</span><span class="nav-label">Resume Deep Dive</span>
       </div>
       <div class="nav-item" data-view="jobs">
-        <span class="nav-icon">📋</span> Applications
+        <span class="nav-icon">📋</span><span class="nav-label">Applications</span>
+      </div>
+      <div class="nav-item" data-view="workflow-followups">
+        <span class="nav-icon">📞</span><span class="nav-label">Follow Ups</span>
+      </div>
+      <div class="nav-item" data-view="workflow-networking">
+        <span class="nav-icon">🤝</span><span class="nav-label">Networking &mdash; General</span>
+      </div>
+      <div class="nav-item" data-view="workflow-usc-eller">
+        <span class="nav-icon">🎓</span><span class="nav-label">USC/Eller Networking</span>
+      </div>
+      <div class="nav-item" data-view="workflow-interview-prep">
+        <span class="nav-icon">🎤</span><span class="nav-label">Interview Prep</span>
+      </div>
+      <div class="nav-item" data-view="workflow-linkedin">
+        <span class="nav-icon linkedin-nav-icon">in</span><span class="nav-label">LinkedIn Activity</span>
+      </div>
+      <div class="nav-item" data-view="workflow-side-hustle">
+        <span class="nav-icon">💵</span><span class="nav-label">Side Hustle</span>
+      </div>
+      <div class="nav-item" data-view="job-target-tracker">
+        <span class="nav-icon">🎯</span><span class="nav-label">Job Target Tracker</span>
+      </div>
+
+      <div class="nav-section-label">Intelligence</div>
+      <div class="nav-item" data-view="resources">
+        <span class="nav-icon">🏆</span><span class="nav-label">Resources</span>
       </div>
 
       <div class="nav-section-label">Reports</div>
       <div class="nav-item" data-view="report">
-        <span class="nav-icon">📨</span> Progress Report
+        <span class="nav-icon">⏱️</span><span class="nav-label">Progress Report</span>
       </div>
-      <div class="nav-item" data-view="settings">
-        <span class="nav-icon">⚙️</span> Settings
+      <div class="sidebar-utility-actions">
+        <button class="sidebar-utility-btn" data-view="settings" aria-label="Settings" title="Settings">
+          <span class="nav-icon">⚙️</span><span class="sidebar-utility-label">Settings</span>
+        </button>
+        <button class="sidebar-utility-btn theme-toggle" onclick="UI.toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+          <span class="nav-icon theme-toggle-icon" id="theme-icon">🌙</span><span class="sidebar-utility-label" id="theme-label">Dark mode</span>
+        </button>
       </div>
-    </div>
-
-    <!-- Current mission indicator -->
-    <div class="sidebar-mission" id="sidebar-mission">
-      <div class="sidebar-mission-label">Current Mission</div>
-      <div class="sidebar-mission-name" id="sidebar-mission-name">DOSSIER</div>
-      <div class="mission-progress-bar">
-        <div class="mission-progress-fill" id="sidebar-mission-progress" style="width:0%"></div>
+      <div class="sidebar-mission-pages hidden" id="sidebar-mission-pages">
+        <div class="nav-section-label">Mission Pages</div>
+        <div id="sidebar-mission-page-buttons"></div>
       </div>
-    </div>
-
-    <!-- Theme toggle -->
-    <div class="theme-toggle" onclick="UI.toggleTheme()">
-      <span class="theme-toggle-icon" id="theme-icon">🌙</span>
-      <span id="theme-label">Dark mode</span>
     </div>
 
   </nav>
@@ -90,40 +137,71 @@
 
     <!-- DASHBOARD -->
     <div id="view-dashboard" class="view active">
-      <div class="view-header">
-        <div class="view-title" id="dash-welcome">Welcome back!</div>
-        <div class="view-subtitle" id="dash-date"></div>
-      </div>
-
-      <div class="welcome-banner">
-        <div class="welcome-text">
-          <h2 id="dash-banner-greeting">Ready for your next mission?</h2>
-          <p>Your coaching session is standing by. What would you like to work on today?</p>
+      <div class="dashboard-top">
+        <div class="view-header">
+          <div class="view-title" id="dash-welcome">Welcome back!</div>
+          <div class="view-subtitle" id="dash-date"></div>
         </div>
-        <div>
-          <div class="welcome-badge" id="dash-mission-badge">MISSION: DOSSIER</div>
+
+        <div class="welcome-banner">
+          <div class="welcome-text">
+            <h2 id="dash-banner-greeting">Ready for your next mission?</h2>
+            <p>Your coaching session is standing by. What would you like to work on today?</p>
+          </div>
+          <div>
+            <div class="welcome-badge" id="dash-mission-badge">MISSION: DOSSIER</div>
+          </div>
         </div>
       </div>
-
       <div id="gauge-band-container"></div>
 
-      <!-- Current Mission Card -->
-      <div id="dash-mission-card"></div>
+      <div class="dashboard-mission-row">
+        <div id="dash-mission-card"></div>
+        <div class="card all-missions-card">
+          <div class="card-title">All Missions</div>
+          <div id="dash-missions-list"></div>
+        </div>
+      </div>
 
-      <div class="grid-2">
-        <div class="card">
+      <div class="dashboard-actions-row">
+        <div class="card quick-actions-card">
           <div class="card-title">Quick Actions</div>
-          <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="quick-actions-buttons">
             <button class="btn btn-primary" onclick="App.navigate('coach')">💬 Talk to Your Coach</button>
             <button class="btn btn-ghost" onclick="App.navigate('resume')">📄 Review My Resume</button>
             <button class="btn btn-ghost" onclick="App.navigate('jobs')">➕ Log a New Application</button>
           </div>
         </div>
-        <div class="card">
-          <div class="card-title">All Missions</div>
-          <div id="dash-missions-list"></div>
-        </div>
       </div>
+
+    </div>
+
+    <!-- MISSION DISCUSSION -->
+    <div id="view-mission-discussion" class="view">
+      <div id="mission-discussion-root"></div>
+    </div>
+
+    <!-- GUIDED WORKFLOW PAGES -->
+    <div id="view-workflow-followups" class="view workflow-view">
+      <div id="workflow-followups-content"></div>
+    </div>
+    <div id="view-workflow-networking" class="view workflow-view">
+      <div id="workflow-networking-content"></div>
+    </div>
+    <div id="view-workflow-usc-eller" class="view workflow-view">
+      <div id="workflow-usc-eller-content"></div>
+    </div>
+    <div id="view-workflow-interview-prep" class="view workflow-view">
+      <div id="workflow-interview-prep-content"></div>
+    </div>
+    <div id="view-workflow-linkedin" class="view workflow-view">
+      <div id="workflow-linkedin-content"></div>
+    </div>
+    <div id="view-workflow-side-hustle" class="view workflow-view">
+      <div id="workflow-side-hustle-content"></div>
+    </div>
+    <div id="view-job-target-tracker" class="view">
+      <div id="job-target-tracker-content"></div>
     </div>
 
     <!-- COACH -->
@@ -172,6 +250,11 @@
       <div id="resume-content"></div>
     </div>
 
+    <!-- RESUME DEEP DIVE -->
+    <div id="view-resume-deep-dive" class="view">
+      <div id="resume-deep-dive-content"></div>
+    </div>
+
     <!-- JOBS -->
     <div id="view-jobs" class="view">
       <div class="view-header">
@@ -179,6 +262,11 @@
         <div class="view-subtitle">Track every company, role, and status</div>
       </div>
       <div id="jobs-content"></div>
+    </div>
+
+    <!-- RESOURCES -->
+    <div id="view-resources" class="view">
+      <div id="resources-content"></div>
     </div>
 
     <!-- REPORT -->
@@ -208,21 +296,27 @@
 <script>if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 
 <!-- Scripts — order matters -->
-<script src="js/config.js?v=12"></script>
-<script src="js/storage.js?v=12"></script>
-<script src="js/drive.js?v=12"></script>
-<script src="js/milestones.js?v=12"></script>
-<script src="js/ui.js?v=12"></script>
+<script src="js/config.js?v=13"></script>
+<script src="js/storage.js?v=17"></script>
+<script src="js/drive.js?v=15"></script>
+<script src="js/sample-data.js?v=2"></script>
+<script src="js/milestones.js?v=14"></script>
+<script src="js/ui.js?v=17"></script>
 <script src="js/claude.js?v=12"></script>
-<script src="js/onboarding.js?v=12"></script>
-<script src="js/views/gauges.js?v=12"></script>
-<script src="js/views/dashboard.js?v=12"></script>
-<script src="js/views/coach.js?v=12"></script>
-<script src="js/views/resume.js?v=12"></script>
-<script src="js/views/jobs.js?v=12"></script>
-<script src="js/views/report.js?v=12"></script>
-<script src="js/views/settings.js?v=12"></script>
-<script src="js/app.js?v=12"></script>
+<script src="js/onboarding.js?v=18"></script>
+<script src="js/views/gauges.js?v=26"></script>
+<script src="js/views/dashboard.js?v=21"></script>
+<script src="js/views/mission-discussion.js?v=9"></script>
+<script src="js/views/workflow-pages.js?v=19"></script>
+<script src="js/views/job-target-tracker.js?v=4"></script>
+<script src="js/views/coach.js?v=13"></script>
+<script src="js/views/resume.js?v=18"></script>
+<script src="js/views/resume-deep-dive.js?v=6"></script>
+<script src="js/views/jobs.js?v=15"></script>
+<script src="js/views/resources.js?v=2"></script>
+<script src="js/views/report.js?v=15"></script>
+<script src="js/views/settings.js?v=22"></script>
+<script src="js/app.js?v=22"></script>
 
 </body>
 </html>

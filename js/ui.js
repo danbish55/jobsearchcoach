@@ -3,16 +3,22 @@ const UI = (() => {
 
   function init() {
     // Wire up sidebar nav
-    document.querySelectorAll('.nav-item[data-view]').forEach(el => {
+    document.querySelectorAll('[data-view]').forEach(el => {
       el.addEventListener('click', () => App.navigate(el.dataset.view));
     });
     loadTheme();
+    _ensureSidebarTooltips();
+    _loadSidebarState();
     updateSidebar();
   }
 
   function loadTheme() {
-    const saved = localStorage.getItem('jsc_theme') || 'dark';
+    const saved = localStorage.getItem('jsc_theme') || 'light';
     applyTheme(saved);
+  }
+
+  function _systemTheme() {
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
   function toggleTheme() {
@@ -30,21 +36,51 @@ const UI = (() => {
     if (label) label.textContent = theme === 'light' ? 'Dark mode' : 'Light mode';
   }
 
+  function toggleSidebarCollapsed() {
+    const next = !document.body.classList.contains('sidebar-collapsed');
+    _applySidebarCollapsed(next);
+    try {
+      localStorage.setItem('jsc_sidebar_collapsed', next ? 'true' : 'false');
+    } catch {}
+  }
+
+  function _loadSidebarState() {
+    let collapsed = false;
+    try {
+      collapsed = localStorage.getItem('jsc_sidebar_collapsed') === 'true';
+    } catch {}
+    _applySidebarCollapsed(collapsed);
+  }
+
+  function _applySidebarCollapsed(collapsed) {
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    const btn = document.getElementById('sidebar-collapse-btn');
+    const icon = document.getElementById('sidebar-collapse-icon');
+    if (btn) {
+      btn.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
+      btn.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
+    }
+    if (icon) icon.textContent = collapsed ? '›' : '‹';
+  }
+
+  function _ensureSidebarTooltips() {
+    document.querySelectorAll('.nav-item[data-view], .sidebar-utility-btn').forEach(item => {
+      const label = item.textContent.replace(/\s+/g, ' ').trim();
+      if (label) {
+        item.setAttribute('title', label);
+        item.setAttribute('aria-label', label);
+      }
+    });
+  }
+
   function updateSidebar() {
     const profile = Storage.get('profile', {});
     const nameEl = document.getElementById('sidebar-user-name');
-    if (nameEl) nameEl.textContent = profile.name ? `Hi, ${profile.name} 👋` : 'Welcome!';
-
-    // Mission progress
-    const currentMission = Milestones.getCurrentMission();
-    const progress = Milestones.getMissionProgress(currentMission.id);
-    const nameDisplay = document.getElementById('sidebar-mission-name');
-    const bar = document.getElementById('sidebar-mission-progress');
-    if (nameDisplay) nameDisplay.textContent = currentMission.codename;
-    if (bar) bar.style.width = progress.pct + '%';
+    if (nameEl) nameEl.textContent = profile.name ? `Hi, ${profile.name}` : 'Welcome!';
 
     // USC gauge
     updateGauge();
+    updateMissionPageButtons();
   }
 
   function updateGauge() {
@@ -52,9 +88,10 @@ const UI = (() => {
   }
 
   function setActiveNav(viewId) {
-    document.querySelectorAll('.nav-item').forEach(el => {
+    document.querySelectorAll('.nav-item, .sidebar-icon-btn[data-view]').forEach(el => {
       el.classList.toggle('active', el.dataset.view === viewId);
     });
+    updateMissionPageButtons(viewId);
   }
 
   function showView(viewId) {
@@ -62,6 +99,31 @@ const UI = (() => {
     const el = document.getElementById(`view-${viewId}`);
     if (el) el.classList.add('active');
     setActiveNav(viewId);
+  }
+
+  function updateMissionPageButtons(viewId = App.getCurrentView?.()) {
+    const wrap = document.getElementById('sidebar-mission-pages');
+    const target = document.getElementById('sidebar-mission-page-buttons');
+    if (!wrap || !target || typeof Milestones === 'undefined') return;
+
+    const show = viewId === 'mission-discussion';
+    wrap.classList.toggle('hidden', !show);
+    if (!show) return;
+
+    const activeMission = typeof MissionDiscussion !== 'undefined'
+      ? MissionDiscussion.getCurrentMissionId()
+      : null;
+
+    target.innerHTML = Milestones.getDefs().map(m => `
+      <button class="sidebar-mission-page-btn ${m.id === activeMission ? 'active' : ''}"
+        onclick="MissionDiscussion.open('${m.id}')">
+        <span class="sidebar-mission-page-icon">${m.icon}</span>
+        <span>
+          <span class="sidebar-mission-page-code">${m.codename}</span>
+          <span class="sidebar-mission-page-title">${m.title}</span>
+        </span>
+      </button>
+    `).join('');
   }
 
   // Notifications
@@ -184,5 +246,5 @@ const UI = (() => {
     ]);
   }
 
-  return { init, updateSidebar, updateGauge, setActiveNav, showView, notify, showModal, closeModal, showMissionComplete, closeMissionComplete, showGaugeModal, toggleTheme };
+  return { init, updateSidebar, updateGauge, setActiveNav, showView, notify, showModal, closeModal, showMissionComplete, closeMissionComplete, showGaugeModal, toggleTheme, toggleSidebarCollapsed };
 })();

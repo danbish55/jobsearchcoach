@@ -9,26 +9,83 @@ import threading
 import webbrowser
 import urllib.request
 import urllib.parse
+import html as html_lib
+import tempfile
+import base64
+import zipfile
+import xml.etree.ElementTree as ET
+from io import BytesIO
 from urllib.parse import urlparse, parse_qs
 
 PORT = 8765
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
+BUNDLED_CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
+USER_CONFIG_DIR = (
+    os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'JobSearchCoach')
+    if os.name == 'nt'
+    else os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', 'JobSearchCoach')
+)
+CONFIG_FILE = os.path.join(USER_CONFIG_DIR, 'config.json')
+CONFIG_LOCK = threading.Lock()
 
 
 def load_config():
+    with CONFIG_LOCK:
+        return _load_config_unlocked()
+
+
+def save_config(updates):
+    with CONFIG_LOCK:
+        cfg = _load_config_unlocked()
+        cfg.update(updates)
+        os.makedirs(USER_CONFIG_DIR, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(prefix='config.', suffix='.tmp', dir=USER_CONFIG_DIR, text=True)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(cfg, f, indent=2)
+                f.write('\n')
+            os.replace(tmp_path, CONFIG_FILE)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+
+def _load_config_unlocked():
+    bundled = _read_config_file(BUNDLED_CONFIG_FILE)
+    user = _read_config_file(CONFIG_FILE)
+    cfg = {}
+    cfg.update(bundled)
+    cfg.update(user)
+    for key in ('google_client_id', 'google_client_secret'):
+        if bundled.get(key):
+            cfg[key] = bundled[key]
+    return cfg
+
+
+def _read_config_file(path):
     try:
-        with open(CONFIG_FILE) as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
-def save_config(updates):
-    cfg = load_config()
-    cfg.update(updates)
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(cfg, f, indent=2)
+def _status_payload(bundled, user, cfg):
+    install_id = str(bundled.get('install_build_id') or '').strip()
+    api_key = str(user.get('anthropic_api_key') or cfg.get('anthropic_api_key') or '').strip()
+    has_api_key = bool(api_key)
+    if install_id:
+        setup_complete = user.get('completed_install_id') == install_id and has_api_key
+    else:
+        setup_complete = has_api_key and bool(cfg.get('profile_complete', False))
+    return {
+        'has_api_key': has_api_key,
+        'has_drive': bool(cfg.get('google_refresh_token')),
+        'google_client_id': cfg.get('google_client_id', ''),
+        'profile_complete': setup_complete,
+        'setup_complete': setup_complete,
+        'install_build_id': install_id,
+    }
 
 
 class AppHandler(http.server.SimpleHTTPRequestHandler):
@@ -47,12 +104,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == '/api/status':
             cfg = load_config()
-            self._json({
-                'has_api_key': bool(cfg.get('anthropic_api_key')),
-                'has_drive': bool(cfg.get('google_refresh_token')),
-                'google_client_id': cfg.get('google_client_id', ''),
-                'profile_complete': cfg.get('profile_complete', False),
-            })
+            bundled = _read_config_file(BUNDLED_CONFIG_FILE)
+            user = _read_config_file(CONFIG_FILE)
+            self._json(_status_payload(bundled, user, cfg))
         elif path == '/api/context':
             ctx_path = os.path.join(BASE_DIR, 'context', 'corinne_claude_context.md')
             try:
@@ -68,7 +122,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        body = self._read_body()
+        try:
+            body = self._read_body()
+        except json.JSONDecodeError:
+            self._json({'ok': False, 'error': 'Invalid JSON request body'}, 400)
+            return
 
         if path == '/api/config':
             save_config(body)
@@ -77,6 +135,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._token_exchange(body)
         elif path == '/api/token-refresh':
             self._token_refresh()
+        elif path == '/api/extract-resume':
+            self._extract_resume(body)
         elif path == '/api/claude':
             self._claude_proxy(body)
         else:
@@ -93,13 +153,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         error = params.get('error', [None])[0]
 
         if error:
-            msg = f'<h2 style="color:#e74c3c">Auth Error: {error}</h2><p>You can close this window and try again.</p>'
+            msg = f'<h2 style="color:#e74c3c">Auth Error: {html_lib.escape(error)}</h2><p>You can close this window and try again.</p>'
         elif code:
             msg = f'<h2 style="color:#FFCC00">&#10003; Google Drive Connected!</h2><p>This window will close automatically...</p>'
         else:
             msg = '<h2>No authorization code received.</h2>'
 
-        html = f'''<!DOCTYPE html><html>
+        code_json = json.dumps(code or '')
+        page_html = f'''<!DOCTYPE html><html>
 <head><title>JobSearchCoach</title>
 <style>
   body{{font-family:system-ui,sans-serif;background:#1a1a2e;color:#e8eaf0;
@@ -108,8 +169,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 </style></head>
 <body><div>{msg}</div>
 <script>
-  if(window.opener && '{code or ""}'){{
-    window.opener.postMessage({{type:'oauth_code',code:'{code or ""}'}}, 'http://localhost:{PORT}');
+  const oauthCode = {code_json};
+  if(window.opener && oauthCode){{
+    window.opener.postMessage({{type:'oauth_code',code:oauthCode}}, 'http://localhost:{PORT}');
   }}
   setTimeout(()=>window.close(), 2000);
 </script></body></html>'''
@@ -117,7 +179,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(html.encode())
+        self.wfile.write(page_html.encode())
 
     def _token_exchange(self, data):
         cfg = load_config()
@@ -140,6 +202,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'google_refresh_token': tokens.get('refresh_token'),
             })
             self._json({'ok': True})
+        except urllib.error.HTTPError as e:
+            self._json({'ok': False, 'error': self._google_error_message(e)}, e.code)
         except Exception as e:
             self._json({'ok': False, 'error': str(e)}, 500)
 
@@ -160,8 +224,70 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 tokens = json.loads(r.read())
             save_config({'google_access_token': tokens.get('access_token')})
             self._json({'access_token': tokens.get('access_token')})
+        except urllib.error.HTTPError as e:
+            self._json({'ok': False, 'error': self._google_error_message(e)}, e.code)
         except Exception as e:
             self._json({'ok': False, 'error': str(e)}, 500)
+
+    def _google_error_message(self, error):
+        try:
+            payload = json.loads(error.read().decode('utf-8'))
+            code = payload.get('error')
+            description = payload.get('error_description')
+            if code and description:
+                return f'Google OAuth error: {code} - {description}'
+            if code:
+                return f'Google OAuth error: {code}'
+        except Exception:
+            pass
+        return f'Google OAuth HTTP {error.code}: {error.reason}'
+
+    def _extract_resume(self, payload):
+        filename = (payload.get('filename') or '').lower()
+        encoded = payload.get('data') or ''
+        if not filename.endswith('.docx'):
+            self._json({'ok': False, 'error': 'Only .docx files are supported by the local extractor'}, 400)
+            return
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+            text = self._extract_docx_text(raw)
+            if not text.strip():
+                self._json({'ok': False, 'error': 'No readable text found in the .docx file'}, 400)
+                return
+            self._json({'ok': True, 'text': text})
+        except Exception as e:
+            self._json({'ok': False, 'error': f'Could not read .docx file: {e}'}, 400)
+
+    def _extract_docx_text(self, raw):
+        with zipfile.ZipFile(BytesIO(raw)) as zf:
+            names = ['word/document.xml']
+            names.extend(
+                name for name in sorted(zf.namelist())
+                if name.startswith('word/header') and name.endswith('.xml')
+            )
+            names.extend(
+                name for name in sorted(zf.namelist())
+                if name.startswith('word/footer') and name.endswith('.xml')
+            )
+            chunks = [self._extract_docx_xml_text(zf.read(name)) for name in names if name in zf.namelist()]
+        return '\n'.join(chunk for chunk in chunks if chunk)
+
+    def _extract_docx_xml_text(self, xml_bytes):
+        root = ET.fromstring(xml_bytes)
+        paragraphs = []
+        for para in root.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'):
+            parts = []
+            for node in para.iter():
+                if node.tag.endswith('}t') and node.text:
+                    parts.append(node.text)
+                elif node.tag.endswith('}tab'):
+                    parts.append('\t')
+                elif node.tag.endswith('}br'):
+                    parts.append('\n')
+            line = ''.join(parts).strip()
+            if line:
+                paragraphs.append(line)
+        return '\n'.join(paragraphs)
 
     def _claude_proxy(self, payload):
         cfg = load_config()
@@ -171,14 +297,17 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         body = json.dumps(payload).encode()
+        headers = {
+            'x-api-key': api_key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        }
+        if payload.get('tools'):
+            headers['anthropic-beta'] = 'web-search-2025-03-05'
         req = urllib.request.Request(
             'https://api.anthropic.com/v1/messages',
             data=body, method='POST',
-            headers={
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            }
+            headers=headers
         )
 
         is_stream = payload.get('stream', False)
@@ -232,7 +361,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 def main():
     os.chdir(BASE_DIR)
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(('', PORT), AppHandler) as httpd:
+    with socketserver.ThreadingTCPServer(('', PORT), AppHandler) as httpd:
         print(f'\n  JobSearchCoach running at http://localhost:{PORT}\n')
         print('  Press Ctrl+C to stop.\n')
         threading.Timer(1.2, lambda: webbrowser.open(f'http://localhost:{PORT}')).start()

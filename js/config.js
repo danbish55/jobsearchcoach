@@ -9,17 +9,21 @@ const Config = (() => {
       return _status;
     } catch {
       // Server not running — shouldn't happen, but graceful fallback
-      _status = { has_api_key: false, has_drive: false, profile_complete: false, google_client_id: '' };
+      _status = { has_api_key: false, has_drive: false, profile_complete: false, setup_complete: false, google_client_id: '', install_build_id: '' };
       return _status;
     }
   }
 
   async function save(updates) {
-    await fetch('/api/config', {
+    const response = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(data.error || 'Could not save settings');
+    }
     await load(); // Refresh status
   }
 

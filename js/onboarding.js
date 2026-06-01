@@ -2,6 +2,14 @@
 const Onboarding = (() => {
   let _step = 0;
   let _answers = {};
+  const DEFAULT_CONTACTS = {
+    name: 'Corinne',
+    student_email: 'corinne@example.com',
+    parent1_name: 'Dad',
+    parent1_email: 'contact@example.com',
+    parent2_name: 'Mom',
+    parent2_email: 'supporter@example.com',
+  };
 
   const STEPS = [
     'welcome',
@@ -14,9 +22,15 @@ const Onboarding = (() => {
   function start() {
     _step = 0;
     _answers = {};
+    _applySetupTheme();
     document.getElementById('onboarding-overlay').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
     render();
+  }
+
+  function _applySetupTheme() {
+    const prefersDark = !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    document.body.classList.toggle('light', !prefersDark);
   }
 
   function render() {
@@ -41,7 +55,7 @@ const Onboarding = (() => {
           <div class="onboarding-step-label">Step 1 of 5</div>
           <div class="onboarding-title">Welcome to<br>JobSearchCoach 🎯</div>
           <div class="onboarding-desc">
-            Your personal AI career coach, powered by Claude. We'll get you set up in about 3 minutes.<br><br>
+            Your personal AI career coach. We'll get you set up in about a minute.<br><br>
             This app runs completely on your computer — your data stays with you.
           </div>
           <div class="onboarding-nav">
@@ -53,47 +67,28 @@ const Onboarding = (() => {
       case 'profile':
         const saved = Storage.get('profile', {});
         return `
-          <div class="onboarding-step-label">Step 2 of 5 — Your Profile</div>
-          <div class="onboarding-title">Tell me about yourself</div>
-          <div class="onboarding-desc">Your coach uses this to give you relevant, personalized advice.</div>
+          <div class="onboarding-step-label">Step 2 of 5 — Contact Info</div>
+          <div class="onboarding-title">Confirm contact info</div>
+          <div class="onboarding-desc">These are already filled in. Corinne can change them later in Settings if needed.</div>
 
           <div class="onboarding-field">
             <label>Your First Name</label>
-            <input id="ob-name" type="text" placeholder="Corinne" value="${saved.name || ''}">
+            <input id="ob-name" type="text" placeholder="Corinne" value="${saved.name || DEFAULT_CONTACTS.name}">
           </div>
           <div class="onboarding-field">
-            <label>School</label>
-            <input id="ob-school" type="text" placeholder="USC" value="${saved.school || 'USC'}">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div class="onboarding-field">
-              <label>Graduation Year</label>
-              <input id="ob-grad" type="text" placeholder="2024" value="${saved.grad_year || ''}">
-            </div>
-            <div class="onboarding-field">
-              <label>Major</label>
-              <input id="ob-major" type="text" placeholder="e.g. Communications" value="${saved.major || ''}">
-            </div>
+            <label>Your Email</label>
+            <input id="ob-student-email" type="email" placeholder="corinne@example.com"
+              value="${saved.student_email || DEFAULT_CONTACTS.student_email}">
           </div>
           <div class="onboarding-field">
-            <label>Target Job Titles (comma-separated)</label>
-            <input id="ob-roles" type="text" placeholder="e.g. Marketing Coordinator, Brand Manager"
-              value="${(saved.target_roles || []).join(', ')}">
-          </div>
-          <div class="onboarding-field">
-            <label>Target Industries (comma-separated)</label>
-            <input id="ob-industries" type="text" placeholder="e.g. Tech, Entertainment, Media"
-              value="${(saved.target_industries || []).join(', ')}">
-          </div>
-          <div class="onboarding-field">
-            <label>Parent 1 Email (for Progress Reports)</label>
+            <label>Dad's Email</label>
             <input id="ob-parent1-email" type="email" placeholder="dad@example.com"
-              value="${saved.parent1_email || ''}">
+              value="${saved.parent1_email || DEFAULT_CONTACTS.parent1_email}">
           </div>
           <div class="onboarding-field">
-            <label>Parent 2 Email (optional)</label>
+            <label>Mom's Email</label>
             <input id="ob-parent2-email" type="email" placeholder="mom@example.com"
-              value="${saved.parent2_email || ''}">
+              value="${saved.parent2_email || DEFAULT_CONTACTS.parent2_email}">
           </div>
 
           <div class="onboarding-nav">
@@ -104,25 +99,20 @@ const Onboarding = (() => {
 
       case 'apikey':
         return `
-          <div class="onboarding-step-label">Step 3 of 5 — API Key</div>
-          <div class="onboarding-title">Connect Claude AI</div>
+          <div class="onboarding-step-label">Step 3 of 5 — Access Key</div>
+          <div class="onboarding-title">Enter your coach access key</div>
           <div class="onboarding-desc">
-            JobSearchCoach uses the Anthropic Claude API as your coaching engine. You'll need an API key.
+            Dad will give you this key. Paste it here to turn on the AI coach.
           </div>
 
           <div class="security-note">
-            Your API key is stored only on your computer in a local config file — never sent anywhere except directly to Anthropic. You will not be shown it again after saving.
+            This key is stored only on this computer in a local config file. It is used only to connect JobSearchCoach to the coaching AI.
           </div>
 
           <div class="onboarding-field">
-            <label>Anthropic API Key</label>
-            <input id="ob-apikey" type="password" placeholder="sk-ant-..." autocomplete="off"
+            <label>Access Key</label>
+            <input id="ob-apikey" type="password" placeholder="Paste the key Dad gave you" autocomplete="off"
               style="font-family:monospace;letter-spacing:0.05em">
-            <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
-              Get your key at
-              <a href="https://console.anthropic.com/keys" target="_blank">console.anthropic.com/keys</a>
-              — look for "API Keys" in the sidebar.
-            </div>
           </div>
 
           <div id="apikey-status" style="font-size:13px;color:var(--text-muted);margin-bottom:8px"></div>
@@ -134,44 +124,25 @@ const Onboarding = (() => {
           ${_buildProgress()}`;
 
       case 'drive':
+        const status = Config.get() || {};
         return `
-          <div class="onboarding-step-label">Step 4 of 5 — Cloud Backup (Optional)</div>
-          <div class="onboarding-title">Sync with Google Drive</div>
+          <div class="onboarding-step-label">Step 4 of 5 — Google Drive</div>
+          <div class="onboarding-title">Connect Google Drive</div>
           <div class="onboarding-desc">
-            Optionally back up your coaching sessions and job data to your personal Google Drive.
-            Your data is stored in a private app folder that only this app can see.
+            JobSearchCoach saves your job applications, coaching sessions, mission progress, resume notes, and gauges to your private Google Drive app data.
           </div>
 
-          <div id="drive-status-area">
-            <div style="display:flex;flex-direction:column;gap:12px">
-              <div class="onboarding-field">
-                <label>Google OAuth Client ID</label>
-                <input id="ob-gclient-id" type="text" placeholder="123456789-xxx.apps.googleusercontent.com"
-                  style="font-family:monospace;font-size:12px">
-              </div>
-              <div class="onboarding-field">
-                <label>Google OAuth Client Secret</label>
-                <input id="ob-gclient-secret" type="password" placeholder="GOCSPX-..."
-                  style="font-family:monospace;font-size:12px">
-                <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
-                  Set up a Desktop OAuth client at
-                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank">
-                    Google Cloud Console
-                  </a>. Enable the Google Drive API first.
-                </div>
-              </div>
-              <button class="btn btn-ghost" id="ob-drive-connect" style="width:fit-content">
-                Connect Google Drive
-              </button>
-            </div>
+          <div class="security-note">
+            Sign in with the Google account where you want to save app data. Google will ask for permission to store JobSearchCoach data in Drive.
           </div>
 
-          <div id="drive-connect-status" style="font-size:13px;margin-top:8px"></div>
+          <div id="drive-connect-status" style="font-size:13px;margin-bottom:10px;color:var(--text-muted)">
+            ${status.google_client_id ? 'Ready to connect.' : 'Google Drive setup is missing. Ask Dad for the prepared package.'}
+          </div>
 
           <div class="onboarding-nav">
             <button class="btn btn-ghost" id="ob-back">← Back</button>
-            <button class="btn btn-ghost" id="ob-skip">Skip for Now</button>
-            <button class="btn btn-gold" id="ob-next">Continue →</button>
+            <button class="btn btn-gold" id="ob-drive-connect" ${status.google_client_id ? '' : 'disabled'}>Connect Google Drive</button>
           </div>
           ${_buildProgress()}`;
 
@@ -216,17 +187,20 @@ const Onboarding = (() => {
         document.getElementById('ob-next').addEventListener('click', () => {
           const name = document.getElementById('ob-name').value.trim();
           if (!name) { UI.notify('Please enter your name', 'error'); return; }
+          const studentEmail = document.getElementById('ob-student-email').value.trim();
+          const parent1Email = document.getElementById('ob-parent1-email').value.trim();
+          const parent2Email = document.getElementById('ob-parent2-email').value.trim();
+          if (!studentEmail) { UI.notify('Please enter Corinne\'s email', 'error'); return; }
+          if (!parent1Email) { UI.notify('Please enter Dad\'s email', 'error'); return; }
+          if (!parent2Email) { UI.notify('Please enter Mom\'s email', 'error'); return; }
           _answers.profile = {
             name,
-            school: document.getElementById('ob-school').value.trim() || 'USC',
-            grad_year: document.getElementById('ob-grad').value.trim(),
-            major: document.getElementById('ob-major').value.trim(),
-            target_roles: document.getElementById('ob-roles').value
-              .split(',').map(s => s.trim()).filter(Boolean),
-            target_industries: document.getElementById('ob-industries').value
-              .split(',').map(s => s.trim()).filter(Boolean),
-            parent1_email: document.getElementById('ob-parent1-email').value.trim(),
-            parent2_email: document.getElementById('ob-parent2-email').value.trim(),
+            student_email: studentEmail,
+            school: Storage.get('profile', {}).school || 'USC',
+            parent1_name: DEFAULT_CONTACTS.parent1_name,
+            parent1_email: parent1Email,
+            parent2_name: DEFAULT_CONTACTS.parent2_name,
+            parent2_email: parent2Email,
           };
           Storage.set('profile', { ...Storage.get('profile', {}), ..._answers.profile });
           _step++;
@@ -240,7 +214,7 @@ const Onboarding = (() => {
           const statusEl = document.getElementById('apikey-status');
 
           if (!key || !key.startsWith('sk-')) {
-            statusEl.textContent = 'Please enter a valid Anthropic API key (starts with sk-)';
+            statusEl.textContent = 'Please enter the access key Dad gave you. It should start with sk-.';
             statusEl.style.color = 'var(--danger)';
             return;
           }
@@ -249,7 +223,7 @@ const Onboarding = (() => {
           statusEl.style.color = 'var(--text-muted)';
           try {
             await Config.save({ anthropic_api_key: key });
-            statusEl.textContent = '✓ API key saved securely';
+            statusEl.textContent = '✓ Access key saved';
             statusEl.style.color = 'var(--success)';
             setTimeout(() => { _step++; render(); }, 600);
           } catch {
@@ -260,30 +234,28 @@ const Onboarding = (() => {
         break;
 
       case 'drive':
-        document.getElementById('ob-skip').addEventListener('click', () => { _step++; render(); });
-        document.getElementById('ob-next').addEventListener('click', () => { _step++; render(); });
         document.getElementById('ob-drive-connect')?.addEventListener('click', async () => {
-          const clientId = document.getElementById('ob-gclient-id').value.trim();
-          const clientSecret = document.getElementById('ob-gclient-secret').value.trim();
           const statusEl = document.getElementById('drive-connect-status');
-
-          if (!clientId || !clientSecret) {
-            statusEl.textContent = 'Please enter both Client ID and Client Secret.';
+          const clientId = Config.get()?.google_client_id || '';
+          if (!clientId) {
+            statusEl.textContent = 'Google Drive setup is missing. Ask Dad for the prepared package.';
             statusEl.style.color = 'var(--danger)';
             return;
           }
-
-          statusEl.textContent = 'Saving credentials...';
-          await Config.save({ google_client_id: clientId, google_client_secret: clientSecret });
-          statusEl.textContent = 'Opening Google authorization window...';
+          statusEl.textContent = 'Opening Google sign-in...';
           statusEl.style.color = 'var(--text-muted)';
-
           try {
-            await Drive.startOAuth(clientId);
-            statusEl.textContent = '✓ Google Drive connected!';
+            const result = await Drive.startOAuth(clientId);
+            if (!result.ok) throw new Error(result.error || 'Google Drive connection failed.');
+            await Config.load();
+            const connected = await Drive.init();
+            if (!connected) throw new Error('Google Drive connection could not be verified.');
+            await Storage.syncAllToDrive();
+            statusEl.textContent = '✓ Google Drive connected';
             statusEl.style.color = 'var(--success)';
+            setTimeout(() => { _step++; render(); }, 700);
           } catch (err) {
-            statusEl.textContent = `Auth failed: ${err.message}`;
+            statusEl.textContent = `Drive connection failed: ${err.message}`;
             statusEl.style.color = 'var(--danger)';
           }
         });
@@ -291,7 +263,11 @@ const Onboarding = (() => {
 
       case 'complete':
         document.getElementById('ob-launch').addEventListener('click', async () => {
-          await Config.save({ profile_complete: true });
+          const installId = Config.get()?.install_build_id || '';
+          await Config.save({
+            profile_complete: true,
+            completed_install_id: installId,
+          });
           document.getElementById('onboarding-overlay').classList.add('hidden');
           App.launch();
         });

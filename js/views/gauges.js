@@ -6,13 +6,13 @@ const Gauges = (() => {
     { id: 'followups',      label: 'Follow-Ups',      group: 'Job Search', type: 'weekly',    target: 10,  icon: '📨', validate: false },
     { id: 'interviews',     label: 'Interviews',      group: 'Job Search', type: 'cumulative',target: null,icon: '🎤', validate: true,
       placeholder: 'Company and role? What stage is this interview?' },
-    { id: 'usc_eller',      label: 'USC / Eller',     group: 'Networking', type: 'weekly',    target: 6,   icon: '🎓', validate: true,
+    { id: 'usc_eller',      label: 'USC / Eller',     displayLabel: 'USC ELLER Networking', group: 'Networking', type: 'weekly',    target: 6,   icon: '🎓', validate: true,
       placeholder: 'Who did you reach out to? Include their name and USC/Eller connection.' },
-    { id: 'networking',     label: 'Networking',      group: 'Networking', type: 'weekly',    target: 6,   icon: '🤝', validate: true,
+    { id: 'networking',     label: 'Networking',      displayLabel: 'General Networking', group: 'Networking', type: 'weekly',    target: 6,   icon: '🤝', validate: true,
       placeholder: 'Who did you connect with and how? Be specific.' },
     { id: 'interview_prep', label: 'Interview Prep',  group: 'Skills',     type: 'weekly',    target: 6,   icon: '🧠', validate: true,
       placeholder: 'What did you practice? (mock Q&A, case study, STAR story, research...)' },
-    { id: 'linkedin',       label: 'LinkedIn',        group: 'Skills',     type: 'weekly',    target: 6,   icon: '💼', validate: true,
+    { id: 'linkedin',       label: 'LinkedIn',        displayLabel: 'Linked In', group: 'Skills',     type: 'weekly',    target: 6,   icon: '💼', validate: true,
       placeholder: 'What did you do on LinkedIn? (post, comment, connection, DM...)' },
     { id: 'portfolio',      label: 'Portfolio',       group: 'Content',    type: 'cap',       target: 3,   icon: '🗂️', validate: false },
     { id: 'resume_variants',label: 'Resume Variants', group: 'Content',    type: 'cap',       target: 3,   icon: '📄', validate: false },
@@ -32,6 +32,7 @@ Rules:
 
   const VALIDATION_HINTS = {
     interviews:     'Needs a company name or role title. "Had an interview" alone is not sufficient.',
+    followups:      'Needs who was contacted, the date, and a short note about the follow-up. "I followed up" alone is not sufficient.',
     usc_eller:      'Needs a specific USC or Eller-affiliated person\'s name. Generic outreach without a real name is not valid.',
     networking:     'Needs to describe a real outreach action with a specific person or group, not just "I networked."',
     interview_prep: 'Needs to describe a specific prep activity, not just "I studied" or "I prepared."',
@@ -83,89 +84,91 @@ Rules:
 
   // ── Render ───────────────────────────────────────────────────────────────
 
+  function _speedometerHTML({ pct, value, target, meta, complete }) {
+    const safePct = Math.max(0, Math.min(100, pct || 0));
+    return `<div class="speedometer ${complete ? 'speedometer-complete' : ''}" aria-hidden="true">
+      <svg class="speedometer-svg" viewBox="0 0 120 76" role="img">
+        <path class="speedometer-track" pathLength="100" d="M18 64 A42 42 0 0 1 102 64"></path>
+        <path class="speedometer-fill" pathLength="100" d="M18 64 A42 42 0 0 1 102 64"
+          style="stroke-dasharray:${safePct} 100"></path>
+      </svg>
+      <div class="speedometer-readout">
+        <span class="speedometer-value">${value}</span>
+        ${target ? `<span class="speedometer-target">${target}</span>` : ''}
+      </div>
+      <div class="speedometer-meta">${meta}</div>
+    </div>`;
+  }
+
   function _renderCard(def) {
     const data = _getData();
 
     if (def.type === 'dual') {
-      const sh        = data.side_hustle || { income: 0, items: 0 };
-      const incomePct = Math.min(100, Math.round((sh.income / def.incomeTarget) * 100));
-      const itemsPct  = sh.items >= def.itemsTarget ? 100 : 0;
-      return `<div class="gauge-card gauge-card-featured" onclick="Gauges.openPanel('side_hustle')">
-        <div class="gauge-card-title">${def.icon} ${def.label}</div>
-        <div class="gauge-dual-bars">
-          <div class="gauge-dual-row">
-            <span class="gauge-dual-label">Income</span>
-            <span class="gauge-dual-value">$${sh.income}<span class="gauge-count-target"> / $${def.incomeTarget}</span></span>
-          </div>
-          <div class="gauge-bar-track">
-            <div class="gauge-bar-fill gauge-bar-income" style="width:${incomePct}%"></div>
-          </div>
-          <div class="gauge-dual-row" style="margin-top:10px">
-            <span class="gauge-dual-label">Portfolio Item</span>
-            <span class="gauge-dual-value">${sh.items}<span class="gauge-count-target"> / ${def.itemsTarget}</span></span>
-          </div>
-          <div class="gauge-bar-track">
-            <div class="gauge-bar-fill gauge-bar-items" style="width:${itemsPct}%"></div>
-          </div>
-        </div>
-        <div class="gauge-card-foot">this week</div>
+      const sh = data.side_hustle || { income: 0, items: 0 };
+      const pct = Math.min(100, Math.round((sh.income / def.incomeTarget) * 100));
+      const complete = sh.income >= def.incomeTarget && sh.items >= def.itemsTarget;
+
+      return `<div class="gauge-card${complete ? ' gauge-card-done' : ''}" onclick="Gauges.openPanel('${def.id}')">
+        <div class="gauge-card-title">${def.icon} ${def.displayLabel || def.label}</div>
+        ${_speedometerHTML({
+          pct,
+          value: `$${sh.income}`,
+          target: `/ $${def.incomeTarget}`,
+          meta: `${sh.items} / ${def.itemsTarget} portfolio`,
+          complete,
+        })}
       </div>`;
     }
 
     const val    = data[def.id] || 0;
-    let barPct   = 0, countHTML = '', foot = '';
+    let pct      = 0, valueText = '', targetText = '', foot = '';
     let atCap    = false;
 
     if (def.type === 'weekly') {
-      barPct    = Math.min(100, Math.round((val / def.target) * 100));
-      countHTML = `${val}<span class="gauge-count-target"> / ${def.target}</span>`;
-      foot      = 'this week';
-      atCap     = val >= def.target;
+      pct        = Math.min(100, Math.round((val / def.target) * 100));
+      valueText  = `${val}`;
+      targetText = `/ ${def.target}`;
+      foot       = 'this week';
+      atCap      = val >= def.target;
     } else if (def.type === 'cap') {
-      barPct    = Math.min(100, Math.round((val / def.target) * 100));
-      countHTML = `${val}<span class="gauge-count-target"> of ${def.target}</span>`;
-      foot      = 'cumulative';
-      atCap     = val >= def.target;
+      pct        = Math.min(100, Math.round((val / def.target) * 100));
+      valueText  = `${val}`;
+      targetText = `of ${def.target}`;
+      foot       = 'cumulative';
+      atCap      = val >= def.target;
     } else {
-      countHTML = `${val}`;
-      foot      = 'total';
+      pct        = val > 0 ? 100 : 0;
+      valueText  = `${val}`;
+      foot       = 'total';
     }
 
-    const barHTML = def.type !== 'cumulative'
-      ? `<div class="gauge-bar-track"><div class="gauge-bar-fill${atCap ? ' gauge-bar-complete' : ''}" style="width:${barPct}%"></div></div>`
-      : `<div style="height:4px"></div>`;
-
     return `<div class="gauge-card${atCap ? ' gauge-card-done' : ''}" onclick="Gauges.openPanel('${def.id}')">
-      <div class="gauge-card-title">${def.icon} ${def.label}</div>
-      <div class="gauge-card-count">${countHTML}</div>
-      ${barHTML}
-      <div class="gauge-card-foot">${foot}</div>
+      <div class="gauge-card-title">${def.icon} ${def.displayLabel || def.label}</div>
+      ${_speedometerHTML({
+        pct,
+        value: valueText,
+        target: targetText,
+        meta: foot,
+        complete: atCap,
+      })}
     </div>`;
   }
 
   // Returns the inner HTML for #gauge-band-container
   function renderBand() {
-    const grouped = {};
-    GAUGE_DEFS.forEach(d => {
-      if (!grouped[d.group]) grouped[d.group] = [];
-      grouped[d.group].push(d);
-    });
+    const byId = Object.fromEntries(GAUGE_DEFS.map(def => [def.id, def]));
+    const rows = [
+      ['resume_variants', 'portfolio', 'side_hustle'],
+      ['networking', 'usc_eller', 'linkedin'],
+      ['apps', 'followups', 'interview_prep', 'interviews'],
+    ];
 
-    const row1 = ['Job Search', 'Networking', 'Skills'];
-    const row2 = ['Content'];  // Side Hustle lives next to Current Mission card
-
-    const renderRow = (groups) =>
-      `<div class="gauge-band-row">${
-        groups.map(g => `
-          <div class="gauge-section">
-            <div class="gauge-section-label">${g}</div>
-            <div class="gauge-cards-row">
-              ${(grouped[g] || []).map(def => _renderCard(def)).join('')}
-            </div>
-          </div>`).join('')
-      }</div>`;
-
-    return renderRow(row1) + renderRow(row2);
+    return `<img class="gauge-band-mark" src="assets/usc-trojan-logo-transparent.png" alt="">
+      <div class="gauge-grid">
+      ${rows.map(row => `<div class="gauge-grid-row">
+        ${row.map(id => _renderCard(byId[id])).join('')}
+      </div>`).join('')}
+    </div>`;
   }
 
   function renderSideHustlePanel() {
@@ -391,6 +394,7 @@ Rules:
       }),
     });
     const data = await r.json();
+    if (!r.ok) throw new Error(data.error?.message || data.error || 'Validation unavailable.');
     return data.content?.[0]?.text || '{"valid":false,"question":null,"reason":"No response."}';
   }
 
@@ -400,6 +404,11 @@ Rules:
     const data = _getData();
     data[gaugeId] = (data[gaugeId] || 0) + amount;
     Storage.set('gauges', data);
+  }
+
+  function increment(gaugeId, amount = 1) {
+    _increment(gaugeId, amount);
+    _reRenderBand();
   }
 
   // ── Modal helpers ─────────────────────────────────────────────────────────
@@ -414,5 +423,152 @@ Rules:
     if (el) { el.textContent = msg; el.style.display = 'block'; }
   }
 
-  return { init, renderBand, renderSideHustlePanel, openPanel };
+  async function logWorkflowActivity(gaugeId, payload) {
+    const def = GAUGE_DEFS.find(g => g.id === gaugeId);
+    if (!def) return { ok: false, reason: 'Unknown activity.' };
+
+    if (def.type === 'dual') {
+      const income = Math.max(0, parseInt(payload?.income || '0', 10) || 0);
+      const item = payload?.portfolioEligible ? 1 : 0;
+      if (!income && !item) return { ok: false, reason: 'Log income, portfolio work, or both.' };
+      const data = _getData();
+      data.side_hustle = {
+        income: (data.side_hustle?.income || 0) + income,
+        items: Math.min((data.side_hustle?.items || 0) + item, 1),
+      };
+      Storage.set('gauges', data);
+      _reRenderBand();
+      return { ok: true };
+    }
+
+    const text = String(payload?.description || '').trim();
+    if (!text) return { ok: false, reason: 'Please describe what you did.' };
+
+    if (['followups', 'networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId)) {
+      const local = _localValidate(gaugeId, text);
+      if (local.valid) {
+        _increment(gaugeId);
+        _reRenderBand();
+        return { ok: true, localFallback: true };
+      }
+      return {
+        ok: false,
+        question: local.question || null,
+        reason: local.reason || 'Please add a little more detail.',
+      };
+    }
+
+    const needsValidation = def.validate || payload?.requireValidation;
+    if (!needsValidation) {
+      _increment(gaugeId);
+      _reRenderBand();
+      return { ok: true };
+    }
+
+    try {
+      const raw = await _callClaude(gaugeId, [{ role: 'user', content: text }]);
+      const parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
+      if (parsed.valid) {
+        _increment(gaugeId);
+        _reRenderBand();
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        question: parsed.question || null,
+        reason: parsed.reason || 'Please add more specific detail.',
+      };
+    } catch {
+      const local = _localValidate(gaugeId, text);
+      if (local.valid) {
+        _increment(gaugeId);
+        _reRenderBand();
+        return { ok: true, localFallback: true };
+      }
+      return {
+        ok: false,
+        question: local.question || null,
+        reason: local.reason || 'Validation is unavailable. Please add more specific detail and try again.',
+      };
+    }
+  }
+
+  function _localValidate(gaugeId, text) {
+    const words = text.split(/\s+/).filter(Boolean);
+    const hasName = /\b(Mr\.?|Ms\.?|Mrs\.?|Dr\.?)\s+[A-Z][a-z]+|\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/.test(text);
+    const hasCompanyOrRole = /\b(role|position|job|company|manager|recruiter|analyst|data|engineer|designer|consultant|developer|coordinator)\b/i.test(text);
+    const hasTiming = /\b(today|yesterday|week|month|day|applied|sent|emailed|messaged|called|followed up)\b/i.test(text) || /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/.test(text);
+
+    if (!['followups', 'networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId) && words.length < 8) {
+      return { valid: false, question: 'Can you add who, what role or company, and when this happened?', reason: 'The entry is too short to confirm the activity.' };
+    }
+    if (gaugeId === 'followups') {
+      const parsed = _parseFollowupLog(text);
+      if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
+      return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'Follow-ups need company, name, and a short comment.' };
+    }
+    if (['networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId)) {
+      const parsed = _parseSimpleActivityLog(text);
+      if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
+      return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'This activity needs company, name, and a short comment.' };
+    }
+    if (gaugeId === 'usc_eller' && (!hasName || !/\b(USC|Eller|Arizona|Marshall|alumni|alum)\b/i.test(text))) {
+      return { valid: false, question: 'What is the person’s name, and are they connected to USC or Eller?', reason: 'USC/Eller networking needs a named alumni contact.' };
+    }
+    if (['networking', 'linkedin', 'interview_prep', 'interviews'].includes(gaugeId)) {
+      return { valid: hasName || hasCompanyOrRole || hasTiming };
+    }
+    return { valid: true };
+  }
+
+  function _parseFollowupLog(text) {
+    const parts = String(text || '').split(',').map(part => part.trim()).filter(Boolean);
+    if (parts.length < 3) return null;
+
+    const companyFirstDate = _extractFollowupDateAndNote(parts[1]);
+    if (parts.length >= 4 && companyFirstDate && _looksLikeFollowupPerson(parts[2])) {
+      return { company: parts[0], name: parts[2], note: parts.slice(3).join(', ').trim() };
+    }
+
+    const nameFirstDate = _extractFollowupDateAndNote(parts.slice(2).join(', '));
+    if (nameFirstDate && _looksLikeFollowupPerson(parts[0])) {
+      return { name: parts[0], company: parts[1], note: nameFirstDate.note };
+    }
+
+    if (_looksLikeFollowupPerson(parts[0])) {
+      return { name: parts[0], company: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+
+    if (_looksLikeFollowupPerson(parts[1])) {
+      return { company: parts[0], name: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+
+    return null;
+  }
+
+  function _parseSimpleActivityLog(text) {
+    const parts = String(text || '').split(',').map(part => part.trim()).filter(Boolean);
+    if (parts.length < 3) return null;
+    if (_looksLikeFollowupPerson(parts[0])) {
+      return { name: parts[0], company: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+    if (_looksLikeFollowupPerson(parts[1])) {
+      return { company: parts[0], name: parts[1], note: parts.slice(2).join(', ').trim() };
+    }
+    return null;
+  }
+
+  function _extractFollowupDateAndNote(text) {
+    const match = String(text || '').trim().match(/^(today|yesterday|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b[\s,;:-]*(.*)$/i);
+    if (!match) return null;
+    return { date: match[1], note: match[2].trim() };
+  }
+
+  function _looksLikeFollowupPerson(text) {
+    return /\b(?:mr|ms|mrs|dr)\.?\s+[a-z][a-z'-]*\b/i.test(text)
+      || /\b(?:man|woman|person|guy|lady|recruiter|manager)\s+named\s+[a-z][a-z'-]*\b/i.test(text)
+      || /\b[a-z][a-z'-]*\s+[a-z][a-z'-]*\b/i.test(text);
+  }
+
+  return { init, renderBand, renderSideHustlePanel, openPanel, logWorkflowActivity, increment };
 })();

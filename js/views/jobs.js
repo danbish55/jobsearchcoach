@@ -158,6 +158,7 @@ const Jobs = (() => {
     const data = Storage.get('jobs', _defaultData());
     const app = editIndex !== null ? data.applications[editIndex] : {};
     const isEdit = editIndex !== null;
+    const originalStatus = app.status || '';
 
     const body = `
       <div class="form-row">
@@ -212,6 +213,7 @@ const Jobs = (() => {
             stored.applications.push(entry);
           }
           Storage.set('jobs', stored);
+          _syncApplicationsGauge(originalStatus, entry.status);
           _checkMilestones(stored.applications);
           UI.closeModal();
           render();
@@ -225,11 +227,19 @@ const Jobs = (() => {
 
   function updateStatus(i, status) {
     const data = Storage.get('jobs', _defaultData());
+    const previousStatus = data.applications[i]?.status || '';
     data.applications[i].status = status;
     Storage.set('jobs', data);
+    _syncApplicationsGauge(previousStatus, status);
     _checkMilestones(data.applications);
     UI.updateSidebar();
     render();
+  }
+
+  function _syncApplicationsGauge(previousStatus, nextStatus) {
+    if (previousStatus !== 'applied' && nextStatus === 'applied') {
+      Gauges.increment('apps');
+    }
   }
 
   function remove(i) {

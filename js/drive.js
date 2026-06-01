@@ -3,6 +3,8 @@ const Drive = (() => {
   const FOLDER = 'appDataFolder';
   let _accessToken = null;
   let _fileCache = {}; // filename → Drive file ID
+  let _fileCacheLoaded = false;
+  let _fileCacheLoadPromise = null;
 
   function isConnected() {
     return Config.hasDrive() && !!_accessToken;
@@ -34,7 +36,7 @@ const Drive = (() => {
   function startOAuth(clientId) {
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: `http://localhost:8765/oauth2callback`,
+      redirect_uri: `${window.location.origin}/oauth2callback`,
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/drive.appdata',
       access_type: 'offline',
@@ -42,33 +44,48 @@ const Drive = (() => {
     });
     const url = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
     const popup = window.open(url, 'GoogleAuth', 'width=500,height=650,left=200,top=100');
+    if (!popup) {
+      return Promise.reject(new Error('The Google sign-in popup was blocked. Please allow popups for JobSearchCoach and try again.'));
+    }
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Auth timeout')), 120000);
-      window.addEventListener('message', async function handler(e) {
+      let checkClosed = null;
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (checkClosed) clearInterval(checkClosed);
+        window.removeEventListener('message', handler);
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('Auth timeout'));
+      }, 120000);
+      async function handler(e) {
+        if (e.origin !== window.location.origin) return;
         if (e.data && e.data.type === 'oauth_code') {
-          clearTimeout(timeout);
-          window.removeEventListener('message', handler);
+          cleanup();
           try {
             const result = await handleOAuthCode(e.data.code);
+            if (!result.ok) {
+              throw new Error(result.error || 'Google did not return a usable sign-in token.');
+            }
             resolve(result);
           } catch (err) {
             reject(err);
           }
         }
-      });
+      }
+      window.addEventListener('message', handler);
       // Detect popup close without completing
-      const checkClosed = setInterval(() => {
+      checkClosed = setInterval(() => {
         if (popup.closed) {
-          clearInterval(checkClosed);
-          clearTimeout(timeout);
-          window.removeEventListener('message', () => {});
+          cleanup();
+          reject(new Error('Google sign-in window was closed before setup finished'));
         }
       }, 1000);
     });
   }
 
-  async function _apiCall(method, path, body = null) {
+  async function _apiCall(method, path, body = null, retried = false) {
     if (!_accessToken) return null;
     const opts = {
       method,
@@ -81,14 +98,40 @@ const Drive = (() => {
     const r = await fetch(`https://www.googleapis.com/drive/v3${path}`, opts);
     if (r.status === 401) {
       // Token expired — refresh
-      await init();
-      return _apiCall(method, path, body); // retry once
+      if (retried) return null;
+      const refreshed = await init();
+      if (!refreshed) {
+        _accessToken = null;
+        return null;
+      }
+      return _apiCall(method, path, body, true);
     }
     if (!r.ok) return null;
     return r.json();
   }
 
+  async function _loadFileCache() {
+    if (_fileCacheLoaded) return;
+    if (_fileCacheLoadPromise) return _fileCacheLoadPromise;
+    _fileCacheLoadPromise = (async () => {
+      try {
+        const data = await _apiCall('GET', `/files?spaces=${FOLDER}&fields=files(id,name)`);
+        if (data?.files) {
+          data.files.forEach(file => {
+            if (file.name && file.id) _fileCache[file.name] = file.id;
+          });
+          _fileCacheLoaded = true;
+        }
+      } finally {
+        _fileCacheLoadPromise = null;
+      }
+    })();
+    return _fileCacheLoadPromise;
+  }
+
   async function _findFile(filename) {
+    if (_fileCache[filename]) return _fileCache[filename];
+    await _loadFileCache();
     if (_fileCache[filename]) return _fileCache[filename];
     const q = encodeURIComponent(`name='${filename}' and trashed=false`);
     const data = await _apiCall('GET', `/files?spaces=${FOLDER}&q=${q}&fields=files(id)`);

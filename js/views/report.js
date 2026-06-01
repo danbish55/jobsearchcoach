@@ -1,5 +1,10 @@
 /* Progress Report — mailto generator */
 const Report = (() => {
+  const DEFAULT_CONTACTS = {
+    name: 'Corinne',
+    parent1_email: 'contact@example.com',
+    parent2_email: 'supporter@example.com',
+  };
 
   const STATUSES = ['applied','phone','interview','offer','rejected'];
   const STATUS_LABELS = { applied:'Applied', phone:'Phone Screen', interview:'Interview', offer:'Offer', rejected:'Passed' };
@@ -39,17 +44,14 @@ const Report = (() => {
 
     const parent1Name = profile.parent1_name || 'Dad';
     const parent2Name = profile.parent2_name || 'Mom';
-    const hasParent2  = !!profile.parent2_email;
 
     // Auto-detect on first load; preserve user choices on re-render
     if (!_includes) _includes = _autoDetect();
 
     const pills = [
       { value: 'parent1', name: parent1Name },
-      ...(hasParent2 ? [
-        { value: 'parent2', name: parent2Name },
-        { value: 'both',    name: 'Both' },
-      ] : []),
+      { value: 'parent2', name: parent2Name },
+      { value: 'both',    name: 'Both' },
     ];
 
     container.innerHTML = `
@@ -90,12 +92,12 @@ const Report = (() => {
         </div>
 
         <div style="display:flex;gap:10px">
-          <button class="btn btn-primary" onclick="Report.send()">📨 Open in Email Client</button>
+          <button class="btn btn-primary" onclick="Report.send()">📨 Open in Gmail</button>
           <button class="btn btn-ghost" onclick="Report.copyToClipboard()">📋 Copy to Clipboard</button>
         </div>
 
         <div style="font-size:12px;color:var(--text-muted);margin-top:10px">
-          Opens your default email app with the report pre-filled. You can edit before sending.
+          Opens Gmail with the report pre-filled. You can edit before sending.
         </div>
       </div>`;
 
@@ -209,12 +211,49 @@ const Report = (() => {
 
   function _getRecipientEmails() {
     const profile = Storage.get('profile', {});
-    if (_recipient === 'parent1') return [profile.parent1_email].filter(Boolean);
-    if (_recipient === 'parent2') return [profile.parent2_email].filter(Boolean);
-    return [profile.parent1_email, profile.parent2_email].filter(Boolean);
+    const parent1 = profile.parent1_email || DEFAULT_CONTACTS.parent1_email;
+    const parent2 = profile.parent2_email || DEFAULT_CONTACTS.parent2_email;
+    if (_recipient === 'parent1') return [parent1].filter(Boolean);
+    if (_recipient === 'parent2') return [parent2].filter(Boolean);
+    return [parent1, parent2].filter(Boolean);
   }
 
   function send() {
+    _showIntroModal();
+  }
+
+  function _showIntroModal() {
+    const modal = document.getElementById('modal-container');
+    if (!modal) {
+      _openReportBuilder();
+      return;
+    }
+
+    modal.innerHTML = `
+      <div class="modal-backdrop" style="animation:fadeIn 160ms ease-out">
+        <div class="modal" style="max-width:520px">
+          <div class="modal-header">
+            <div class="modal-title" style="color:var(--gold)">A Note Before You Share</div>
+          </div>
+          <div style="max-width:480px;color:var(--text);line-height:1.65;font-size:17px">
+            <p>Sharing your progress with your supporters is completely optional — always. There's no schedule, no expectation, and no one checking whether you did it.</p>
+            <p>That said, there's a reason it's here. Having someone in your corner who knows how it's going — the real version, not just the highlight reel — has a way of keeping momentum alive when the process gets quiet. It's not about accountability in the surveillance sense. It's about having people who are genuinely rooting for you know when to cheer.</p>
+            <p>Send when it feels right. Skip it when it doesn't. Either way, the work you're doing here is yours.</p>
+          </div>
+          <div style="display:flex;justify-content:center;margin-top:22px">
+            <button class="btn btn-gold" onclick="Report.dismissIntroAndSend()">Got It</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function dismissIntroAndSend() {
+    const modal = document.getElementById('modal-container');
+    if (modal) modal.innerHTML = '';
+    _openReportBuilder();
+  }
+
+  function _openReportBuilder() {
     const emails = _getRecipientEmails();
     if (emails.length === 0) {
       UI.notify('No email address configured. Add parent emails in Settings.', 'error');
@@ -224,9 +263,10 @@ const Report = (() => {
     const report  = _buildReport();
     const subject = encodeURIComponent(`${profile.name || 'Corinne'}'s Job Search Update — ${new Date().toLocaleDateString()}`);
     const body    = encodeURIComponent(report);
-    const to      = emails.map(encodeURIComponent).join(',');
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
-    UI.notify('Opening your email client...', 'success');
+    const to      = encodeURIComponent(emails.join(','));
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, '_blank', 'noopener');
+    UI.notify('Opening Gmail...', 'success');
   }
 
   function copyToClipboard() {
@@ -237,5 +277,5 @@ const Report = (() => {
     });
   }
 
-  return { render, send, copyToClipboard };
+  return { render, send, dismissIntroAndSend, copyToClipboard };
 })();
