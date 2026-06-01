@@ -1,0 +1,50 @@
+name: macos-installer-smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/macos/**'
+      - 'server.py'
+      - 'index.html'
+      - 'js/**'
+      - 'css/**'
+      - 'context/**'
+      - '.github/workflows/macos-installer-smoke.yml'
+
+jobs:
+  build-and-smoke-test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build installer artifacts
+        run: |
+          chmod +x scripts/macos/build_macos_installer.sh scripts/macos/postinstall
+          ./scripts/macos/build_macos_installer.sh
+
+      - name: Verify artifacts exist
+        run: |
+          test -d dist/macos/JobSearchCoach.app
+          test -f dist/macos/JobSearchCoach-unsigned.pkg
+          test -f dist/macos/JobSearchCoach-unsigned.dmg
+
+      - name: Install pkg
+        run: sudo installer -pkg dist/macos/JobSearchCoach-unsigned.pkg -target /
+
+      - name: Validate installation layout
+        run: |
+          test -d /Applications/JobSearchCoach.app
+          test -x /Applications/JobSearchCoach.app/Contents/MacOS/JobSearchCoach
+          test -f /Applications/JobSearchCoach.app/Contents/Resources/app/server.py
+
+      - name: Python compile check in installed payload
+        run: |
+          python3 -m py_compile /Applications/JobSearchCoach.app/Contents/Resources/app/server.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobsearchcoach-macos-artifacts
+          path: dist/macos/*

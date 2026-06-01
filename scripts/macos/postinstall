@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_PATH="/Applications/JobSearchCoach.app"
+
+# Remove quarantine recursively for smoother first launch.
+if command -v xattr >/dev/null 2>&1 && [[ -d "$APP_PATH" ]]; then
+  xattr -dr com.apple.quarantine "$APP_PATH" || true
+fi
+
+# Ensure execute bits are correct.
+chmod +x "$APP_PATH/Contents/MacOS/JobSearchCoach" || true
+chmod +x "$APP_PATH/Contents/Resources/app/Start JobSearchCoach.command" || true
+
+# Create desktop shortcut for currently logged-in user.
+CONSOLE_USER="$(stat -f%Su /dev/console 2>/dev/null || true)"
+if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" ]]; then
+  USER_HOME="/Users/$CONSOLE_USER"
+  DESKTOP_LINK="$USER_HOME/Desktop/JobSearchCoach.app"
+  if [[ -d "$USER_HOME/Desktop" ]]; then
+    rm -f "$DESKTOP_LINK" || true
+    ln -s "$APP_PATH" "$DESKTOP_LINK" || true
+    chown -h "$CONSOLE_USER":staff "$DESKTOP_LINK" || true
+  fi
+fi
+
+exit 0
