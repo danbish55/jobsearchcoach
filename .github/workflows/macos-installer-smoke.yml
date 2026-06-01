@@ -41,7 +41,15 @@ jobs:
 
       - name: Python compile check in installed payload
         run: |
-          python3 -m py_compile /Applications/JobSearchCoach.app/Contents/Resources/app/server.py
+          python3 - <<'PY'
+          import py_compile
+          py_compile.compile(
+              '/Applications/JobSearchCoach.app/Contents/Resources/app/server.py',
+              cfile='/tmp/jobsearchcoach-server.pyc',
+              doraise=True,
+          )
+          print('PY_COMPILE_OK')
+          PY
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
