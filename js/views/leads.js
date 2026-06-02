@@ -17,6 +17,7 @@ const JobLeads = (() => {
   let _stateFilter = 'all';
   const _transitioning = new Set();
   const _actionErrors = {};
+  let _activeApplyLeadId = '';
 
   function render() {
     _ensureStyles();
@@ -35,6 +36,8 @@ const JobLeads = (() => {
             ${_running ? 'Refreshing...' : 'Refresh Job Leads'}
           </button>
         </div>
+
+        ${_pendingApplyBannerHTML()}
 
         <div class="job-leads-filter-row">
           <label>
@@ -129,6 +132,21 @@ const JobLeads = (() => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  async function applyLead(leadId) {
+    const item = _leads.find(candidate => _leadId(candidate) === leadId);
+    if (!item) return;
+    const lead = item.lead || item;
+
+    openJob(lead.url || '');
+    try {
+      await _copyText(_profileClipboardText());
+      UI.notify('Profile info copied to clipboard', 'success');
+    } catch {
+      UI.notify('Could not copy profile info automatically', 'error');
+    }
+    _showApplyModal(item);
+  }
+
   async function approveLead(leadId) {
     await _transitionLead(leadId, 'approved');
   }
@@ -216,7 +234,7 @@ const JobLeads = (() => {
 
     if (state === 'approved') {
       return `<div class="job-lead-review-actions">
-        <button class="btn btn-sm job-lead-apply-btn" disabled>Apply</button>
+        <button class="btn btn-sm job-lead-apply-btn" onclick="JobLeads.applyLead('${_escAttr(leadId)}')">Apply</button>
         <button class="btn btn-sm job-lead-reject-btn" onclick="JobLeads.rejectLead('${_escAttr(leadId)}')" ${disabled}>
           ${busyLabel || 'Reject'}
         </button>
@@ -282,6 +300,357 @@ const JobLeads = (() => {
       _renderBodyOnly();
       _updateCount();
     }
+  }
+
+  function _showApplyModal(item) {
+    const lead = item.lead || item;
+    _activeApplyLeadId = _leadId(item);
+    UI.showModal(
+      `Applying to ${_esc(lead.title || lead.role || 'role')} at ${_esc(lead.company || 'company')}`,
+      `<div class="job-lead-apply-modal">
+        <section class="job-lead-apply-section">
+          <div class="job-lead-apply-section-title">Quick Actions</div>
+          <div class="job-lead-apply-actions">
+            <button class="btn btn-primary btn-sm" onclick="JobLeads.openResumeFolder()">Open Resume Folder</button>
+            <button class="btn btn-gold btn-sm" onclick="JobLeads.draftCoverLetter()">Draft Cover Letter</button>
+          </div>
+          <p class="job-lead-apply-note">Profile info copied to clipboard &#10003;</p>
+        </section>
+
+        <section id="job-lead-cover-letter-section" class="job-lead-apply-section hidden">
+          <div class="job-lead-apply-section-title">Cover Letter</div>
+          <div id="job-lead-cover-loading" class="job-lead-cover-loading hidden">
+            <span class="job-leads-spinner"></span>
+            <span>Drafting cover letter...</span>
+          </div>
+          <textarea id="job-lead-cover-text" class="job-lead-cover-text" readonly></textarea>
+          <div class="job-lead-apply-actions">
+            <button class="btn btn-primary btn-sm" onclick="JobLeads.copyCoverLetter()">Copy</button>
+            <button class="btn btn-ghost btn-sm" onclick="JobLeads.saveCoverLetter()">Save to Drive</button>
+          </div>
+        </section>
+
+        <section class="job-lead-apply-section">
+          <div class="job-lead-apply-section-title">Confirmation</div>
+          <p class="job-lead-apply-note">Once you have submitted the application, record it here.</p>
+          <div id="job-lead-apply-status" class="job-lead-apply-status"></div>
+        </section>
+      </div>`,
+      [
+        { id: 'applied', label: 'Yes, I Applied', class: 'btn-primary', close: false, action: () => confirmApplied() },
+        { id: 'close', label: 'Not Yet - Close', class: 'btn-ghost', action: () => closeApplyModal(true) },
+      ]
+    );
+  }
+
+  async function openResumeFolder() {
+    _setApplyStatus('Opening resume folder...');
+    try {
+      const result = await _fetchJSON('/api/open-folder?type=resumes');
+      _setApplyStatus(result.path ? `Resume folder opened: ${result.path}` : 'Resume folder opened.');
+    } catch (err) {
+      _setApplyStatus(`Could not open resume folder. ${err.message || ''}`.trim(), true);
+    }
+  }
+
+  async function draftCoverLetter() {
+    const section = document.getElementById('job-lead-cover-letter-section');
+    const loading = document.getElementById('job-lead-cover-loading');
+    const text = document.getElementById('job-lead-cover-text');
+    if (section) section.classList.remove('hidden');
+    if (loading) loading.classList.remove('hidden');
+    if (text) text.value = '';
+
+    try {
+      const item = _leads.find(candidate => _leadId(candidate) === _activeApplyLeadId);
+      const coverLetter = await _generateCoverLetter(item);
+      if (text) text.value = coverLetter;
+      _setApplyStatus('Cover letter drafted.');
+    } catch (err) {
+      if (text) text.value = '';
+      _setApplyStatus(err.message || 'Could not draft cover letter.', true);
+    } finally {
+      if (loading) loading.classList.add('hidden');
+    }
+  }
+
+  async function copyCoverLetter() {
+    const text = document.getElementById('job-lead-cover-text')?.value || '';
+    if (!text.trim()) {
+      _setApplyStatus('No cover letter draft to copy yet.', true);
+      return;
+    }
+    try {
+      await _copyText(text);
+      _setApplyStatus('Cover letter copied.');
+    } catch {
+      _setApplyStatus('Could not copy cover letter.', true);
+    }
+  }
+
+  function saveCoverLetter() {
+    const text = document.getElementById('job-lead-cover-text')?.value || '';
+    if (!text.trim()) {
+      _setApplyStatus('No cover letter draft to save yet.', true);
+      return;
+    }
+    const item = _leads.find(candidate => _leadId(candidate) === _activeApplyLeadId);
+    const lead = item?.lead || item || {};
+    const stored = Storage.get('cover_letters', { items: [] });
+    const entry = {
+      id: `cover_${Date.now()}`,
+      lead_id: _activeApplyLeadId,
+      company: lead.company || '',
+      role: lead.title || lead.role || '',
+      created_at: new Date().toISOString(),
+      text,
+    };
+    stored.items = [entry, ...(stored.items || [])];
+    Storage.set('cover_letters', stored);
+    _setApplyStatus('Cover letter saved to Drive.');
+  }
+
+  async function _generateCoverLetter(item) {
+    if (!item) throw new Error('No active lead selected.');
+    const lead = item.lead || item;
+    const profile = Storage.get('profile', {});
+    const skills = Array.isArray(profile.skills)
+      ? profile.skills.join(', ')
+      : (profile.skills || profile.target_skills || '');
+    const targetRoles = Array.isArray(profile.target_roles)
+      ? profile.target_roles.join(', ')
+      : (profile.target_roles || '');
+
+    const system = `You are helping Corinne, a recent USC Marshall School of Business MSBA graduate, write a tailored cover letter.
+
+Candidate profile:
+- Name: ${profile.name || 'Corinne'}
+- Degree: MSBA, USC Marshall School of Business
+- Skills: ${skills || 'data analytics, SQL, dashboards, business intelligence'}
+- Target roles: ${targetRoles || 'Data Analyst, Business Intelligence Analyst, Product Analyst'}
+
+Write a professional, specific, and concise cover letter for the following job.
+Do not use generic filler phrases. Reference the specific company and role.
+Length: 3 paragraphs. Tone: confident, data-driven, direct.`;
+
+    const user = `Job details:
+Company: ${lead.company || ''}
+Role: ${lead.title || lead.role || ''}
+Location: ${lead.location || ''}
+Description: ${lead.description || ''}`;
+
+    const response = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: Config.claudeModel(),
+        max_tokens: 900,
+        stream: false,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || err.error || 'Cover letter generation failed');
+    }
+
+    const payload = await response.json();
+    const letter = (payload.content || [])
+      .filter(block => block.type === 'text')
+      .map(block => block.text || '')
+      .join('\n')
+      .trim();
+    if (!letter) throw new Error('Claude returned an empty cover letter.');
+    return letter;
+  }
+
+  async function confirmApplied() {
+    if (!_activeApplyLeadId) return;
+    _setApplyStatus('Recording application...');
+    try {
+      const activeLeadId = _activeApplyLeadId;
+      const updated = await _fetchJSON('/api/jl/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: activeLeadId }),
+      });
+      const index = _leads.findIndex(item => _leadId(item) === activeLeadId);
+      let appliedLead = updated;
+      if (index >= 0) {
+        _leads[index] = _mergeUpdatedLead(_leads[index], updated);
+        appliedLead = _leads[index];
+        _recordJscApplication(appliedLead);
+        _renderBodyOnly();
+        _updateCount();
+      }
+      _setApplyStatus('Application recorded.');
+      const lead = appliedLead.lead || appliedLead;
+      UI.notify(`Application recorded for ${lead.title || lead.role || 'role'} at ${lead.company || 'company'}`, 'success');
+      _clearPendingApply(activeLeadId);
+      UI.closeModal();
+      _activeApplyLeadId = '';
+    } catch (err) {
+      if (String(err.message || '').toLowerCase().includes('duplicate application')) {
+        _showDuplicateApplyMessage();
+        return;
+      }
+      _setApplyStatus(err.message || 'Could not record application.', true);
+    }
+  }
+
+  function _recordJscApplication(item) {
+    const lead = item.lead || item;
+    Jobs.addApplication({
+      company: lead.company,
+      role: lead.title,
+      date: new Date().toISOString().split('T')[0],
+      status: 'applied',
+      url: lead.url,
+      notes: `JL Score: ${_score(item)} | Tier: ${item.tier || _tierFromScore(_score(item))} | Source: ${lead.source || item.source || ''}`,
+    });
+  }
+
+  async function confirmPendingApply() {
+    const pending = _pendingApply();
+    if (!pending?.lead_id) return;
+    _activeApplyLeadId = pending.lead_id;
+    const item = _leads.find(candidate => _leadId(candidate) === pending.lead_id);
+    _setPendingApplyBannerStatus('Recording application...');
+    try {
+      const updated = await _fetchJSON('/api/jl/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: pending.lead_id }),
+      });
+      const index = _leads.findIndex(candidate => _leadId(candidate) === pending.lead_id);
+      const appliedLead = index >= 0 ? _mergeUpdatedLead(_leads[index], updated) : updated;
+      if (index >= 0) {
+        _leads[index] = appliedLead;
+      }
+      _recordJscApplication(appliedLead || item || updated);
+      _clearPendingApply(pending.lead_id);
+      _activeApplyLeadId = '';
+      render();
+      const lead = (appliedLead?.lead || appliedLead || item?.lead || item || {});
+      UI.notify(`Application recorded for ${lead.title || lead.role || pending.role || 'role'} at ${lead.company || pending.company || 'company'}`, 'success');
+    } catch (err) {
+      _setPendingApplyBannerStatus(err.message || 'Could not record application.', true);
+    }
+  }
+
+  function dismissPendingApply() {
+    _clearPendingApply();
+    render();
+  }
+
+  function closeApplyModal(recordPending = true) {
+    if (recordPending && _activeApplyLeadId) {
+      const item = _leads.find(candidate => _leadId(candidate) === _activeApplyLeadId);
+      const lead = item?.lead || item || {};
+      localStorage.setItem('jsc_pending_apply', JSON.stringify({
+        lead_id: _activeApplyLeadId,
+        company: lead.company || '',
+        role: lead.title || lead.role || '',
+        timestamp: new Date().toISOString(),
+      }));
+    }
+    _activeApplyLeadId = '';
+  }
+
+  function _pendingApplyBannerHTML() {
+    const pending = _pendingApply();
+    if (!pending?.lead_id) return '';
+    return `<div class="job-leads-pending-apply-banner" id="job-leads-pending-apply-banner">
+      <div>
+        <strong>You opened ${_esc(pending.role || 'this role')} at ${_esc(pending.company || 'this company')}.</strong>
+        <span>Did you apply?</span>
+        <div id="job-leads-pending-apply-status" class="job-leads-pending-apply-status"></div>
+      </div>
+      <div class="job-lead-apply-actions">
+        <button class="btn btn-primary btn-sm" onclick="JobLeads.confirmPendingApply()">Yes</button>
+        <button class="btn btn-ghost btn-sm" onclick="JobLeads.dismissPendingApply()">No</button>
+      </div>
+    </div>`;
+  }
+
+  function _pendingApply() {
+    try {
+      return JSON.parse(localStorage.getItem('jsc_pending_apply') || 'null');
+    } catch {
+      return null;
+    }
+  }
+
+  function _clearPendingApply(leadId = '') {
+    const pending = _pendingApply();
+    if (!leadId || pending?.lead_id === leadId) {
+      localStorage.removeItem('jsc_pending_apply');
+    }
+  }
+
+  function _setPendingApplyBannerStatus(message, isError = false) {
+    const el = document.getElementById('job-leads-pending-apply-status');
+    if (!el) return;
+    el.className = `job-leads-pending-apply-status ${isError ? 'error' : 'success'}`;
+    el.textContent = message;
+  }
+
+  function _showDuplicateApplyMessage() {
+    const status = document.getElementById('job-lead-apply-status');
+    if (!status) return;
+    const item = _leads.find(candidate => _leadId(candidate) === _activeApplyLeadId);
+    const lead = item?.lead || item || {};
+    status.className = 'job-lead-apply-status error';
+    status.innerHTML = `
+      <div>You may have already applied to a similar role at ${_esc(lead.company || 'this company')}. Are you sure?</div>
+      <div class="job-lead-apply-actions">
+        <button class="btn btn-primary btn-sm" onclick="JobLeads.acknowledgeDuplicateApply()">Confirm</button>
+        <button class="btn btn-ghost btn-sm" onclick="JobLeads.cancelDuplicateApply()">Cancel</button>
+      </div>`;
+  }
+
+  function acknowledgeDuplicateApply() {
+    _setApplyStatus('Duplicate override will be connected in the final apply sync step.', true);
+  }
+
+  function cancelDuplicateApply() {
+    _setApplyStatus('Duplicate application not recorded.');
+  }
+
+  function _setApplyStatus(message, isError = false) {
+    const el = document.getElementById('job-lead-apply-status');
+    if (!el) return;
+    el.className = `job-lead-apply-status ${isError ? 'error' : 'success'}`;
+    el.textContent = message;
+  }
+
+  async function _copyText(text) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+  }
+
+  function _profileClipboardText() {
+    const profile = Storage.get('profile', {});
+    return [
+      `Name: ${profile.name || 'Corinne'}`,
+      `Email: ${profile.email || profile.student_email || ''}`,
+      `Phone: ${profile.phone || ''}`,
+      `LinkedIn: ${profile.linkedin || ''}`,
+    ].join('\n');
   }
 
   function _mergeUpdatedLead(current, updated) {
@@ -400,6 +769,11 @@ const JobLeads = (() => {
       .job-leads-filter-row label { display:flex; flex-direction:column; gap:4px; color:var(--text-muted); font-size:12px; font-weight:700; }
       .job-leads-filter-row select { min-width:130px; }
       .job-leads-count { margin-left:auto; color:var(--text-muted); font-size:13px; padding-bottom:8px; }
+      .job-leads-pending-apply-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; border:1px solid rgba(184,137,29,0.5); border-radius:8px; background:rgba(184,137,29,0.12); color:var(--text); }
+      .job-leads-pending-apply-banner strong { display:block; margin-bottom:3px; }
+      .job-leads-pending-apply-status { margin-top:5px; font-size:12px; color:var(--text-muted); }
+      .job-leads-pending-apply-status.success { color:var(--success); }
+      .job-leads-pending-apply-status.error { color:var(--danger); }
       .job-leads-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
       .job-lead-card { display:flex; flex-direction:column; gap:10px; min-height:230px; }
       .job-lead-top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
@@ -421,8 +795,20 @@ const JobLeads = (() => {
       .job-lead-review-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
       .job-lead-approve-btn { background:var(--success); border-color:var(--success); color:#fff; }
       .job-lead-reject-btn { background:var(--danger); border-color:var(--danger); color:#fff; }
-      .job-lead-apply-btn { opacity:0.55; cursor:not-allowed; }
+      .job-lead-apply-btn { background:var(--gold); border-color:var(--gold); color:#111827; }
       .job-lead-inline-error { color:var(--danger); font-size:12px; line-height:1.35; border-top:1px solid var(--border); padding-top:8px; }
+      .job-lead-apply-modal { display:flex; flex-direction:column; gap:16px; min-width:min(560px, calc(100vw - 56px)); }
+      .job-lead-apply-section { border:1px solid var(--border); border-radius:8px; padding:14px; background:rgba(255,255,255,0.03); }
+      body.light .job-lead-apply-section { background:rgba(255,255,255,0.72); }
+      .job-lead-apply-section-title { color:var(--gold); font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
+      .job-lead-apply-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+      .job-lead-apply-note { margin:10px 0 0; color:var(--text); line-height:1.5; }
+      .job-lead-apply-status { min-height:18px; margin-top:10px; color:var(--text-muted); font-size:13px; line-height:1.45; }
+      .job-lead-apply-status.success { color:var(--success); }
+      .job-lead-apply-status.error { color:var(--danger); }
+      .job-lead-cover-loading { display:flex; align-items:center; gap:10px; color:var(--text-muted); margin-bottom:10px; }
+      .job-lead-cover-text { width:100%; min-height:180px; resize:vertical; margin-bottom:10px; }
+      .hidden { display:none !important; }
       .job-lead-source-tag { color:var(--gold); font-size:11px; font-weight:800; text-transform:uppercase; }
       .job-leads-loading, .job-leads-error { display:flex; align-items:center; justify-content:center; min-height:180px; gap:12px; text-align:center; }
       .job-leads-error { flex-direction:column; color:var(--text); }
@@ -455,6 +841,17 @@ const JobLeads = (() => {
     setTierFilter,
     setStateFilter,
     openJob,
+    applyLead,
+    openResumeFolder,
+    draftCoverLetter,
+    copyCoverLetter,
+    saveCoverLetter,
+    confirmApplied,
+    confirmPendingApply,
+    closeApplyModal,
+    dismissPendingApply,
+    acknowledgeDuplicateApply,
+    cancelDuplicateApply,
     approveLead,
     rejectLead,
   };

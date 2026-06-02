@@ -236,6 +236,17 @@ const Jobs = (() => {
     render();
   }
 
+  function addApplication(entry) {
+    const stored = Storage.get('jobs', _defaultData());
+    stored.applications.push(entry);
+    Storage.set('jobs', stored);
+    _syncApplicationsGauge('', entry.status);
+    _checkMilestones(stored.applications);
+    UI.updateSidebar();
+    if (document.getElementById('view-jobs')?.classList.contains('active')) render();
+    return entry;
+  }
+
   function _syncApplicationsGauge(previousStatus, nextStatus) {
     if (previousStatus !== 'applied' && nextStatus === 'applied') {
       Gauges.increment('apps');
@@ -287,5 +298,5 @@ const Jobs = (() => {
       .replace(/"/g, '&quot;');
   }
 
-  return { render, sortBy, setSearch, showAddModal, showEditModal, showNotesModal, updateStatus, remove };
+  return { render, sortBy, setSearch, showAddModal, showEditModal, showNotesModal, updateStatus, addApplication, remove };
 })();

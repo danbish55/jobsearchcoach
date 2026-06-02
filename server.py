@@ -405,6 +405,19 @@ def _job_leads_db_path(repo_dir):
     return Path(repo_dir) / 'data' / 'leads.db'
 
 
+def _default_resumes_folder():
+    return os.path.join('~', 'Documents', 'Resumes')
+
+
+def _resolve_resumes_folder():
+    cfg = load_config()
+    configured = (cfg.get('resumes_folder') or '').strip()
+    if not configured:
+        configured = _default_resumes_folder()
+        save_config({'resumes_folder': configured})
+    return os.path.abspath(os.path.expanduser(configured))
+
+
 def _sort_scored_leads(leads):
     def score_value(item):
         try:
@@ -449,6 +462,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'content': '', 'error': 'context file not found'})
         elif path == '/api/jl-output':
             self._job_leads_output()
+        elif path == '/api/open-folder':
+            self._open_folder()
         elif path == '/oauth2callback':
             self._oauth_callback(urlparse(self.path).query)
         else:
@@ -477,6 +492,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._jl_transition(body, 'approved')
         elif path == '/api/jl/reject':
             self._jl_transition(body, 'rejected')
+        elif path == '/api/jl/apply':
+            self._jl_apply(body)
         elif path == '/api/extract-resume':
             self._extract_resume(body)
         elif path == '/api/claude':
@@ -494,6 +511,33 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         result = _start_job_leads_tool(force=force)
         status = 200 if result.get('ok') else 500
         self._json(result, status)
+
+    def _open_folder(self):
+        query = parse_qs(urlparse(self.path).query)
+        folder_type = (query.get('type') or [''])[0]
+        if folder_type != 'resumes':
+            self._json({'error': f'Unknown folder type: {folder_type}'}, 400)
+            return
+
+        try:
+            folder_path = _resolve_resumes_folder()
+            os.makedirs(folder_path, exist_ok=True)
+            for name in ('Resume_v1.pdf', 'Resume_v2.pdf', 'Resume_v3.pdf'):
+                placeholder = os.path.join(folder_path, name)
+                if not os.path.exists(placeholder):
+                    open(placeholder, 'ab').close()
+
+            if os.name == 'nt':
+                os.startfile(folder_path)
+            elif sys.platform == 'darwin':
+                subprocess.run(['open', folder_path], check=False)
+            else:
+                subprocess.run(['xdg-open', folder_path], check=False)
+        except Exception as exc:
+            self._json({'success': False, 'error': str(exc)}, 500)
+            return
+
+        self._json({'success': True, 'path': folder_path})
 
     def _jl_run_cycle(self):
         try:
@@ -537,6 +581,39 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'lead_counts': self._jl_lead_counts(),
         })
 
+    def _jl_apply(self, body):
+        lead_id = (body.get('lead_id') or '').strip()
+        if not lead_id:
+            self._json({'error': 'lead_id is required'}, 400)
+            return
+
+        try:
+            updated = self._apply_jl_lead(lead_id)
+        except FileNotFoundError as exc:
+            self._json({'error': str(exc)}, 404)
+            return
+        except ValueError as exc:
+            message = str(exc)
+            lower_message = message.lower()
+            if 'lead not found' in lower_message:
+                self._json({'error': 'Lead not found'}, 404)
+            elif 'duplicate-company-role' in lower_message:
+                existing_id = message.split('existing_lead_id:', 1)[1].strip() if 'existing_lead_id:' in message else ''
+                payload = {'error': 'Duplicate application'}
+                if existing_id:
+                    payload['existing_lead_id'] = existing_id
+                self._json(payload, 409)
+            elif 'invalid transition' in lower_message:
+                self._json({'error': 'Invalid transition'}, 400)
+            else:
+                self._json({'error': message}, 400)
+            return
+        except Exception as exc:
+            self._json({'error': f'Could not apply lead: {exc}'}, 500)
+            return
+
+        self._json(updated)
+
     def _jl_transition(self, body, new_state):
         lead_id = (body.get('lead_id') or '').strip()
         if not lead_id:
@@ -562,6 +639,57 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         self._json(updated)
+
+    def _apply_jl_lead(self, lead_id):
+        repo_dir = _job_leads_tool_dir_required()
+        drive_updated = self._try_apply_jl_drive_lead(repo_dir, lead_id)
+        if drive_updated is not None:
+            return drive_updated
+
+        db_path = _job_leads_db_path(repo_dir)
+        if not os.path.exists(db_path):
+            raise FileNotFoundError('JobLeadsTool leads database not found.')
+
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+
+        from job_leads_tool.normalization import normalize_company
+        from job_leads_tool.policy import normalize_role_track
+        from job_leads_tool.sqlite_store import (
+            connect,
+            get_lead,
+            has_company_role_application,
+            list_leads,
+            transition_state,
+        )
+
+        conn = connect(db_path)
+        try:
+            lead = get_lead(conn, lead_id)
+            if lead is None:
+                raise ValueError('lead not found')
+
+            company_norm = normalize_company(lead.get('company'))
+            role_track = normalize_role_track(lead.get('title'))
+            for row in list_leads(conn, state='applied'):
+                if (
+                    row.get('id') != lead_id
+                    and normalize_company(row.get('company')) == company_norm
+                    and normalize_role_track(row.get('title')) == role_track
+                ):
+                    raise ValueError(f'duplicate-company-role apply blocked. existing_lead_id: {row.get("id")}')
+
+            if has_company_role_application(conn, company_norm, role_track):
+                raise ValueError('duplicate-company-role apply blocked.')
+
+            transition_state(conn, lead_id, 'applied')
+            updated = get_lead(conn, lead_id)
+        finally:
+            conn.close()
+
+        self._sync_jl_scored_output_state(lead_id, 'applied')
+        return self._updated_jl_lead_payload(lead_id, updated or {'id': lead_id, 'approval_state': 'applied'})
 
     def _transition_jl_lead(self, lead_id, new_state):
         repo_dir = _job_leads_tool_dir_required()
@@ -604,6 +732,19 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if not callable(transition_fn):
             return None
         return transition_fn(self._drive_service_payload(), lead_id, new_state)
+
+    def _try_apply_jl_drive_lead(self, repo_dir, lead_id):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        try:
+            from job_leads_tool import drive_store
+        except Exception:
+            return None
+        apply_fn = getattr(drive_store, 'apply_lead', None)
+        if not callable(apply_fn):
+            return None
+        return apply_fn(self._drive_service_payload(), lead_id)
 
     def _sync_jl_scored_output_state(self, lead_id, new_state):
         path = _job_leads_output_path('scored')
