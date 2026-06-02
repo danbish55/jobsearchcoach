@@ -356,6 +356,128 @@ class TestCliDbLifecycle(unittest.TestCase):
             self.assertEqual(rows[2], "- [row 4] alpha | Acme | Data Analyst | Remote")
 
     @patch("builtins.print")
+    def test_cmd_decision_packet_orders_rows_by_mixed_created_at_formats(self, mock_print):
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "leads.db"
+            conn = connect(db)
+            try:
+                upsert_leads(
+                    conn,
+                    [
+                        JobLead(
+                            id="utc-older",
+                            source="sample",
+                            company="Acme",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/older",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="older-hash",
+                            ingested_at="2026-06-01T10:00:00+00:00",
+                        ),
+                        JobLead(
+                            id="offset-newer",
+                            source="sample",
+                            company="Beta",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/newer",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="newer-hash",
+                            ingested_at="2026-06-01T11:00:00+00:00",
+                        ),
+                    ],
+                )
+                conn.execute("UPDATE leads SET created_at=? WHERE id=?", ("2026-06-01T23:00:00+00:00", "utc-older"))
+                conn.execute("UPDATE leads SET created_at=? WHERE id=?", ("2026-06-02T00:00:00+14:00", "offset-newer"))
+                conn.commit()
+            finally:
+                conn.close()
+
+            out = Path(td) / "decision_packet.txt"
+            args = Namespace(db=str(db), profile="", limit=5, out=str(out))
+            cli.cmd_decision_packet(args)
+
+            payload = json.loads(mock_print.call_args.args[0])
+            self.assertEqual(payload["decision_packet_file"], str(out))
+            file_lines = out.read_text(encoding="utf-8").splitlines()
+            rows = [line for line in file_lines if line.startswith("- [row")]
+            row_ids = [line.split("] ", 1)[1].split(" | ", 1)[0] for line in rows]
+            self.assertEqual(row_ids, ["utc-older", "offset-newer"])
+
+    @patch("builtins.print")
+    def test_cmd_decision_packet_orders_rows_with_invalid_or_missing_created_at_to_end(self, mock_print):
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "leads.db"
+            conn = connect(db)
+            try:
+                upsert_leads(
+                    conn,
+                    [
+                        JobLead(
+                            id="invalid",
+                            source="sample",
+                            company="Invalid Co",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/invalid",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="invalid-hash",
+                            ingested_at="2026-06-01T10:00:00+00:00",
+                        ),
+                        JobLead(
+                            id="missing",
+                            source="sample",
+                            company="Missing Co",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/missing",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="missing-hash",
+                            ingested_at="2026-06-01T10:00:00+00:00",
+                        ),
+                        JobLead(
+                            id="valid",
+                            source="sample",
+                            company="Valid Co",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/valid",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="valid-hash",
+                            ingested_at="2026-06-01T10:00:00+00:00",
+                        ),
+                    ],
+                )
+                conn.execute("UPDATE leads SET created_at=? WHERE id=?", ("not-a-time", "invalid"))
+                conn.execute("UPDATE leads SET created_at=NULL WHERE id=?", ("missing",))
+                conn.execute("UPDATE leads SET approval_state='pending_review', created_at=? WHERE id=?", ("2026-06-01T09:00:00+00:00", "valid"))
+                conn.commit()
+            finally:
+                conn.close()
+
+            out = Path(td) / "decision_packet.txt"
+            args = Namespace(db=str(db), profile="", limit=5, out=str(out))
+            cli.cmd_decision_packet(args)
+
+            payload = json.loads(mock_print.call_args.args[0])
+            self.assertEqual(payload["decision_packet_file"], str(out))
+            file_lines = out.read_text(encoding="utf-8").splitlines()
+            rows = [line for line in file_lines if line.startswith("- [row")]
+            row_ids = [line.split("] ", 1)[1].split(" | ", 1)[0] for line in rows]
+            self.assertEqual(row_ids, ["valid", "missing", "invalid"])
+
+    @patch("builtins.print")
     @patch("job_leads_tool.cli.write_dashboard_html")
     @patch("job_leads_tool.cli._write_temp_scored")
     @patch("job_leads_tool.cli.score_job")
@@ -560,6 +682,19 @@ class TestCliDbLifecycle(unittest.TestCase):
         printed = json.loads(mock_print.call_args.args[0])
         self.assertEqual(printed["scored"], 3)
         self.assertEqual(printed["out"], str(out))
+
+    def test_normalize_created_at_for_sort_treats_naive_and_z_timestamps_as_utc(self):
+        utc = cli._normalize_created_at_for_sort("2026-06-01T12:00:00")
+        with_z = cli._normalize_created_at_for_sort("2026-06-01T12:00:00Z")
+        with_offset = cli._normalize_created_at_for_sort("2026-05-31T21:00:00-15:00")
+
+        self.assertEqual(utc, with_z)
+        self.assertEqual(with_offset, with_z)
+
+    def test_normalize_created_at_for_sort_treats_invalid_and_missing_as_negative_infinity(self):
+        self.assertEqual(cli._normalize_created_at_for_sort(None), float("-inf"))
+        self.assertEqual(cli._normalize_created_at_for_sort(""), float("-inf"))
+        self.assertEqual(cli._normalize_created_at_for_sort("not-a-time"), float("-inf"))
 
     @patch("job_leads_tool.cli.score_job")
     @patch("job_leads_tool.cli.list_leads")
