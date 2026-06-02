@@ -22,6 +22,7 @@ import signal
 import re
 import sys
 from io import BytesIO
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 DEFAULT_PORT = 8765
@@ -400,6 +401,10 @@ def _job_leads_run_cycle_command(repo_dir):
     ]
 
 
+def _job_leads_db_path(repo_dir):
+    return Path(repo_dir) / 'data' / 'leads.db'
+
+
 def _sort_scored_leads(leads):
     def score_value(item):
         try:
@@ -468,6 +473,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._start_jl(body)
         elif path == '/api/jl/run-cycle':
             self._jl_run_cycle()
+        elif path == '/api/jl/approve':
+            self._jl_transition(body, 'approved')
+        elif path == '/api/jl/reject':
+            self._jl_transition(body, 'rejected')
         elif path == '/api/extract-resume':
             self._extract_resume(body)
         elif path == '/api/claude':
@@ -527,6 +536,105 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'output': combined_output,
             'lead_counts': self._jl_lead_counts(),
         })
+
+    def _jl_transition(self, body, new_state):
+        lead_id = (body.get('lead_id') or '').strip()
+        if not lead_id:
+            self._json({'error': 'lead_id is required'}, 400)
+            return
+
+        try:
+            updated = self._transition_jl_lead(lead_id, new_state)
+        except FileNotFoundError as exc:
+            self._json({'error': str(exc)}, 404)
+            return
+        except ValueError as exc:
+            message = str(exc)
+            if 'lead not found' in message.lower():
+                self._json({'error': 'Lead not found'}, 404)
+            elif 'invalid transition' in message.lower():
+                self._json({'error': 'Invalid transition'}, 400)
+            else:
+                self._json({'error': message}, 400)
+            return
+        except Exception as exc:
+            self._json({'error': f'Could not update lead state: {exc}'}, 500)
+            return
+
+        self._json(updated)
+
+    def _transition_jl_lead(self, lead_id, new_state):
+        repo_dir = _job_leads_tool_dir_required()
+        drive_updated = self._try_transition_jl_drive_lead(repo_dir, lead_id, new_state)
+        if drive_updated is not None:
+            return drive_updated
+
+        db_path = _job_leads_db_path(repo_dir)
+        if not os.path.exists(db_path):
+            raise FileNotFoundError('JobLeadsTool leads database not found.')
+
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+
+        from job_leads_tool.sqlite_store import connect, get_lead, transition_state
+
+        conn = connect(db_path)
+        try:
+            existing = get_lead(conn, lead_id)
+            if existing is None:
+                raise ValueError('lead not found')
+            transition_state(conn, lead_id, new_state)
+            updated = get_lead(conn, lead_id)
+        finally:
+            conn.close()
+
+        self._sync_jl_scored_output_state(lead_id, new_state)
+        return self._updated_jl_lead_payload(lead_id, updated or {'id': lead_id, 'approval_state': new_state})
+
+    def _try_transition_jl_drive_lead(self, repo_dir, lead_id, new_state):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        try:
+            from job_leads_tool import drive_store
+        except Exception:
+            return None
+        transition_fn = getattr(drive_store, 'transition_lead', None)
+        if not callable(transition_fn):
+            return None
+        return transition_fn(self._drive_service_payload(), lead_id, new_state)
+
+    def _sync_jl_scored_output_state(self, lead_id, new_state):
+        path = _job_leads_output_path('scored')
+        if not path or not os.path.exists(path):
+            return
+        with open(path, 'r', encoding='utf-8') as output_file:
+            scored = json.load(output_file)
+        if not isinstance(scored, list):
+            return
+
+        changed = False
+        for item in scored:
+            lead = item.get('lead') if isinstance(item.get('lead'), dict) else item
+            if str(lead.get('id') or item.get('id') or '') != lead_id:
+                continue
+            lead['approval_state'] = new_state
+            if isinstance(item, dict):
+                item['approval_state'] = new_state
+            changed = True
+
+        if changed:
+            with open(path, 'w', encoding='utf-8') as output_file:
+                json.dump(scored, output_file, indent=2)
+
+    def _updated_jl_lead_payload(self, lead_id, db_lead):
+        scored = self._load_jl_scored_leads()
+        for item in scored:
+            lead = item.get('lead') if isinstance(item.get('lead'), dict) else item
+            if str(lead.get('id') or item.get('id') or '') == lead_id:
+                return item
+        return db_lead
 
     def _jl_lead_counts(self):
         try:

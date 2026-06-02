@@ -15,6 +15,8 @@ const JobLeads = (() => {
   let _error = '';
   let _tierFilter = 'all';
   let _stateFilter = 'all';
+  const _transitioning = new Set();
+  const _actionErrors = {};
 
   function render() {
     _ensureStyles();
@@ -127,6 +129,14 @@ const JobLeads = (() => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  async function approveLead(leadId) {
+    await _transitionLead(leadId, 'approved');
+  }
+
+  async function rejectLead(leadId) {
+    await _transitionLead(leadId, 'rejected');
+  }
+
   function _bodyHTML() {
     if (_loading || _running) {
       return `<div class="card job-leads-loading">
@@ -155,11 +165,12 @@ const JobLeads = (() => {
 
   function _leadCardHTML(item) {
     const lead = item.lead || item;
+    const leadId = _leadId(item);
     const score = _score(item);
     const tier = item.tier || _tierFromScore(score);
-    const state = lead.approval_state || item.approval_state || 'pending_review';
+    const state = _leadState(item);
     return `
-      <article class="card job-lead-card">
+      <article class="card job-lead-card" data-lead-id="${_escAttr(leadId)}">
         <div class="job-lead-top">
           <span class="job-lead-score ${_tierClass(tier)}">${score}</span>
           <span class="job-lead-pill ${_stateClass(state)}">${_stateLabel(state)}</span>
@@ -180,7 +191,39 @@ const JobLeads = (() => {
           <button class="btn btn-primary btn-sm" onclick="JobLeads.openJob('${_escAttr(lead.url || '')}')" ${lead.url ? '' : 'disabled'}>Open Job</button>
           <span class="job-lead-source-tag">${_esc(lead.source || item.source || 'JL')}</span>
         </div>
+        ${_reviewActionsHTML(item)}
+        ${_actionErrors[leadId] ? `<div class="job-lead-inline-error">${_esc(_actionErrors[leadId])}</div>` : ''}
       </article>`;
+  }
+
+  function _reviewActionsHTML(item) {
+    const leadId = _leadId(item);
+    if (!leadId) return '';
+    const state = _leadState(item);
+    const disabled = _transitioning.has(leadId) ? 'disabled' : '';
+    const busyLabel = _transitioning.has(leadId) ? 'Updating...' : '';
+
+    if (state === 'pending_review') {
+      return `<div class="job-lead-review-actions">
+        <button class="btn btn-sm job-lead-approve-btn" onclick="JobLeads.approveLead('${_escAttr(leadId)}')" ${disabled}>
+          ${busyLabel || 'Approve'}
+        </button>
+        <button class="btn btn-sm job-lead-reject-btn" onclick="JobLeads.rejectLead('${_escAttr(leadId)}')" ${disabled}>
+          Reject
+        </button>
+      </div>`;
+    }
+
+    if (state === 'approved') {
+      return `<div class="job-lead-review-actions">
+        <button class="btn btn-sm job-lead-apply-btn" disabled>Apply</button>
+        <button class="btn btn-sm job-lead-reject-btn" onclick="JobLeads.rejectLead('${_escAttr(leadId)}')" ${disabled}>
+          ${busyLabel || 'Reject'}
+        </button>
+      </div>`;
+    }
+
+    return '';
   }
 
   function _filteredLeads() {
@@ -188,7 +231,7 @@ const JobLeads = (() => {
       .filter(item => _tierFilter === 'all' || (item.tier || _tierFromScore(_score(item))) === _tierFilter)
       .filter(item => {
         const lead = item.lead || item;
-        const state = lead.approval_state || item.approval_state || 'pending_review';
+        const state = _leadState(item);
         return _stateFilter === 'all' || state === _stateFilter;
       });
   }
@@ -207,6 +250,49 @@ const JobLeads = (() => {
       throw new Error(data.error || response.statusText || 'Request failed');
     }
     return data;
+  }
+
+  async function _transitionLead(leadId, newState) {
+    const index = _leads.findIndex(item => _leadId(item) === leadId);
+    if (index < 0 || _transitioning.has(leadId)) return;
+
+    const previousState = _leadState(_leads[index]);
+    const previousItem = JSON.parse(JSON.stringify(_leads[index]));
+    delete _actionErrors[leadId];
+    _transitioning.add(leadId);
+    _setLeadState(_leads[index], newState);
+    _renderBodyOnly();
+    _updateCount();
+
+    try {
+      const endpoint = newState === 'approved' ? '/api/jl/approve' : '/api/jl/reject';
+      const updated = await _fetchJSON(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      _leads[index] = _mergeUpdatedLead(_leads[index], updated);
+      delete _actionErrors[leadId];
+    } catch (err) {
+      _leads[index] = previousItem;
+      _setLeadState(_leads[index], previousState);
+      _actionErrors[leadId] = err.message || 'Could not update this lead.';
+    } finally {
+      _transitioning.delete(leadId);
+      _renderBodyOnly();
+      _updateCount();
+    }
+  }
+
+  function _mergeUpdatedLead(current, updated) {
+    const payload = updated && typeof updated === 'object' ? updated : {};
+    const merged = { ...current, ...payload };
+    if (current.lead || payload.lead) {
+      merged.lead = { ...(current.lead || {}), ...(payload.lead || {}) };
+    }
+    const state = _leadState(payload);
+    if (state) _setLeadState(merged, state);
+    return merged;
   }
 
   function _healthSummary() {
@@ -244,6 +330,24 @@ const JobLeads = (() => {
   function _score(item) {
     const value = Number(item.score || item.fit_score || 0);
     return Number.isFinite(value) ? Math.round(value) : 0;
+  }
+
+  function _leadId(item) {
+    const lead = item?.lead && typeof item.lead === 'object' ? item.lead : item;
+    return String(lead?.id || item?.id || '');
+  }
+
+  function _leadState(item) {
+    const lead = item?.lead && typeof item.lead === 'object' ? item.lead : item;
+    return lead?.approval_state || item?.approval_state || 'pending_review';
+  }
+
+  function _setLeadState(item, state) {
+    if (!item) return;
+    if (item.lead && typeof item.lead === 'object') {
+      item.lead.approval_state = state;
+    }
+    item.approval_state = state;
   }
 
   function _tierFromScore(score) {
@@ -314,6 +418,11 @@ const JobLeads = (() => {
       .job-lead-detail-row { display:flex; justify-content:space-between; gap:10px; color:var(--text-muted); font-size:12px; border-top:1px solid var(--border); padding-top:8px; }
       .job-lead-detail-row strong { color:var(--text); text-align:right; }
       .job-lead-actions { margin-top:auto; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+      .job-lead-review-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .job-lead-approve-btn { background:var(--success); border-color:var(--success); color:#fff; }
+      .job-lead-reject-btn { background:var(--danger); border-color:var(--danger); color:#fff; }
+      .job-lead-apply-btn { opacity:0.55; cursor:not-allowed; }
+      .job-lead-inline-error { color:var(--danger); font-size:12px; line-height:1.35; border-top:1px solid var(--border); padding-top:8px; }
       .job-lead-source-tag { color:var(--gold); font-size:11px; font-weight:800; text-transform:uppercase; }
       .job-leads-loading, .job-leads-error { display:flex; align-items:center; justify-content:center; min-height:180px; gap:12px; text-align:center; }
       .job-leads-error { flex-direction:column; color:var(--text); }
@@ -346,5 +455,7 @@ const JobLeads = (() => {
     setTierFilter,
     setStateFilter,
     openJob,
+    approveLead,
+    rejectLead,
   };
 })();
