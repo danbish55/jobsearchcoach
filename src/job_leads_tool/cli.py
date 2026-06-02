@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
 
@@ -75,11 +76,30 @@ def cmd_migrate_json(args: argparse.Namespace) -> None:
         print(json.dumps({"from_json": args.json_db, "to_sqlite": args.db, "incoming": len(leads), "added": added, "duplicates": dupes}, indent=2))
 
 
+def _normalize_created_at_for_sort(created_at: str | None) -> float:
+    if not created_at:
+        return float("-inf")
+
+    value = created_at.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return float("-inf")
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        parsed = parsed.astimezone(timezone.utc)
+
+    return parsed.timestamp()
+
+
+
 def _score_from_db(profile_path: Path, db_path: Path) -> list[dict]:
     profile = load_profile(profile_path)
     with _open_db(db_path) as conn:
         rows = list_leads(conn)
-        scored_rows: list[tuple[int, str, str, dict]] = []
+        scored_rows: list[tuple[int, float, str, dict]] = []
         for r in rows:
             lead = JobLead(
                 id=r["id"],
@@ -99,7 +119,7 @@ def _score_from_db(profile_path: Path, db_path: Path) -> list[dict]:
             scored_rows.append(
                 (
                     scored.get("score", 0),
-                    r.get("created_at") or "",
+                    _normalize_created_at_for_sort(r.get("created_at")),
                     r["id"],
                     scored,
                 )

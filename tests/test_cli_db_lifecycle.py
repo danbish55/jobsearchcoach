@@ -622,6 +622,65 @@ class TestCliDbLifecycle(unittest.TestCase):
         self.assertEqual(scored[0]["lead_id"], "zeta")
         self.assertEqual(scored[1]["lead_id"], "alpha")
 
+    @patch("job_leads_tool.cli.score_job")
+    @patch("job_leads_tool.cli.list_leads")
+    @patch("job_leads_tool.cli.connect")
+    @patch("job_leads_tool.cli.load_profile")
+    def test_score_from_db_orders_created_at_across_mixed_time_formats(
+        self,
+        mock_load_profile,
+        mock_connect,
+        mock_list_leads,
+        mock_score_job,
+    ):
+        conn = MagicMock()
+        mock_connect.return_value = conn
+        mock_load_profile.return_value = MagicMock()
+        mock_list_leads.return_value = [
+            {
+                "id": "utc-older",
+                "source": "sample",
+                "company": "Acme",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/older",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "older-hash",
+                "ingested_at": "2026-06-02T10:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "2026-06-01T23:00:00+00:00",
+            },
+            {
+                "id": "offset-newer",
+                "source": "sample",
+                "company": "Beta",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/newer",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "newer-hash",
+                "ingested_at": "2026-06-02T00:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "2026-06-02T00:00:00+14:00",
+            },
+        ]
+
+        mock_score_job.side_effect = lambda _profile, lead: {
+            "lead_id": lead.id,
+            "score": 15,
+            "tier": "tier_3",
+            "matches": {},
+        }
+
+        scored = cli._score_from_db(Path("profile.yaml"), Path("data/leads.db"))
+
+        self.assertEqual(scored[0]["lead_id"], "utc-older")
+        self.assertEqual(scored[1]["lead_id"], "offset-newer")
+
 
 if __name__ == "__main__":
     unittest.main()
