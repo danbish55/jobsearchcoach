@@ -155,7 +155,15 @@ def cmd_queue(args: argparse.Namespace) -> None:
     with _open_db(Path(args.db)) as conn:
         rows = list_leads(conn, state=args.state if args.state else None)
         safe_limit = max(0, args.limit)
-        print(json.dumps({"count": len(rows), "rows": rows[:safe_limit]}, indent=2))
+        ordered_rows = sorted(
+            rows,
+            key=lambda row: (
+                _normalize_created_at_for_sort(row.get("created_at")),
+                row.get("id", ""),
+            ),
+            reverse=True,
+        )
+        print(json.dumps({"count": len(rows), "rows": ordered_rows[:safe_limit]}, indent=2))
 
 
 def _assert_transition(old: str, new: ApprovalState) -> None:

@@ -132,6 +132,36 @@ class TestCliDbLifecycle(unittest.TestCase):
         self.assertEqual(payload["rows"], [])
 
     @patch("builtins.print")
+    @patch("job_leads_tool.cli.connect")
+    @patch("job_leads_tool.cli.list_leads")
+    def test_cmd_queue_orders_rows_by_mixed_created_at_formats(
+        self,
+        mock_list_leads,
+        mock_connect,
+        mock_print,
+    ):
+        conn = MagicMock()
+        mock_connect.return_value = conn
+        mock_list_leads.return_value = [
+            {
+                "id": "utc-older",
+                "created_at": "2026-06-01T23:00:00+00:00",
+            },
+            {
+                "id": "offset-newer",
+                "created_at": "2026-06-02T00:00:00+14:00",
+            },
+        ]
+
+        args = Namespace(db="data/leads.db", state="", limit=10)
+        cli.cmd_queue(args)
+
+        mock_list_leads.assert_called_once_with(conn, state=None)
+        payload = json.loads(mock_print.call_args.args[0])
+        self.assertEqual(payload["rows"][0]["id"], "utc-older")
+        self.assertEqual(payload["rows"][1]["id"], "offset-newer")
+
+    @patch("builtins.print")
     @patch("job_leads_tool.cli.build_approval_digest_from_db")
     def test_cmd_approval_digest_clamps_negative_limit_to_zero(
         self,
