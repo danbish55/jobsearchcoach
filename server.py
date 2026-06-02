@@ -20,6 +20,7 @@ import time
 import socket
 import signal
 import re
+import sys
 from io import BytesIO
 from urllib.parse import urlparse, parse_qs
 
@@ -237,6 +238,13 @@ def _status_payload(bundled, user, cfg, server_port=None):
 
 
 def _find_job_leads_tool_dir():
+    configured = (load_config().get('jl_path') or '').strip()
+    if configured:
+        configured = os.path.expanduser(configured)
+        cli_path = os.path.join(configured, 'src', 'job_leads_tool', 'cli.py')
+        if os.path.exists(cli_path):
+            return configured
+
     candidates = [
         os.path.normpath(os.path.join(BASE_DIR, '..', 'JobLeadsTool')),
         '/mnt/c/code/corinne/jobleadstool',
@@ -355,6 +363,51 @@ def _job_leads_output_path(view: str) -> str | None:
     }
     return view_to_file.get(view)
 
+
+def _job_leads_tool_dir_required():
+    repo_dir = _find_job_leads_tool_dir()
+    if not repo_dir:
+        raise FileNotFoundError('JobLeadsTool path not found. Set jl_path in config.json.')
+    return repo_dir
+
+
+def _job_leads_env(repo_dir):
+    env = os.environ.copy()
+    src_dir = os.path.join(repo_dir, 'src')
+    env['PYTHONPATH'] = src_dir
+    if existing_path := os.environ.get('PYTHONPATH'):
+        if existing_path:
+            env['PYTHONPATH'] = env['PYTHONPATH'] + os.pathsep + existing_path
+    return env
+
+
+def _job_leads_run_cycle_command(repo_dir):
+    profile_path = os.path.join(repo_dir, 'config', 'candidate_profile.yaml')
+    if not os.path.exists(profile_path):
+        raise FileNotFoundError('candidate_profile.yaml not found in JobLeadsTool/config.')
+
+    return [
+        sys.executable,
+        '-m',
+        'job_leads_tool.cli',
+        'run-cycle',
+        '--profile', profile_path,
+        '--db', os.path.join(repo_dir, 'data', 'leads.db'),
+        '--health-out', os.path.join(repo_dir, 'outputs', 'source_health.json'),
+        '--scored-out', os.path.join(repo_dir, 'outputs', 'scored_leads.json'),
+        '--review-html', os.path.join(repo_dir, 'outputs', 'review_dashboard_cycle.html'),
+        '--digest-out', os.path.join(repo_dir, 'outputs', 'digest_cycle.txt'),
+    ]
+
+
+def _sort_scored_leads(leads):
+    def score_value(item):
+        try:
+            return int(item.get('score') or item.get('fit_score') or 0)
+        except (TypeError, ValueError):
+            return 0
+    return sorted(leads if isinstance(leads, list) else [], key=score_value, reverse=True)
+
 class AppHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=BASE_DIR, **kwargs)
@@ -413,6 +466,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._token_refresh()
         elif path == '/api/start-jl':
             self._start_jl(body)
+        elif path == '/api/jl/run-cycle':
+            self._jl_run_cycle()
         elif path == '/api/extract-resume':
             self._extract_resume(body)
         elif path == '/api/claude':
@@ -431,26 +486,158 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         status = 200 if result.get('ok') else 500
         self._json(result, status)
 
-    def _job_leads_output(self):
-        query = parse_qs(urlparse(self.path).query)
-        view = (query.get('view') or ['review'])[0]
-        path = _job_leads_output_path(view)
-        if not path or not os.path.exists(path):
-            self._json({'ok': False, 'error': 'Requested JobLeadsTool output not found.', 'view': view}, 404)
+    def _jl_run_cycle(self):
+        try:
+            repo_dir = _job_leads_tool_dir_required()
+            cmd = _job_leads_run_cycle_command(repo_dir)
+            result = subprocess.run(
+                cmd,
+                cwd=repo_dir,
+                env=_job_leads_env(repo_dir),
+                text=True,
+                capture_output=True,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired as exc:
+            self._json({
+                'success': False,
+                'error': 'JobLeadsTool run-cycle timed out after 120 seconds.',
+                'output': (exc.stdout or '')[-4000:],
+                'stderr': (exc.stderr or '')[-4000:],
+            }, 504)
+            return
+        except Exception as exc:
+            self._json({'success': False, 'error': str(exc)}, 500)
             return
 
-        is_html = path.endswith('.html')
-        encoding = 'utf-8'
-        with open(path, 'r', encoding=encoding) as output_file:
-            data = output_file.read()
+        combined_output = '\n'.join(
+            part for part in [result.stdout.strip(), result.stderr.strip()] if part
+        )
 
-        if is_html:
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(data.encode(encoding))
-        else:
-            self._json({'ok': True, 'path': path, 'view': view, 'content': data})
+        if result.returncode != 0:
+            self._json({
+                'success': False,
+                'error': f'JobLeadsTool run-cycle failed with exit code {result.returncode}.',
+                'output': combined_output[-8000:],
+            }, 500)
+            return
+
+        self._json({
+            'success': True,
+            'output': combined_output,
+            'lead_counts': self._jl_lead_counts(),
+        })
+
+    def _jl_lead_counts(self):
+        try:
+            scored = self._load_jl_scored_leads()
+        except Exception:
+            scored = []
+        counts = {
+            'total': len(scored),
+            'tier_1': 0,
+            'tier_2': 0,
+            'tier_3': 0,
+            'pending_review': 0,
+            'approved': 0,
+            'rejected': 0,
+            'applied': 0,
+        }
+        for item in scored:
+            tier = item.get('tier')
+            if tier in counts:
+                counts[tier] += 1
+            lead = item.get('lead') if isinstance(item.get('lead'), dict) else item
+            state = lead.get('approval_state') or item.get('approval_state')
+            if state in counts:
+                counts[state] += 1
+        return counts
+
+    def _job_leads_output(self):
+        query = parse_qs(urlparse(self.path).query)
+        view = (query.get('view') or ['scored'])[0]
+        try:
+            if view == 'scored':
+                self._json(_sort_scored_leads(self._load_jl_scored_leads()))
+                return
+            if view == 'digest':
+                text = self._read_jl_output_text('digest')
+                self._json({'text': text})
+                return
+            if view == 'health':
+                self._json(self._read_jl_output_json('health'))
+                return
+            if view == 'review':
+                path = _job_leads_output_path('review')
+                if not path or not os.path.exists(path):
+                    self._json({'error': 'Requested JobLeadsTool review output not found.'}, 404)
+                    return
+                with open(path, 'r', encoding='utf-8') as output_file:
+                    data = output_file.read()
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(data.encode('utf-8'))
+                return
+            self._json({'error': f'Unknown JobLeadsTool output view: {view}'}, 400)
+        except FileNotFoundError as exc:
+            self._json({'error': str(exc)}, 404)
+        except Exception as exc:
+            self._json({'error': f'Could not load JobLeadsTool output: {exc}'}, 500)
+
+    def _load_jl_scored_leads(self):
+        repo_dir = _find_job_leads_tool_dir()
+        if not repo_dir:
+            raise FileNotFoundError('JobLeadsTool path not found. Set jl_path in config.json.')
+
+        drive_leads = self._try_load_jl_drive_leads(repo_dir)
+        if drive_leads is not None:
+            return drive_leads
+
+        path = _job_leads_output_path('scored')
+        if not path or not os.path.exists(path):
+            raise FileNotFoundError('JobLeadsTool scored output not found.')
+        with open(path, 'r', encoding='utf-8') as output_file:
+            data = json.load(output_file)
+        return data if isinstance(data, list) else []
+
+    def _try_load_jl_drive_leads(self, repo_dir):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        try:
+            from job_leads_tool import drive_store
+        except Exception:
+            return None
+        if not hasattr(drive_store, 'load_leads'):
+            return None
+        try:
+            return drive_store.load_leads(self._drive_service_payload())
+        except Exception:
+            return None
+
+    def _drive_service_payload(self):
+        cfg = load_config()
+        return {
+            'access_token': cfg.get('google_access_token', ''),
+            'refresh_token': cfg.get('google_refresh_token', ''),
+            'client_id': cfg.get('google_client_id', ''),
+            'client_secret': cfg.get('google_client_secret', ''),
+        }
+
+    def _read_jl_output_text(self, view):
+        path = _job_leads_output_path(view)
+        if not path or not os.path.exists(path):
+            raise FileNotFoundError(f'JobLeadsTool {view} output not found.')
+        with open(path, 'r', encoding='utf-8') as output_file:
+            return output_file.read()
+
+    def _read_jl_output_json(self, view):
+        path = _job_leads_output_path(view)
+        if not path or not os.path.exists(path):
+            raise FileNotFoundError(f'JobLeadsTool {view} output not found.')
+        with open(path, 'r', encoding='utf-8') as output_file:
+            return json.load(output_file)
 
     def _oauth_callback(self, query_string):
         params = parse_qs(query_string)
