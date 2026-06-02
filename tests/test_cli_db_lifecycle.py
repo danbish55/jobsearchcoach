@@ -165,6 +165,122 @@ class TestCliDbLifecycle(unittest.TestCase):
         )
 
     @patch("builtins.print")
+    @patch("job_leads_tool.cli.write_dashboard_html")
+    @patch("job_leads_tool.cli._write_temp_scored")
+    @patch("job_leads_tool.cli.score_job")
+    @patch("job_leads_tool.cli.list_leads")
+    @patch("job_leads_tool.cli.connect")
+    @patch("job_leads_tool.cli.load_profile")
+    def test_cmd_review_orders_equal_score_rows_by_created_at_and_id_tiebreak(
+        self,
+        mock_load_profile,
+        mock_connect,
+        mock_list_leads,
+        mock_score_job,
+        mock_write_temp_scored,
+        mock_write_dashboard_html,
+        mock_print,
+    ):
+        conn = MagicMock()
+        mock_connect.return_value = conn
+        mock_load_profile.return_value = MagicMock()
+        mock_list_leads.return_value = [
+            {
+                "id": "older",
+                "source": "sample",
+                "company": "Acme",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/older",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "older-hash",
+                "ingested_at": "2026-06-01T12:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "2026-06-01T12:00:00+00:00",
+            },
+            {
+                "id": "newer",
+                "source": "sample",
+                "company": "Beta",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/newer",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "newer-hash",
+                "ingested_at": "2026-06-02T12:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "2026-06-02T12:00:00+00:00",
+            },
+            {
+                "id": "zeta",
+                "source": "sample",
+                "company": "Gamma",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/zeta",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "zeta-hash",
+                "ingested_at": "2026-06-03T12:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "2026-06-01T12:00:00+00:00",
+            },
+            {
+                "id": "aaa",
+                "source": "sample",
+                "company": "Delta",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/alpha",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "alpha-hash",
+                "ingested_at": "2026-06-03T12:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "2026-06-01T12:00:00+00:00",
+            },
+        ]
+
+        def _fake_score(_profile, lead):
+            return {
+                "lead_id": lead.id,
+                "score": 10,
+                "tier": "tier_3",
+                "matches": {},
+                "lead": {
+                    "id": lead.id,
+                    "title": lead.title,
+                    "company": lead.company,
+                    "location": lead.location,
+                    "description": lead.description,
+                    "url": lead.url,
+                },
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scored_path = Path(tmpdir) / "scored.json"
+            review_path = Path(tmpdir) / "review.html"
+            mock_write_temp_scored.return_value = scored_path
+            mock_write_dashboard_html.return_value = review_path
+
+            mock_score_job.side_effect = _fake_score
+
+            args = Namespace(profile="profile.yaml", db="data/leads.db", scored_json="", out_html=str(review_path))
+            cli.cmd_review(args)
+
+            mock_write_dashboard_html.assert_called_once_with(scored_path, review_path)
+
+            printed = json.loads(mock_print.call_args.args[0])
+            self.assertEqual(printed["review_html"], str(review_path))
+            self.assertEqual([item["lead_id"] for item in printed["top"]], ["newer", "zeta", "older"])
+
+    @patch("builtins.print")
     @patch("job_leads_tool.cli.score_job")
     @patch("job_leads_tool.cli.list_leads")
     @patch("job_leads_tool.cli.connect")
