@@ -8,6 +8,8 @@ import tempfile
 import unittest
 
 from job_leads_tool import cli
+from job_leads_tool.models import JobLead
+from job_leads_tool.sqlite_store import connect, upsert_leads
 
 
 class TestCliDbLifecycle(unittest.TestCase):
@@ -147,6 +149,59 @@ class TestCliDbLifecycle(unittest.TestCase):
         )
 
     @patch("builtins.print")
+    def test_cmd_approval_digest_orders_created_at_then_id_tiebreak_for_out_file(self, mock_print):
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "leads.db"
+            conn = connect(db)
+            try:
+                upsert_leads(
+                    conn,
+                    [
+                        JobLead(
+                            id="older",
+                            source="sample",
+                            company="Acme",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/older",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="older-hash",
+                            ingested_at="2026-06-01T10:00:00+00:00",
+                        ),
+                        JobLead(
+                            id="newer",
+                            source="sample",
+                            company="Beta",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/newer",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="newer-hash",
+                            ingested_at="2026-06-02T10:00:00+00:00",
+                        ),
+                    ],
+                )
+                conn.execute("UPDATE leads SET approval_state='approved', created_at=? WHERE id=?", ("2026-06-01T10:00:00+00:00", "older"))
+                conn.execute("UPDATE leads SET approval_state='approved', created_at=? WHERE id=?", ("2026-06-02T10:00:00+00:00", "newer"))
+                conn.commit()
+            finally:
+                conn.close()
+
+            out = Path(td) / "approval_digest.txt"
+            args = Namespace(db=str(db), limit=10, out=str(out))
+            cli.cmd_approval_digest(args)
+
+            payload = json.loads(mock_print.call_args.args[0])
+            self.assertEqual(payload["approval_digest_file"], str(out))
+            preview = payload["preview"]
+            self.assertEqual(preview[2], "- [row 2] newer | Beta | Data Analyst | Remote")
+            self.assertEqual(preview[3], "- [row 3] older | Acme | Data Analyst | Remote")
+
+    @patch("builtins.print")
     @patch("job_leads_tool.cli.build_decision_packet_from_db")
     def test_cmd_decision_packet_clamps_negative_limit_to_zero(
         self,
@@ -163,6 +218,78 @@ class TestCliDbLifecycle(unittest.TestCase):
             limit=0,
             profile_path=None,
         )
+
+    @patch("builtins.print")
+    def test_cmd_decision_packet_orders_equal_score_rows_by_created_at_and_id_tiebreak(self, mock_print):
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "leads.db"
+            conn = connect(db)
+            try:
+                upsert_leads(
+                    conn,
+                    [
+                        JobLead(
+                            id="alpha",
+                            source="sample",
+                            company="Acme",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/alpha",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="alpha-hash",
+                            ingested_at="2026-06-01T10:00:00+00:00",
+                        ),
+                        JobLead(
+                            id="zeta",
+                            source="sample",
+                            company="Beta",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/zeta",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="zeta-hash",
+                            ingested_at="2026-06-04T10:00:00+00:00",
+                        ),
+                        JobLead(
+                            id="newer",
+                            source="sample",
+                            company="Apex",
+                            title="Data Analyst",
+                            location="Remote",
+                            salary=None,
+                            url="https://example.com/newer",
+                            posted_at=None,
+                            description="General role",
+                            content_hash="newer-hash",
+                            ingested_at="2026-06-04T10:00:00+00:00",
+                        ),
+                    ],
+                )
+                conn.execute("UPDATE leads SET created_at=? WHERE id=?", ("2026-06-01T09:00:00+00:00", "alpha"))
+                conn.execute("UPDATE leads SET created_at=? WHERE id=?", ("2026-06-03T09:00:00+00:00", "zeta"))
+                conn.execute("UPDATE leads SET created_at=? WHERE id=?", ("2026-06-03T09:00:00+00:00", "newer"))
+                conn.commit()
+            finally:
+                conn.close()
+
+            profile = Path(td) / "profile.yaml"
+            profile.write_text("name: test\n", encoding="utf-8")
+            out = Path(td) / "decision_packet.txt"
+            args = Namespace(db=str(db), profile=str(profile), limit=5, out=str(out))
+
+            cli.cmd_decision_packet(args)
+
+            payload = json.loads(mock_print.call_args.args[0])
+            self.assertEqual(payload["decision_packet_file"], str(out))
+            file_lines = out.read_text(encoding="utf-8").splitlines()
+            rows = [line for line in file_lines if line.startswith("- [row")]
+            self.assertEqual(rows[0], "- [row 2] zeta | Beta | Data Analyst | Remote")
+            self.assertEqual(rows[1], "- [row 3] newer | Apex | Data Analyst | Remote")
+            self.assertEqual(rows[2], "- [row 4] alpha | Acme | Data Analyst | Remote")
 
     @patch("builtins.print")
     @patch("job_leads_tool.cli.write_dashboard_html")
