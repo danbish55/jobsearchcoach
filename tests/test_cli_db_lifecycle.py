@@ -162,6 +162,40 @@ class TestCliDbLifecycle(unittest.TestCase):
         self.assertEqual(payload["rows"][1]["id"], "offset-newer")
 
     @patch("builtins.print")
+    @patch("job_leads_tool.cli.connect")
+    @patch("job_leads_tool.cli.list_leads")
+    def test_cmd_queue_orders_rows_with_invalid_or_missing_created_at_to_end(
+        self,
+        mock_list_leads,
+        mock_connect,
+        mock_print,
+    ):
+        conn = MagicMock()
+        mock_connect.return_value = conn
+        mock_list_leads.return_value = [
+            {
+                "id": "missing",
+            },
+            {
+                "id": "invalid",
+                "created_at": "not-a-timestamp",
+            },
+            {
+                "id": "valid",
+                "created_at": "2026-06-01T12:00:00Z",
+            },
+        ]
+
+        args = Namespace(db="data/leads.db", state="", limit=10)
+        cli.cmd_queue(args)
+
+        mock_list_leads.assert_called_once_with(conn, state=None)
+        payload = json.loads(mock_print.call_args.args[0])
+        self.assertEqual(payload["rows"][0]["id"], "valid")
+        self.assertEqual(payload["rows"][1]["id"], "missing")
+        self.assertEqual(payload["rows"][2]["id"], "invalid")
+
+    @patch("builtins.print")
     @patch("job_leads_tool.cli.build_approval_digest_from_db")
     def test_cmd_approval_digest_clamps_negative_limit_to_zero(
         self,
@@ -651,6 +685,79 @@ class TestCliDbLifecycle(unittest.TestCase):
 
         self.assertEqual(scored[0]["lead_id"], "zeta")
         self.assertEqual(scored[1]["lead_id"], "alpha")
+
+    @patch("job_leads_tool.cli.score_job")
+    @patch("job_leads_tool.cli.list_leads")
+    @patch("job_leads_tool.cli.connect")
+    @patch("job_leads_tool.cli.load_profile")
+    def test_score_from_db_orders_invalid_created_at_last(self,
+        mock_load_profile,
+        mock_connect,
+        mock_list_leads,
+        mock_score_job,
+    ):
+        conn = MagicMock()
+        mock_connect.return_value = conn
+        mock_load_profile.return_value = MagicMock()
+        mock_list_leads.return_value = [
+            {
+                "id": "invalid-1",
+                "source": "sample",
+                "company": "Acme",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/invalid",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "invalid-hash-1",
+                "ingested_at": "2026-06-01T12:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "not-a-time",
+            },
+            {
+                "id": "missing-ts",
+                "source": "sample",
+                "company": "Beta",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/missing",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "missing-ts-hash",
+                "ingested_at": "2026-06-01T12:00:00+00:00",
+                "approval_state": "pending_review",
+            },
+            {
+                "id": "valid",
+                "source": "sample",
+                "company": "Gamma",
+                "title": "Data Analyst",
+                "location": "Remote",
+                "salary": None,
+                "url": "https://example.com/valid",
+                "posted_at": None,
+                "description": "General role",
+                "content_hash": "valid-hash",
+                "ingested_at": "2026-06-01T12:00:00+00:00",
+                "approval_state": "pending_review",
+                "created_at": "2026-06-02T00:00:00+00:00",
+            },
+        ]
+
+        mock_score_job.side_effect = lambda _profile, lead: {
+            "lead_id": lead.id,
+            "score": 15,
+            "tier": "tier_3",
+            "matches": {},
+        }
+
+        scored = cli._score_from_db(Path("profile.yaml"), Path("data/leads.db"))
+
+        self.assertEqual(scored[0]["lead_id"], "valid")
+        self.assertEqual(scored[1]["lead_id"], "missing-ts")
+        self.assertEqual(scored[2]["lead_id"], "invalid-1")
 
     @patch("job_leads_tool.cli.score_job")
     @patch("job_leads_tool.cli.list_leads")
