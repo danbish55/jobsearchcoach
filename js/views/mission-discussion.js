@@ -197,7 +197,7 @@ Respond like a thoughtful career coach. Acknowledge what she said, offer practic
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
+          model: Config.claudeModel(),
           max_tokens: 700,
           stream: false,
           system: Claude.buildSystemPrompt(),

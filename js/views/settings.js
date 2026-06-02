@@ -149,7 +149,7 @@ const Settings = (() => {
             <span class="setting-label">Model</span>
             <div class="setting-control">
               <div style="font-family:monospace;font-size:13px;color:var(--text-muted)">
-                claude-sonnet-4-5 (fixed)
+                ${status.claude_model || Config.claudeModel()} (configured)
               </div>
             </div>
           </div>

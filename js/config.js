@@ -9,7 +9,7 @@ const Config = (() => {
       return _status;
     } catch {
       // Server not running — shouldn't happen, but graceful fallback
-      _status = { has_api_key: false, has_drive: false, profile_complete: false, setup_complete: false, google_client_id: '', install_build_id: '' };
+      _status = { has_api_key: false, has_drive: false, profile_complete: false, setup_complete: false, google_client_id: '', claude_model: '', install_build_id: '' };
       return _status;
     }
   }
@@ -28,9 +28,10 @@ const Config = (() => {
   }
 
   function get() { return _status; }
+  function claudeModel() { return _status?.claude_model || ''; }
   function hasApiKey() { return _status && _status.has_api_key; }
   function hasDrive()  { return _status && _status.has_drive; }
   function profileComplete() { return _status && _status.profile_complete; }
 
-  return { load, save, get, hasApiKey, hasDrive, profileComplete };
+  return { load, save, get, claudeModel, hasApiKey, hasDrive, profileComplete };
 })();

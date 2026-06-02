@@ -227,6 +227,7 @@ def _status_payload(bundled, user, cfg, server_port=None):
         'has_api_key': has_api_key,
         'has_drive': bool(cfg.get('google_refresh_token')),
         'google_client_id': cfg.get('google_client_id', ''),
+        'claude_model': cfg.get('claude_model', ''),
         'profile_complete': setup_complete,
         'setup_complete': setup_complete,
         'install_build_id': install_id,

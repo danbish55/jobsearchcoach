@@ -237,7 +237,7 @@ ${data.resume_text}`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: Config.claudeModel(),
         max_tokens: 1200,
         stream: false,
         system,

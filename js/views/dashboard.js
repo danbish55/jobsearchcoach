@@ -108,7 +108,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
+          model: Config.claudeModel(),
           max_tokens: 500,
           stream: false,
           system: `${BRIEFING_SYSTEM_PROMPT}\n\n---\n\n${memory}`,

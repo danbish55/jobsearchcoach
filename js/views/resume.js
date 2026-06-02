@@ -458,7 +458,7 @@ Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: Config.claudeModel(),
         max_tokens: 1400,
         stream: false,
         system: RATE_PROMPT,

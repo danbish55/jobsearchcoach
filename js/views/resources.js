@@ -169,7 +169,7 @@ const Resources = (() => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: Config.claudeModel(),
         max_tokens: 1400,
         stream: false,
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5, ...(def.webSearch || {}) }],

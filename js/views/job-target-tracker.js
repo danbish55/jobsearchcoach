@@ -192,7 +192,7 @@ const JobTargetTracker = (() => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
+          model: Config.claudeModel(),
           max_tokens: 400,
           stream: false,
           system: 'You are a focused job search coach. The user is on the Job Target Tracker page. Answer specifically and briefly about company targeting, compensation, role search strategy, referrals, and next actions.',

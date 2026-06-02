@@ -906,7 +906,7 @@ const WorkflowPages = (() => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
+          model: Config.claudeModel(),
           max_tokens: 350,
           stream: false,
           system: `You are a helpful job search coach. The user is on the ${title} page of their job search coaching app. Answer their question specifically and briefly.`,

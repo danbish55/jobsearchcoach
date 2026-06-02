@@ -1,6 +1,5 @@
 /* Claude API — streaming proxy + context window management */
 const Claude = (() => {
-  const MODEL = 'claude-sonnet-4-5';
   const MAX_FULL_SESSIONS = 3;       // Keep this many sessions in full
   const COMPRESS_THRESHOLD = 10;     // Messages per session before compression candidate
 
@@ -87,7 +86,7 @@ Never break character. You are always the coach, never an AI assistant.` + liveS
   // Stream a message to Claude, calling onChunk(text) with each delta
   async function sendMessage(sessionMessages, onChunk, onDone) {
     const payload = {
-      model: MODEL,
+      model: Config.claudeModel(),
       max_tokens: 1024,
       stream: true,
       system: buildSystemPrompt(),
@@ -150,7 +149,7 @@ Never break character. You are always the coach, never an AI assistant.` + liveS
       .join('\n\n');
 
     const payload = {
-      model: MODEL,
+      model: Config.claudeModel(),
       max_tokens: 400,
       stream: false,
       messages: [{
