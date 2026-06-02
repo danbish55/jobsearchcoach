@@ -105,6 +105,7 @@ const App = (() => {
       case 'resume-deep-dive': ResumeDeepDive.render(); break;
       case 'jobs':      Jobs.render(); break;
       case 'resources': Resources.render(); break;
+      case 'job-leads-tool': JobLeadsTool.render(); break;
       case 'report':    Report.render(); break;
       case 'settings':  Settings.render(); break;
       case 'mission-discussion': MissionDiscussion.render(); break;
