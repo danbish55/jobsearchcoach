@@ -27,7 +27,7 @@ Bring the repo from scaffold to a working **JobLeadsTool** pipeline:
 - Aggregate roles from approved target sources.
 - Score role fit against candidate profile and hard constraints.
 - Generate tailored resume bullets and cover letter drafts.
-- Track role state, decisions, and actions in one place.
+- Track role state, decisions, actions, and detailed interaction history for each job lead in one place.
 - Send concise shortlist updates to Telegram.
 
 ## Hard rules / safety gates

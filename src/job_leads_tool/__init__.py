@@ -1,1 +1,15 @@
-__all__ = ["models", "scoring"]
+__all__ = [
+    "models",
+    "normalization",
+    "storage",
+    "sqlite_store",
+    "policy",
+    "scoring",
+    "connectors",
+    "sources_registry",
+    "sources_runner",
+    "drive_export",
+    "digest",
+    "reporting",
+    "sheets_sync",
+]

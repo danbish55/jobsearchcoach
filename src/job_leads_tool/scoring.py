@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Dict, List, Tuple
+from typing import Any
 
-from .models import CandidateProfile, JobPosting
+from .models import CandidateProfile, JobLead
 
 
-def _contains_any(text: str, keywords: List[str]) -> Tuple[int, List[str]]:
+def _contains_any(text: str, keywords: list[str]) -> tuple[int, list[str]]:
     text_l = text.lower()
     hits = [k for k in keywords if k.lower() in text_l]
     return len(hits), hits
 
 
-def score_job(profile: CandidateProfile, job: JobPosting) -> Dict:
-    corpus = f"{job.title} {job.description} {job.location}".lower()
+def score_job(profile: CandidateProfile, lead: JobLead) -> dict[str, Any]:
+    corpus = f"{lead.title} {lead.description} {lead.location} {lead.company}".lower()
 
     title_hits, title_hit_vals = _contains_any(corpus, profile.target_titles)
     skill_hits, skill_hit_vals = _contains_any(corpus, profile.skills)
@@ -28,15 +28,14 @@ def score_job(profile: CandidateProfile, job: JobPosting) -> Dict:
     score += min(must_hits * 10, 20)
     score += 5 if location_match else 0
     score -= min(excluded_hits * 20, 40)
-
     score = max(0, min(score, 100))
 
-    bucket = "high" if score >= 70 else "medium" if score >= 45 else "low"
+    tier = "tier_1" if score >= 70 else "tier_2" if score >= 45 else "tier_3"
 
     return {
-        "job_id": job.id,
+        "lead_id": lead.id,
         "score": score,
-        "bucket": bucket,
+        "tier": tier,
         "matches": {
             "title": title_hit_vals,
             "skills": skill_hit_vals,
@@ -44,5 +43,5 @@ def score_job(profile: CandidateProfile, job: JobPosting) -> Dict:
             "excluded": excluded_hit_vals,
             "location_match": location_match,
         },
-        "job": asdict(job),
+        "lead": asdict(lead),
     }
