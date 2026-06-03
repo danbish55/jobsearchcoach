@@ -53,6 +53,8 @@ def _row_to_joblead(row: dict[str, Any]) -> JobLead:
         posted_at=row.get("posted_at"),
         description=row.get("description", ""),
         content_hash=row.get("content_hash", ""),
+        level=row.get("level"),
+        job_type=row.get("job_type"),
         ingested_at=row.get("ingested_at", datetime.now(timezone.utc).isoformat()),
         approval_state=row.get("approval_state", "pending_review"),
     )
@@ -73,6 +75,7 @@ def _load_profile(profile_path: Path | str | None) -> CandidateProfile:
         skills=raw.get("skills", []),
         preferred_locations=raw.get("preferred_locations", []),
         must_have_keywords=raw.get("must_have_keywords", []),
+        preferred_keywords=raw.get("preferred_keywords", []),
         excluded_keywords=raw.get("excluded_keywords", []),
     )
 

@@ -196,6 +196,8 @@ def to_job_lead(raw: dict[str, Any], source_name: str) -> JobLead:
             location = str(addr)
 
     salary = _coerce_salary(_pick(raw, ["salary", "pay", "wage", "compensation"], None))
+    level = _pick(raw, ["level", "experience_level", "seniority", "employment_level"], None)
+    job_type = _pick(raw, ["job_type", "type", "employment_type", "commitment", "workplace_type"], None)
     url = _coerce_url(_pick(raw, ["url", "link", "applicationUrl", "job_url", "jobsLink"], ""))
     posted_at = _pick(raw, ["posted_at", "posted", "postedAt", "datePosted", "pubDate", "published", "publishedAt"], None)
     description = _pick(raw, ["description", "summary", "snippet", "text"], "")
@@ -211,6 +213,8 @@ def to_job_lead(raw: dict[str, Any], source_name: str) -> JobLead:
         posted_at,
         description,
         lead_id,
+        level,
+        job_type,
     )
 
     return JobLead(
@@ -224,4 +228,6 @@ def to_job_lead(raw: dict[str, Any], source_name: str) -> JobLead:
         posted_at=str(posted_at) if posted_at else None,
         description=str(description),
         content_hash=content_hash,
+        level=str(level) if level else None,
+        job_type=str(job_type) if job_type else None,
     )

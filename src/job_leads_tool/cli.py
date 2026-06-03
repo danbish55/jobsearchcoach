@@ -112,6 +112,8 @@ def _score_from_db(profile_path: Path, db_path: Path) -> list[dict]:
                 posted_at=r.get("posted_at"),
                 description=r["description"],
                 content_hash=r["content_hash"],
+                level=r.get("level"),
+                job_type=r.get("job_type"),
                 ingested_at=r["ingested_at"],
                 approval_state=r["approval_state"],
             )

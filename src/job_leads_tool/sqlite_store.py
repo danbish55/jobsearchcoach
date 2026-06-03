@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS leads (
     title TEXT NOT NULL,
     location TEXT NOT NULL,
     salary TEXT,
+    level TEXT,
+    job_type TEXT,
     url TEXT NOT NULL,
     posted_at TEXT,
     description TEXT NOT NULL,
@@ -38,6 +40,11 @@ def _utc_now() -> str:
 
 def _ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CREATE_SQL)
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(leads)").fetchall()}
+    if "level" not in columns:
+        conn.execute("ALTER TABLE leads ADD COLUMN level TEXT")
+    if "job_type" not in columns:
+        conn.execute("ALTER TABLE leads ADD COLUMN job_type TEXT")
     conn.execute(CREATE_INDEX_STATE)
     conn.commit()
 
@@ -99,6 +106,28 @@ def upsert_leads(conn: sqlite3.Connection, leads: list[JobLead]) -> tuple[int, i
         existing = get_lead(conn, lead.id)
         if existing is not None:
             if existing.get("content_hash") == lead.content_hash:
+                if (
+                    existing.get("salary") != lead.salary
+                    or existing.get("level") != lead.level
+                    or existing.get("job_type") != lead.job_type
+                ):
+                    conn.execute(
+                        """
+                        UPDATE leads
+                        SET salary=?,
+                            level=?,
+                            job_type=?,
+                            updated_at=?
+                        WHERE id=?
+                        """,
+                        (
+                            lead.salary,
+                            lead.level,
+                            lead.job_type,
+                            now,
+                            lead.id,
+                        ),
+                    )
                 duplicates += 1
                 continue
 
@@ -110,6 +139,8 @@ def upsert_leads(conn: sqlite3.Connection, leads: list[JobLead]) -> tuple[int, i
                     title=?,
                     location=?,
                     salary=?,
+                    level=?,
+                    job_type=?,
                     url=?,
                     posted_at=?,
                     description=?,
@@ -123,6 +154,8 @@ def upsert_leads(conn: sqlite3.Connection, leads: list[JobLead]) -> tuple[int, i
                     lead.title,
                     lead.location,
                     lead.salary,
+                    lead.level,
+                    lead.job_type,
                     lead.url,
                     lead.posted_at,
                     lead.description,
@@ -136,11 +169,11 @@ def upsert_leads(conn: sqlite3.Connection, leads: list[JobLead]) -> tuple[int, i
         conn.execute(
             """
             INSERT INTO leads (
-                id, source, company, title, location, salary,
+                id, source, company, title, location, salary, level, job_type,
                 url, posted_at, description, content_hash,
                 ingested_at, approval_state, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 lead.id,
@@ -149,6 +182,8 @@ def upsert_leads(conn: sqlite3.Connection, leads: list[JobLead]) -> tuple[int, i
                 lead.title,
                 lead.location,
                 lead.salary,
+                lead.level,
+                lead.job_type,
                 lead.url,
                 lead.posted_at,
                 lead.description,

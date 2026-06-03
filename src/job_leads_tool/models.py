@@ -15,6 +15,7 @@ class CandidateProfile:
     skills: list[str] = field(default_factory=list)
     preferred_locations: list[str] = field(default_factory=list)
     must_have_keywords: list[str] = field(default_factory=list)
+    preferred_keywords: list[str] = field(default_factory=list)
     excluded_keywords: list[str] = field(default_factory=list)
 
 
@@ -30,6 +31,8 @@ class JobLead:
     posted_at: str | None
     description: str
     content_hash: str
+    level: str | None = None
+    job_type: str | None = None
     ingested_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     approval_state: ApprovalState = "pending_review"
 

@@ -11,7 +11,8 @@ from xml.etree import ElementTree
 
 def _read_source_text(source: str) -> str:
     if str(source).startswith("http://") or str(source).startswith("https://"):
-        with urllib.request.urlopen(str(source)) as response:
+        request = urllib.request.Request(str(source), headers={"User-Agent": "JobSearchCoach/1.0"})
+        with urllib.request.urlopen(request) as response:
             data = response.read()
         return data.decode("utf-8", errors="ignore")
 
@@ -81,7 +82,7 @@ def _parse_rss_items(source: str, text: str) -> list[dict[str, str]]:
 
 def _extract_jsonld_jobs(text: str) -> list[dict[str, str]]:
     jobs: list[dict[str, str]] = []
-    for match in re.finditer(r"<script[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
+    for match in re.finditer(r"<script[^>]*type=[\"']application/ld(?:\+|&#x2B;)json[\"'][^>]*>(.*?)</script>",
                              text,
                              flags=re.I | re.S):
         blob = html.unescape(match.group(1) or "").strip()
@@ -95,6 +96,33 @@ def _extract_jsonld_jobs(text: str) -> list[dict[str, str]]:
         payloads = data if isinstance(data, list) else [data]
         for item in payloads:
             if not isinstance(item, dict):
+                continue
+            graph = item.get("@graph")
+            if isinstance(graph, list):
+                payloads.extend(entry for entry in graph if isinstance(entry, dict))
+                continue
+            if item.get("@type") == "ItemList" and isinstance(item.get("itemListElement"), list):
+                for entry in item.get("itemListElement", []):
+                    if not isinstance(entry, dict):
+                        continue
+                    if entry.get("@type") != "ListItem":
+                        continue
+                    title = entry.get("name", "")
+                    url = entry.get("url", "")
+                    if not title and not url:
+                        continue
+                    jobs.append(
+                        {
+                            "id": url or title,
+                            "title": title,
+                            "company": "",
+                            "location": "Los Angeles, CA",
+                            "salary": None,
+                            "url": url,
+                            "posted_at": "",
+                            "description": entry.get("description") or "",
+                        }
+                    )
                 continue
             if item.get("@type") == "JobPosting":
                 company = item.get("hiringOrganization")
