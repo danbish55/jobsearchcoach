@@ -38,6 +38,7 @@ CONFIG_FILE = os.path.join(USER_CONFIG_DIR, 'config.json')
 CONFIG_LOCK = threading.Lock()
 JL_PROCESS = None
 JL_LOCK = threading.Lock()
+ADZUNA_APP_ID = 'd785bcf0'
 
 
 def _desired_port():
@@ -460,6 +461,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'content': content})
             except FileNotFoundError:
                 self._json({'content': '', 'error': 'context file not found'})
+        elif path == '/api/jl/profile':
+            self._jl_profile()
+        elif path == '/api/config/sources':
+            self._config_sources()
         elif path == '/api/jl-output':
             self._job_leads_output()
         elif path == '/api/open-folder':
@@ -480,6 +485,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if path == '/api/config':
             save_config(body)
             self._json({'ok': True})
+        elif path == '/api/config/sources':
+            self._save_config_sources(body)
         elif path == '/api/token-exchange':
             self._token_exchange(body)
         elif path == '/api/token-refresh':
@@ -494,6 +501,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._jl_transition(body, 'rejected')
         elif path == '/api/jl/apply':
             self._jl_apply(body)
+        elif path == '/api/jl/save-profile':
+            self._jl_save_profile(body)
         elif path == '/api/extract-resume':
             self._extract_resume(body)
         elif path == '/api/claude':
@@ -506,11 +515,203 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0))
         return json.loads(self.rfile.read(length)) if length else {}
 
+    def _save_config_sources(self, body):
+        incoming = body.get('sources') if isinstance(body.get('sources'), dict) else {}
+        if not isinstance(incoming, dict):
+            self._json({'ok': False, 'error': 'sources must be an object'}, 400)
+            return
+
+        current = load_config().get('job_sources') or {}
+        if not isinstance(current, dict):
+            current = {}
+
+        next_sources = {}
+        for key, label, requires_key in (
+            ('greenhouse', 'Greenhouse', False),
+            ('lever', 'Lever', False),
+            ('usajobs', 'USAJOBS', True),
+            ('adzuna', 'Adzuna', True),
+            ('the_muse', 'The Muse', False),
+            ('indeed_rss', 'Indeed RSS', False),
+            ('built_in_la', 'Built In LA', False),
+        ):
+            source_in = incoming.get(key) if isinstance(incoming.get(key), dict) else {}
+            source_current = current.get(key) if isinstance(current.get(key), dict) else {}
+            stored_key = ''
+            if requires_key:
+                raw_key = str(source_in.get('api_key') or '').strip()
+                if raw_key and raw_key != '***':
+                    stored_key = raw_key
+                elif source_current.get('api_key'):
+                    stored_key = source_current.get('api_key')
+            next_source = {
+                'label': label,
+                'enabled': bool(source_in.get('enabled')) or bool(stored_key),
+            }
+            if requires_key:
+                next_source['api_key'] = stored_key
+            next_sources[key] = next_source
+
+        save_config({'job_sources': next_sources})
+        self._json({'ok': True})
+
     def _start_jl(self, body):
         force = bool(body.get('force'))
         result = _start_job_leads_tool(force=force)
         status = 200 if result.get('ok') else 500
         self._json(result, status)
+
+    def _jl_profile(self):
+        try:
+            repo_dir = _job_leads_tool_dir_required()
+            drive_profile = self._try_load_jl_drive_profile(repo_dir)
+            if drive_profile is not None:
+                self._json({'ok': True, 'profile': drive_profile, 'source': 'drive'})
+                return
+            self._json({'ok': True, 'profile': self._load_jl_local_profile(repo_dir), 'source': 'local'})
+        except FileNotFoundError as exc:
+            self._json({'ok': False, 'error': str(exc)}, 404)
+        except Exception as exc:
+            self._json({'ok': False, 'error': f'Could not load JobLeadsTool profile: {exc}'}, 500)
+
+    def _config_sources(self):
+        try:
+            sources = self._masked_job_sources(load_config().get('job_sources') or {})
+            health = {}
+            try:
+                health = self._read_jl_output_json('health')
+            except Exception:
+                health = {}
+            self._json({'ok': True, 'sources': sources, 'health': health})
+        except Exception as exc:
+            self._json({'ok': False, 'error': f'Could not load source config: {exc}'}, 500)
+
+    def _masked_job_sources(self, stored_sources):
+        if not isinstance(stored_sources, dict):
+            stored_sources = {}
+        masked = {}
+        for key, label, requires_key in (
+            ('greenhouse', 'Greenhouse', False),
+            ('lever', 'Lever', False),
+            ('usajobs', 'USAJOBS', True),
+            ('adzuna', 'Adzuna', True),
+            ('the_muse', 'The Muse', False),
+            ('indeed_rss', 'Indeed RSS', False),
+            ('built_in_la', 'Built In LA', False),
+        ):
+            source = stored_sources.get(key) if isinstance(stored_sources.get(key), dict) else {}
+            masked_source = {
+                'label': label,
+                'enabled': bool(source.get('enabled')),
+            }
+            if requires_key:
+                masked_source['api_key'] = '***' if source.get('api_key') else ''
+                masked_source['has_api_key'] = bool(source.get('api_key'))
+            masked[key] = masked_source
+        return masked
+
+    def _jl_save_profile(self, body):
+        profile = body.get('profile') if isinstance(body.get('profile'), dict) else body
+        if not isinstance(profile, dict):
+            self._json({'ok': False, 'error': 'profile is required'}, 400)
+            return
+
+        try:
+            repo_dir = _job_leads_tool_dir_required()
+            drive_result = self._try_save_jl_drive_profile(repo_dir, profile)
+            if drive_result is not None:
+                self._json({'ok': True, 'saved_to': 'drive', 'result': drive_result})
+                return
+
+            profile_path = self._save_jl_local_profile(repo_dir, profile)
+        except FileNotFoundError as exc:
+            self._json({'ok': False, 'error': str(exc)}, 404)
+            return
+        except Exception as exc:
+            self._json({'ok': False, 'error': f'Could not save JobLeadsTool profile: {exc}'}, 500)
+            return
+
+        self._json({'ok': True, 'saved_to': 'local', 'path': profile_path})
+
+    def _try_save_jl_drive_profile(self, repo_dir, profile):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        try:
+            from job_leads_tool import drive_store
+        except Exception:
+            return None
+        save_fn = getattr(drive_store, 'save_profile', None)
+        if not callable(save_fn):
+            return None
+        return save_fn(self._drive_service_payload(), profile)
+
+    def _try_load_jl_drive_profile(self, repo_dir):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        try:
+            from job_leads_tool import drive_store
+        except Exception:
+            return None
+        load_fn = getattr(drive_store, 'load_profile', None)
+        if not callable(load_fn):
+            return None
+        return load_fn(self._drive_service_payload())
+
+    def _load_jl_local_profile(self, repo_dir):
+        profile_path = os.path.join(repo_dir, 'config', 'candidate_profile.yaml')
+        if not os.path.exists(profile_path):
+            raise FileNotFoundError('candidate_profile.yaml not found in JobLeadsTool/config.')
+        try:
+            import yaml
+        except Exception as exc:
+            raise RuntimeError(f'PyYAML is required to read candidate_profile.yaml: {exc}')
+        with open(profile_path, 'r', encoding='utf-8') as profile_file:
+            data = yaml.safe_load(profile_file) or {}
+        if not isinstance(data, dict):
+            raise ValueError('candidate_profile.yaml must contain an object.')
+        return data
+
+    def _save_jl_local_profile(self, repo_dir, profile):
+        config_dir = os.path.join(repo_dir, 'config')
+        os.makedirs(config_dir, exist_ok=True)
+        profile_path = os.path.join(config_dir, 'candidate_profile.yaml')
+        local_profile = self._jl_yaml_profile_payload(profile)
+        with open(profile_path, 'w', encoding='utf-8') as profile_file:
+            profile_file.write(self._simple_yaml(local_profile))
+        return profile_path
+
+    def _jl_yaml_profile_payload(self, profile):
+        def list_value(*keys):
+            for key in keys:
+                value = profile.get(key)
+                if isinstance(value, list):
+                    return [str(item).strip() for item in value if str(item).strip()]
+            return []
+
+        return {
+            'name': str(profile.get('name') or 'Corinne').strip() or 'Corinne',
+            'target_titles': list_value('target_titles', 'target_roles'),
+            'skills': list_value('skills'),
+            'preferred_locations': list_value('preferred_locations'),
+            'must_have_keywords': list_value('must_have_keywords'),
+            'excluded_keywords': list_value('excluded_keywords'),
+        }
+
+    def _simple_yaml(self, data):
+        lines = []
+        for key, value in data.items():
+            if isinstance(value, list):
+                if value:
+                    lines.append(f'{key}:')
+                    for item in value:
+                        lines.append(f'  - {json.dumps(item)}')
+                else:
+                    lines.append(f'{key}: []')
+            else:
+                lines.append(f'{key}: {json.dumps(value)}')
+        return '\n'.join(lines) + '\n'
 
     def _open_folder(self):
         query = parse_qs(urlparse(self.path).query)
@@ -542,44 +743,1060 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     def _jl_run_cycle(self):
         try:
             repo_dir = _job_leads_tool_dir_required()
-            cmd = _job_leads_run_cycle_command(repo_dir)
-            result = subprocess.run(
-                cmd,
-                cwd=repo_dir,
-                env=_job_leads_env(repo_dir),
-                text=True,
-                capture_output=True,
-                timeout=120,
-            )
-        except subprocess.TimeoutExpired as exc:
-            self._json({
-                'success': False,
-                'error': 'JobLeadsTool run-cycle timed out after 120 seconds.',
-                'output': (exc.stdout or '')[-4000:],
-                'stderr': (exc.stderr or '')[-4000:],
-            }, 504)
-            return
+            result = self._run_jl_cycle_direct(repo_dir)
         except Exception as exc:
             self._json({'success': False, 'error': str(exc)}, 500)
             return
 
-        combined_output = '\n'.join(
-            part for part in [result.stdout.strip(), result.stderr.strip()] if part
-        )
-
-        if result.returncode != 0:
-            self._json({
-                'success': False,
-                'error': f'JobLeadsTool run-cycle failed with exit code {result.returncode}.',
-                'output': combined_output[-8000:],
-            }, 500)
-            return
-
         self._json({
             'success': True,
-            'output': combined_output,
+            'output': json.dumps(result, indent=2),
             'lead_counts': self._jl_lead_counts(),
         })
+
+    def _run_jl_cycle_direct(self, repo_dir):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+
+        from job_leads_tool.cli import _score_from_db
+        from job_leads_tool.reporting import write_dashboard_html
+        from job_leads_tool.sources_runner import run_sources_to_sqlite, write_source_health
+
+        db_path = Path(repo_dir) / 'data' / 'leads.db'
+        health_path = Path(repo_dir) / 'outputs' / 'source_health.json'
+        scored_path = Path(repo_dir) / 'outputs' / 'scored_leads.json'
+        review_path = Path(repo_dir) / 'outputs' / 'review_dashboard_cycle.html'
+        digest_path = Path(repo_dir) / 'outputs' / 'digest_cycle.txt'
+        profile_path = Path(repo_dir) / 'config' / 'candidate_profile.yaml'
+
+        sources = self._configured_jl_sources(repo_dir)
+        source_health = run_sources_to_sqlite(db_path, sources)
+        notes = getattr(self, '_jl_source_notes', [])
+        if notes:
+            source_health.setdefault('sources', []).extend(notes)
+            source_health['total'] = len(source_health.get('sources') or [])
+        current_lead_ids = self._current_jl_source_ids(repo_dir, source_health)
+        health = self._public_jl_health(source_health)
+        write_source_health(health_path, health)
+
+        scored = _score_from_db(profile_path, db_path)
+        scored = [
+            item for item in scored
+            if str((item.get('lead') or item).get('id') or item.get('lead_id') or item.get('id') or '') in current_lead_ids
+        ]
+        scored_path.parent.mkdir(parents=True, exist_ok=True)
+        scored_path.write_text(json.dumps(scored, indent=2), encoding='utf-8')
+        write_dashboard_html(scored_path, review_path)
+
+        digest_path.parent.mkdir(parents=True, exist_ok=True)
+        digest_path.write_text(
+            f"Live JL cycle complete.\nSources run: {health.get('total', 0)}\nScored leads: {len(scored)}\n",
+            encoding='utf-8',
+        )
+        return {
+            'db': str(db_path),
+            'health_out': str(health_path),
+            'scored_out': str(scored_path),
+            'review_html': str(review_path),
+            'digest_out': str(digest_path),
+            'sources': [source.as_dict() for source in sources],
+            'scored_count': len(scored),
+        }
+
+    def _current_jl_source_ids(self, repo_dir, source_health=None):
+        ids = set()
+        if isinstance(source_health, dict):
+            for row in source_health.get('sources') or []:
+                if not isinstance(row, dict):
+                    continue
+                for lead in row.get('_leads') or []:
+                    lead_id = getattr(lead, 'id', None)
+                    if lead_id:
+                        ids.add(str(lead_id))
+        for path in (Path(repo_dir) / 'data').glob('*_live.json'):
+            try:
+                payload = json.loads(path.read_text(encoding='utf-8'))
+            except Exception:
+                continue
+            jobs = payload.get('jobs') if isinstance(payload, dict) else []
+            if not isinstance(jobs, list):
+                continue
+            for job in jobs:
+                if isinstance(job, dict) and job.get('id'):
+                    ids.add(str(job.get('id')))
+        return ids
+
+    def _public_jl_health(self, health):
+        if not isinstance(health, dict):
+            return {}
+        cleaned = dict(health)
+        rows = []
+        for item in cleaned.get('sources') or []:
+            if isinstance(item, dict):
+                public_item = {key: value for key, value in item.items() if key != '_leads'}
+                rows.append(public_item)
+        cleaned['sources'] = rows
+        return cleaned
+
+    def _configured_jl_sources(self, repo_dir):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        from job_leads_tool.sources_registry import SourceDefinition
+
+        cfg_sources = load_config().get('job_sources') or {}
+        if not isinstance(cfg_sources, dict):
+            cfg_sources = {}
+        self._jl_source_notes = []
+
+        any_enabled = any(isinstance(source, dict) and source.get('enabled') for source in cfg_sources.values())
+        sources = []
+
+        greenhouse = cfg_sources.get('greenhouse') if isinstance(cfg_sources.get('greenhouse'), dict) else {}
+        if greenhouse.get('enabled') or not any_enabled:
+            greenhouse_path = self._write_greenhouse_source(repo_dir)
+            sources.append(SourceDefinition(
+                source_id='greenhouse',
+                label='Greenhouse',
+                source=str(greenhouse_path),
+                source_type='json',
+                enabled=True,
+                source_name='greenhouse',
+            ))
+
+        lever = cfg_sources.get('lever') if isinstance(cfg_sources.get('lever'), dict) else {}
+        if lever.get('enabled') or not any_enabled:
+            lever_path = self._write_lever_source(repo_dir)
+            sources.append(SourceDefinition(
+                source_id='lever',
+                label='Lever',
+                source=str(lever_path),
+                source_type='json',
+                enabled=True,
+                source_name='lever',
+            ))
+
+        usajobs = cfg_sources.get('usajobs') if isinstance(cfg_sources.get('usajobs'), dict) else {}
+        usajobs_key = str(usajobs.get('api_key') or '').strip()
+        usajobs_enabled = bool(usajobs.get('enabled')) or bool(usajobs_key)
+        if usajobs_enabled and usajobs_key:
+            try:
+                usajobs_path = self._write_usajobs_source(repo_dir, usajobs_key)
+                sources.append(SourceDefinition(
+                    source_id='usajobs',
+                    label='USAJOBS',
+                    source=str(usajobs_path),
+                    source_type='json',
+                    enabled=True,
+                    source_name='usajobs',
+                ))
+            except Exception as exc:
+                self._jl_source_notes.append({
+                    'source_id': 'usajobs',
+                    'label': 'USAJOBS',
+                    'status': 'error',
+                    'error': str(exc),
+                    'incoming': 0,
+                })
+        elif usajobs_enabled:
+            self._jl_source_notes.append({
+                'source_id': 'usajobs',
+                'label': 'USAJOBS',
+                'status': 'error',
+                'error': 'USAJOBS API key required in Settings.',
+                'incoming': 0,
+            })
+
+        the_muse = cfg_sources.get('the_muse') if isinstance(cfg_sources.get('the_muse'), dict) else {}
+        if the_muse.get('enabled') or not any_enabled:
+            muse_path = self._write_themuse_source(repo_dir)
+            sources.append(SourceDefinition(
+                source_id='the_muse',
+                label='The Muse',
+                source=str(muse_path),
+                source_type='json',
+                enabled=True,
+                source_name='the_muse',
+            ))
+
+        indeed = cfg_sources.get('indeed_rss') if isinstance(cfg_sources.get('indeed_rss'), dict) else {}
+        if indeed.get('enabled'):
+            indeed_path = self._write_indeed_source(repo_dir)
+            if indeed_path:
+                sources.append(SourceDefinition(
+                    source_id='indeed_rss',
+                    label='Indeed RSS',
+                    source=str(indeed_path),
+                    source_type='json',
+                    enabled=True,
+                    source_name='indeed_rss',
+                ))
+
+        built_in = cfg_sources.get('built_in_la') if isinstance(cfg_sources.get('built_in_la'), dict) else {}
+        if built_in.get('enabled') or not any_enabled:
+            built_in_path = self._write_builtin_la_source(repo_dir)
+            sources.append(SourceDefinition(
+                source_id='built_in_la',
+                label='Built In LA',
+                source=str(built_in_path),
+                source_type='json',
+                enabled=True,
+                source_name='built_in_la',
+            ))
+
+        adzuna = cfg_sources.get('adzuna') if isinstance(cfg_sources.get('adzuna'), dict) else {}
+        adzuna_key = str(adzuna.get('api_key') or '').strip()
+        adzuna_enabled = bool(adzuna.get('enabled')) or bool(adzuna_key)
+        if adzuna_enabled and adzuna_key:
+            try:
+                adzuna_path = self._write_adzuna_source(repo_dir, adzuna_key)
+                sources.append(SourceDefinition(
+                    source_id='adzuna',
+                    label='Adzuna',
+                    source=str(adzuna_path),
+                    source_type='json',
+                    enabled=True,
+                    source_name='adzuna',
+                ))
+            except Exception as exc:
+                self._jl_source_notes.append({
+                    'source_id': 'adzuna',
+                    'label': 'Adzuna',
+                    'status': 'error',
+                    'error': str(exc),
+                    'incoming': 0,
+                })
+        elif adzuna_enabled:
+            self._jl_source_notes.append({
+                'source_id': 'adzuna',
+                'label': 'Adzuna',
+                'status': 'error',
+                'error': 'Adzuna credentials required. Use app_id:app_key in Settings.',
+                'incoming': 0,
+            })
+
+        return sources
+
+    def _write_greenhouse_source(self, repo_dir):
+        boards = {
+            'riotgames': 'Riot Games',
+            'andurilindustries': 'Anduril',
+            'databricks': 'Databricks',
+            'figma': 'Figma',
+            'scaleai': 'Scale AI',
+        }
+        jobs = []
+        seen_ids = set()
+        for token, company_name in boards.items():
+            url = f'https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true'
+            req = urllib.request.Request(url, headers={'User-Agent': 'JobSearchCoach/1.0', 'Accept': 'application/json'})
+            try:
+                with urllib.request.urlopen(req, timeout=20) as response:
+                    payload = json.loads(response.read().decode('utf-8', errors='ignore'))
+            except Exception as exc:
+                self._jl_source_notes.append({
+                    'source_id': 'greenhouse',
+                    'label': 'Greenhouse',
+                    'status': 'warning',
+                    'error': f'{company_name}: {exc}',
+                    'incoming': 0,
+                })
+                continue
+            for item in payload.get('jobs', []) if isinstance(payload, dict) else []:
+                job_id = str(item.get('id') or item.get('absolute_url') or '')
+                if not job_id or job_id in seen_ids:
+                    continue
+                if self._generic_is_not_entry_level_role(item):
+                    continue
+                if not self._generic_location_allowed(item):
+                    continue
+                if not self._generic_is_relevant_degree_role(item):
+                    continue
+                seen_ids.add(job_id)
+                jobs.append(self._greenhouse_job_payload(item, company_name))
+
+        output = Path(repo_dir) / 'data' / 'greenhouse_live.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({'jobs': jobs}, indent=2), encoding='utf-8')
+        return output
+
+    def _greenhouse_job_payload(self, item, company_name):
+        location = item.get('location') if isinstance(item.get('location'), dict) else {}
+        content = item.get('content') or ''
+        return {
+            'id': f"greenhouse-{item.get('id') or item.get('absolute_url') or item.get('title')}",
+            'title': item.get('title') or '',
+            'company': company_name,
+            'location': location.get('name') or '',
+            'salary': self._salary_or_scan(self._greenhouse_salary(item), item),
+            'level': self._greenhouse_level(item),
+            'job_type': self._greenhouse_job_type(item),
+            'url': item.get('absolute_url') or '',
+            'posted_at': item.get('updated_at') or '',
+            'description': re.sub(r'<[^>]+>', ' ', content).strip(),
+        }
+
+    def _write_lever_source(self, repo_dir):
+        sites = {
+            'cimgroup': 'CIM Group',
+            'sambatv': 'Samba TV',
+            'kabam': 'Kabam',
+            'contentsquare': 'Contentsquare',
+            'xsolla': 'Xsolla',
+            'bellwetheram-2': 'Bellwether',
+            'AMIRI': 'AMIRI',
+        }
+        jobs = []
+        seen_ids = set()
+        for site, company_name in sites.items():
+            url = f'https://api.lever.co/v0/postings/{urllib.parse.quote(site)}?mode=json'
+            req = urllib.request.Request(url, headers={'User-Agent': 'JobSearchCoach/1.0', 'Accept': 'application/json'})
+            try:
+                with urllib.request.urlopen(req, timeout=20) as response:
+                    payload = json.loads(response.read().decode('utf-8', errors='ignore'))
+            except Exception as exc:
+                self._jl_source_notes.append({
+                    'source_id': 'lever',
+                    'label': 'Lever',
+                    'status': 'warning',
+                    'error': f'{company_name}: {exc}',
+                    'incoming': 0,
+                })
+                continue
+            for item in payload if isinstance(payload, list) else []:
+                job_id = str(item.get('id') or item.get('hostedUrl') or item.get('text') or '')
+                if not job_id or job_id in seen_ids:
+                    continue
+                if self._generic_is_not_entry_level_role(item):
+                    continue
+                if not self._generic_location_allowed(item):
+                    continue
+                if not self._generic_is_relevant_degree_role(item):
+                    continue
+                seen_ids.add(job_id)
+                jobs.append(self._lever_job_payload(item, company_name))
+
+        output = Path(repo_dir) / 'data' / 'lever_live.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({'jobs': jobs}, indent=2), encoding='utf-8')
+        return output
+
+    def _lever_job_payload(self, item, company_name):
+        categories = item.get('categories') if isinstance(item.get('categories'), dict) else {}
+        lists = item.get('lists') if isinstance(item.get('lists'), list) else []
+        description_parts = [item.get('descriptionPlain') or item.get('description') or '']
+        for block in lists:
+            if isinstance(block, dict):
+                description_parts.append(block.get('text') or '')
+                description_parts.extend(str(content) for content in block.get('content') or [])
+        return {
+            'id': f"lever-{item.get('id') or item.get('hostedUrl') or item.get('text')}",
+            'title': item.get('text') or '',
+            'company': company_name,
+            'location': categories.get('location') or '',
+            'salary': self._salary_or_scan(None, item),
+            'level': self._lever_level(item),
+            'job_type': self._lever_job_type(item),
+            'url': item.get('hostedUrl') or item.get('applyUrl') or '',
+            'posted_at': item.get('createdAt') or '',
+            'description': re.sub(r'<[^>]+>', ' ', ' '.join(description_parts)).strip(),
+        }
+
+    def _write_usajobs_source(self, repo_dir, api_key):
+        queries = ('data analyst', 'business analyst', 'information technology specialist', 'program analyst')
+        locations = ('Los Angeles, California', 'Irvine, California', 'San Diego, California')
+        jobs = []
+        seen_ids = set()
+        for query_text in queries:
+            for location in locations:
+                query = urllib.parse.urlencode({
+                    'Keyword': query_text,
+                    'LocationName': location,
+                    'ResultsPerPage': 25,
+                    'Page': 1,
+                })
+                url = f'https://data.usajobs.gov/api/Search?{query}'
+                req = urllib.request.Request(url, headers={
+                    'User-Agent': 'JobSearchCoach',
+                    'Authorization-Key': api_key,
+                    'Accept': 'application/json',
+                })
+                with urllib.request.urlopen(req, timeout=20) as response:
+                    payload = json.loads(response.read().decode('utf-8', errors='ignore'))
+                items = (((payload.get('SearchResult') or {}).get('SearchResultItems')) or []) if isinstance(payload, dict) else []
+                for wrapper in items:
+                    item = wrapper.get('MatchedObjectDescriptor') if isinstance(wrapper, dict) else {}
+                    if not isinstance(item, dict):
+                        continue
+                    job_id = str(item.get('PositionID') or item.get('PositionURI') or '')
+                    if not job_id or job_id in seen_ids:
+                        continue
+                    if self._generic_is_not_entry_level_role({'title': item.get('PositionTitle') or ''}):
+                        continue
+                    if not self._usajobs_grade_allowed(item):
+                        continue
+                    seen_ids.add(job_id)
+                    jobs.append(self._usajobs_job_payload(item))
+
+        output = Path(repo_dir) / 'data' / 'usajobs_live.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({'jobs': jobs}, indent=2), encoding='utf-8')
+        return output
+
+    def _usajobs_grade_allowed(self, item):
+        grades = []
+        for detail in item.get('UserArea', {}).get('Details', {}).get('LowGrade', []):
+            grades.append(str(detail))
+        for detail in item.get('UserArea', {}).get('Details', {}).get('HighGrade', []):
+            grades.append(str(detail))
+        text = ' '.join(grades)
+        numbers = [int(value) for value in re.findall(r'\d+', text)]
+        return not numbers or min(numbers) <= 9
+
+    def _usajobs_job_payload(self, item):
+        org = item.get('OrganizationName') or item.get('DepartmentName') or 'USAJOBS'
+        locations = item.get('PositionLocation') if isinstance(item.get('PositionLocation'), list) else []
+        location_text = ', '.join(
+            loc.get('LocationName', '')
+            for loc in locations
+            if isinstance(loc, dict) and loc.get('LocationName')
+        )
+        remuneration = item.get('PositionRemuneration') if isinstance(item.get('PositionRemuneration'), list) else []
+        salary = ''
+        if remuneration and isinstance(remuneration[0], dict):
+            salary = f"{remuneration[0].get('MinimumRange') or ''}-{remuneration[0].get('MaximumRange') or ''}".strip('-')
+        return {
+            'id': f"usajobs-{item.get('PositionID') or item.get('PositionURI') or item.get('PositionTitle')}",
+            'title': item.get('PositionTitle') or '',
+            'company': org,
+            'location': location_text,
+            'salary': self._salary_or_scan(salary or None, item),
+            'level': self._usajobs_level(item),
+            'job_type': self._usajobs_job_type(item),
+            'url': item.get('PositionURI') or '',
+            'posted_at': item.get('PublicationStartDate') or '',
+            'description': item.get('QualificationSummary') or item.get('UserArea', {}).get('Details', {}).get('JobSummary') or '',
+        }
+
+    def _write_indeed_source(self, repo_dir):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        from job_leads_tool.connectors import load_rss_source
+
+        queries = ('data analyst', 'business analyst', 'business intelligence analyst', 'product analyst')
+        locations = ('Los Angeles, CA', 'Irvine, CA', 'San Diego, CA')
+        jobs = []
+        seen_ids = set()
+        errors = []
+
+        for query_text in queries:
+            for location in locations:
+                query = urllib.parse.urlencode({'q': query_text, 'l': location})
+                url = f'https://rss.indeed.com/rss?{query}'
+                try:
+                    raw_jobs = load_rss_source(url)
+                except Exception as exc:
+                    errors.append(str(exc))
+                    continue
+                for item in raw_jobs:
+                    job_id = str(item.get('id') or item.get('url') or item.get('title') or '')
+                    if not job_id or job_id in seen_ids:
+                        continue
+                    if self._generic_is_not_entry_level_role(item):
+                        continue
+                    if not self._generic_is_relevant_degree_role(item):
+                        continue
+                    seen_ids.add(job_id)
+                    jobs.append({
+                        'id': f"indeed-{job_id}",
+                        'title': item.get('title') or '',
+                        'company': item.get('company') or '',
+                        'location': item.get('location') or location,
+                        'salary': self._salary_or_scan(item.get('salary'), item),
+                        'level': item.get('level') or self._infer_job_level(item),
+                        'job_type': item.get('job_type') or self._infer_job_type(item),
+                        'url': item.get('url') or '',
+                        'posted_at': item.get('posted_at') or '',
+                        'description': item.get('description') or '',
+                    })
+
+        if not jobs and errors:
+            self._jl_source_notes.append({
+                'source_id': 'indeed_rss',
+                'label': 'Indeed RSS',
+                'status': 'error',
+                'error': f"Indeed RSS unavailable: {errors[0]}",
+                'incoming': 0,
+            })
+            return None
+
+        output = Path(repo_dir) / 'data' / 'indeed_rss_live.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({'jobs': jobs}, indent=2), encoding='utf-8')
+        return output
+
+    def _write_builtin_la_source(self, repo_dir):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        from job_leads_tool.connectors import load_rss_source
+
+        raw_jobs = load_rss_source('https://www.builtinla.com/jobs/data-analytics')
+        jobs = []
+        seen_ids = set()
+        for item in raw_jobs:
+            job_id = str(item.get('id') or item.get('url') or item.get('title') or '')
+            if not job_id or job_id in seen_ids:
+                continue
+            if self._generic_is_not_entry_level_role(item):
+                continue
+            if not self._generic_is_relevant_degree_role(item):
+                continue
+            seen_ids.add(job_id)
+            jobs.append({
+                'id': f"builtinla-{job_id}",
+                'title': item.get('title') or '',
+                'company': item.get('company') or '',
+                'location': item.get('location') or 'Los Angeles, CA',
+                'salary': self._salary_or_scan(item.get('salary'), item),
+                'level': item.get('level') or self._infer_job_level(item),
+                'job_type': item.get('job_type') or self._infer_job_type(item),
+                'url': item.get('url') or '',
+                'posted_at': item.get('posted_at') or '',
+                'description': item.get('description') or '',
+            })
+
+        output = Path(repo_dir) / 'data' / 'built_in_la_live.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({'jobs': jobs}, indent=2), encoding='utf-8')
+        return output
+
+    def _write_adzuna_source(self, repo_dir, api_key):
+        credentials = self._parse_adzuna_credentials(api_key)
+        if not credentials:
+            raise ValueError('Adzuna source requires credentials formatted as app_id:app_key.')
+        app_id, app_key = credentials
+        queries = ('data analyst', 'business analyst', 'business intelligence analyst', 'product analyst')
+        locations = ('Los Angeles, CA', 'Irvine, CA', 'San Diego, CA')
+        seen_ids = set()
+        jobs = []
+
+        for query_text in queries:
+            for location in locations:
+                query = urllib.parse.urlencode({
+                    'app_id': app_id,
+                    'app_key': app_key,
+                    'results_per_page': 25,
+                    'what': query_text,
+                    'where': location,
+                    'sort_by': 'date',
+                    'content-type': 'application/json',
+                })
+                url = f'https://api.adzuna.com/v1/api/jobs/us/search/1?{query}'
+                req = urllib.request.Request(url, headers={'User-Agent': 'JobSearchCoach/1.0'})
+                with urllib.request.urlopen(req, timeout=20) as response:
+                    payload = json.loads(response.read().decode('utf-8', errors='ignore'))
+
+                for item in payload.get('results', []) if isinstance(payload, dict) else []:
+                    job_id = str(item.get('id') or item.get('redirect_url') or '')
+                    if not job_id or job_id in seen_ids:
+                        continue
+                    if self._adzuna_is_not_entry_level_role(item):
+                        continue
+                    seen_ids.add(job_id)
+                    jobs.append(self._adzuna_job_payload(item))
+
+        output = Path(repo_dir) / 'data' / 'adzuna_live.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({'jobs': jobs}, indent=2), encoding='utf-8')
+        return output
+
+    def _parse_adzuna_credentials(self, api_key):
+        raw = str(api_key or '').strip()
+        if not raw:
+            return None
+        labeled = {}
+        for line in re.split(r'[\r\n]+', raw):
+            match = re.match(r'\s*(app[_\s-]*id|application[_\s-]*id|id|app[_\s-]*key|application[_\s-]*key|key)\s*[:=]\s*(.+?)\s*$', line, flags=re.I)
+            if match:
+                label = re.sub(r'[^a-z]', '', match.group(1).lower())
+                value = match.group(2).strip()
+                if 'id' in label and 'key' not in label:
+                    labeled['id'] = value
+                elif 'key' in label:
+                    labeled['key'] = value
+        if labeled.get('id') and labeled.get('key'):
+            return labeled['id'], labeled['key']
+        for separator in (':', '|', ','):
+            if separator in raw:
+                left, right = raw.split(separator, 1)
+                left = left.strip()
+                right = right.strip()
+                if left and right:
+                    return left, right
+        parts = [part.strip() for part in re.split(r'\s+', raw) if part.strip()]
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        if len(parts) == 1:
+            return ADZUNA_APP_ID, parts[0]
+        return None
+
+    def _adzuna_is_not_entry_level_role(self, item):
+        return self._generic_is_not_entry_level_role(item)
+
+    def _adzuna_job_payload(self, item):
+        company = item.get('company') if isinstance(item.get('company'), dict) else {}
+        location = item.get('location') if isinstance(item.get('location'), dict) else {}
+        salary = ''
+        if item.get('salary_min') or item.get('salary_max'):
+            salary = f"{item.get('salary_min') or ''}-{item.get('salary_max') or ''}".strip('-')
+        return {
+            'id': f"adzuna-{item.get('id') or item.get('redirect_url') or item.get('title')}",
+            'title': item.get('title') or '',
+            'company': company.get('display_name') or '',
+            'location': location.get('display_name') or '',
+            'salary': self._salary_or_scan(salary or None, item),
+            'level': self._infer_job_level(item),
+            'job_type': self._infer_job_type(item),
+            'url': item.get('redirect_url') or '',
+            'posted_at': item.get('created') or '',
+            'description': re.sub(r'<[^>]+>', ' ', item.get('description') or '').strip(),
+        }
+
+    def _write_themuse_source(self, repo_dir):
+        categories = [
+            'Data and Analytics',
+            'Business Operations',
+            'Computer and IT',
+            'Product Management',
+        ]
+        locations = [
+            'Los Angeles, CA',
+            'Irvine, CA',
+            'Orange County, CA',
+            'San Diego, CA',
+        ]
+        seen_ids = set()
+        jobs = []
+
+        for category in categories:
+            for location in locations:
+                for page in range(1, 3):
+                    query = urllib.parse.urlencode({
+                        'page': page,
+                        'category': category,
+                        'location': location,
+                    })
+                    url = f'https://www.themuse.com/api/public/jobs?{query}'
+                    req = urllib.request.Request(url, headers={'User-Agent': 'JobSearchCoach/1.0'})
+                    with urllib.request.urlopen(req, timeout=20) as response:
+                        payload = json.loads(response.read().decode('utf-8', errors='ignore'))
+
+                    for item in payload.get('results', []):
+                        job_id = str(item.get('id') or '')
+                        if not job_id or job_id in seen_ids:
+                            continue
+                        if self._themuse_is_not_entry_level_role(item):
+                            continue
+                        if not self._themuse_location_allowed(item):
+                            continue
+                        if not self._themuse_is_relevant_degree_role(item):
+                            continue
+                        seen_ids.add(job_id)
+                        jobs.append(self._themuse_job_payload(item))
+
+        output = Path(repo_dir) / 'data' / 'the_muse_live.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({'jobs': jobs}, indent=2), encoding='utf-8')
+        return output
+
+    def _themuse_is_not_entry_level_role(self, item):
+        levels = item.get('levels') if isinstance(item.get('levels'), list) else []
+        level_text = ' '.join(
+            f"{level.get('name', '')} {level.get('short_name', '')}"
+            for level in levels
+            if isinstance(level, dict)
+        ).lower()
+        title = str(item.get('name') or '').lower()
+        blocked_level_terms = ('senior', 'executive')
+        blocked_title_terms = (
+            'senior',
+            'sr.',
+            'sr ',
+            'principal',
+            'staff',
+            'lead',
+            'manager',
+            'director',
+            'architect',
+            'head of',
+            'vice president',
+            'vp ',
+        )
+        return any(term in level_text for term in blocked_level_terms) or any(term in title for term in blocked_title_terms)
+
+    def _themuse_location_allowed(self, item):
+        return self._generic_location_allowed(item)
+
+    def _generic_location_allowed(self, item):
+        location_text = self._generic_location_text(item)
+        if location_text.strip().lower() in ('flexible / remote', 'remote', 'remote usa', 'united states'):
+            return True
+        allowed_terms = (
+            'los angeles',
+            'santa monica',
+            'culver city',
+            'burbank',
+            'glendale',
+            'pasadena',
+            'irvine',
+            'orange county',
+            'anaheim',
+            'costa mesa',
+            'newport beach',
+            'long beach',
+            'torrance',
+            'carlsbad',
+            'oceanside',
+            'encinitas',
+            'san diego',
+        )
+        return any(term in location_text.lower() for term in allowed_terms)
+
+    def _generic_location_text(self, item):
+        if not isinstance(item, dict):
+            return ''
+        if isinstance(item.get('location'), dict):
+            return str(item.get('location', {}).get('name') or item.get('location', {}).get('display_name') or '')
+        if isinstance(item.get('location'), str):
+            return item.get('location') or ''
+        if isinstance(item.get('locations'), list):
+            return ', '.join(
+                loc.get('name', '')
+                for loc in item.get('locations') or []
+                if isinstance(loc, dict) and loc.get('name')
+            )
+        categories = item.get('categories') if isinstance(item.get('categories'), dict) else {}
+        if categories.get('location'):
+            return str(categories.get('location'))
+        return ''
+
+    def _themuse_is_relevant_degree_role(self, item):
+        return self._generic_is_relevant_degree_role(item)
+
+    def _generic_is_not_entry_level_role(self, item):
+        title = self._generic_title_text(item).lower()
+        blocked_terms = (
+            'senior',
+            'sr.',
+            'sr ',
+            'principal',
+            'staff',
+            'lead',
+            'manager',
+            'director',
+            'architect',
+            'head of',
+            'vice president',
+            'vp ',
+        )
+        return any(term in title for term in blocked_terms)
+
+    def _generic_is_relevant_degree_role(self, item):
+        title = self._generic_title_text(item).lower()
+        relevant_terms = (
+            'analyst',
+            'analytics',
+            'business intelligence',
+            'data analyst',
+            'data analytics',
+            'data operations',
+            'data specialist',
+            'data quality',
+            'reporting',
+            'insights',
+            'operations analyst',
+            'operations specialist',
+            'product analyst',
+            'product operations',
+            'systems analyst',
+            'business systems',
+            'database analyst',
+            'bi ',
+            'compliance',
+            'technology analyst',
+            'technical compliance',
+            'it ',
+            'financial analyst',
+            'planning analyst',
+            'support analyst',
+            'asset administrator',
+            'intern',
+            'early career',
+        )
+        blocked_terms = (
+            'shopper',
+            'installer',
+            'technician',
+            'assistant',
+            'software engineer',
+            'data engineer',
+            'platform engineer',
+            'security engineer',
+            'quality engineer',
+            'infrastructure engineer',
+            'medical science',
+            'clinical medicine',
+            'chemistry',
+            'philosophy',
+            'law',
+        )
+        return any(term in title for term in relevant_terms) and not any(term in title for term in blocked_terms)
+
+    def _generic_title_text(self, item):
+        if not isinstance(item, dict):
+            return ''
+        return str(item.get('name') or item.get('title') or item.get('text') or item.get('PositionTitle') or '')
+
+    def _greenhouse_salary(self, item):
+        for metadata in item.get('metadata') or []:
+            if not isinstance(metadata, dict):
+                continue
+            name = str(metadata.get('name') or '').lower()
+            value = metadata.get('value')
+            if value in (None, '', []):
+                continue
+            if any(term in name for term in ('salary', 'compensation', 'pay range', 'location range')):
+                if isinstance(value, list):
+                    value = ', '.join(str(part) for part in value if part)
+                return str(value)
+        return None
+
+    def _salary_or_scan(self, salary, item):
+        if salary:
+            return str(salary)
+        return self._scan_salary_text(self._salary_scan_text(item))
+
+    def _salary_scan_text(self, item):
+        if not isinstance(item, dict):
+            return ''
+        parts = []
+        for key in (
+            'title',
+            'name',
+            'text',
+            'description',
+            'descriptionPlain',
+            'content',
+            'contents',
+            'QualificationSummary',
+        ):
+            value = item.get(key)
+            if value:
+                parts.append(str(value))
+        for block in item.get('lists') or []:
+            if isinstance(block, dict):
+                parts.append(str(block.get('text') or ''))
+                parts.extend(str(content) for content in block.get('content') or [])
+        for metadata in item.get('metadata') or []:
+            if isinstance(metadata, dict) and metadata.get('value'):
+                value = metadata.get('value')
+                if isinstance(value, list):
+                    parts.extend(str(part) for part in value if part)
+                else:
+                    parts.append(str(value))
+        user_area = item.get('UserArea') if isinstance(item.get('UserArea'), dict) else {}
+        details = user_area.get('Details') if isinstance(user_area.get('Details'), dict) else {}
+        for key in ('JobSummary', 'MajorDuties', 'Evaluations', 'Requirements'):
+            value = details.get(key)
+            if value:
+                parts.append(str(value))
+        text = ' '.join(parts)
+        for _ in range(3):
+            next_text = html_lib.unescape(text)
+            if next_text == text:
+                break
+            text = next_text
+        text = re.sub(r'<[^>]+>', ' ', text)
+        return re.sub(r'\s+', ' ', text).strip()
+
+    def _scan_salary_text(self, text):
+        if not text:
+            return None
+        patterns = [
+            r'\$\s?\d{2,3}(?:,\d{3})?(?:\.\d{2})?\s?(?:-|–|—|to)\s?\$\s?\d{2,3}(?:,\d{3})?(?:\.\d{2})?\s?(?:per\s+year|annually|a\s+year|/year|per\s+hour|hourly|/hr)?',
+            r'(?:minimum|min)\s*:?\s*\$\s?\d{2,3}(?:,\d{3})?(?:\.\d{2})?.{0,80}?(?:maximum|max)\s*:?\s*\$\s?\d{2,3}(?:,\d{3})?(?:\.\d{2})?',
+            r'\$\s?\d{2,3}(?:,\d{3})?(?:\.\d{2})?\s?(?:per\s+year|annually|a\s+year|/year|per\s+hour|hourly|/hr)',
+            r'\$\s?\d{2,3}k\s?(?:-|–|—|to)\s?\$\s?\d{2,3}k',
+            r'\d{2,3}k\s?(?:-|–|—|to)\s?\d{2,3}k',
+            r'\$\s?\d{2,3}(?:\.\d{2})?\s?(?:-|–|—|to)\s?\$\s?\d{2,3}(?:\.\d{2})?\s?(?:per\s+hour|hourly|/hr)',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text, flags=re.I)
+            if match:
+                salary = re.sub(r'\s+', ' ', match.group(0)).strip()
+                salary = re.sub(r'(?i)(minimum|min)\s*:?\s*', '', salary)
+                salary = re.sub(r'(?i)\s*(maximum|max)\s*:?\s*', ' - ', salary)
+                return salary.strip()
+        return None
+
+    def _greenhouse_level(self, item):
+        for metadata in item.get('metadata') or []:
+            if not isinstance(metadata, dict):
+                continue
+            name = str(metadata.get('name') or '').lower()
+            value = metadata.get('value')
+            if value in (None, '', []):
+                continue
+            if 'level' in name or 'department name' in name:
+                if isinstance(value, list):
+                    value = ', '.join(str(part) for part in value if part)
+                return self._normalize_level(str(value), item)
+        return self._infer_job_level(item)
+
+    def _greenhouse_job_type(self, item):
+        metadata_type = self._metadata_value(item, ('employment type', 'workplace type', 'job type'))
+        return self._normalize_job_type(metadata_type, item)
+
+    def _lever_level(self, item):
+        return self._infer_job_level(item)
+
+    def _lever_job_type(self, item):
+        categories = item.get('categories') if isinstance(item.get('categories'), dict) else {}
+        explicit = ' '.join(
+            str(part or '')
+            for part in (categories.get('commitment'), item.get('workplaceType'), categories.get('location'))
+        )
+        return self._normalize_job_type(explicit, item)
+
+    def _themuse_level(self, item):
+        levels = item.get('levels') if isinstance(item.get('levels'), list) else []
+        names = [
+            str(level.get('name') or level.get('short_name') or '')
+            for level in levels
+            if isinstance(level, dict)
+        ]
+        return self._normalize_level(', '.join(name for name in names if name), item)
+
+    def _themuse_job_type(self, item):
+        explicit = str(item.get('type') or '')
+        return self._normalize_job_type(explicit, item)
+
+    def _usajobs_level(self, item):
+        details = item.get('UserArea', {}).get('Details', {}) if isinstance(item.get('UserArea'), dict) else {}
+        grades = []
+        for key in ('LowGrade', 'HighGrade'):
+            value = details.get(key)
+            if isinstance(value, list):
+                grades.extend(str(part) for part in value if part)
+            elif value:
+                grades.append(str(value))
+        if grades:
+            return f"GS {'-'.join(grades)}"
+        return self._infer_job_level({'title': item.get('PositionTitle') or ''})
+
+    def _usajobs_job_type(self, item):
+        details = item.get('UserArea', {}).get('Details', {}) if isinstance(item.get('UserArea'), dict) else {}
+        work_site = self._usajobs_detail_by_name(details, 'worksiteoption', 'worksiteoptions')
+        telework = details.get('TeleworkEligible')
+        remote = details.get('RemoteIndicator')
+        explicit = ' '.join(str(part or '') for part in (
+            work_site,
+            details.get('PositionScheduleType'),
+            'telework eligible' if telework is True or str(telework).lower() == 'true' else '',
+            'remote' if remote is True or str(remote).lower() == 'true' else '',
+        ))
+        return self._normalize_job_type(explicit, {'title': item.get('PositionTitle') or '', 'location': self._generic_location_text(item)})
+
+    def _usajobs_detail_by_name(self, details, *names):
+        if not isinstance(details, dict):
+            return ''
+        wanted = set(names)
+        for key, value in details.items():
+            normalized = re.sub(r'[^a-z0-9]+', '', str(key).lower())
+            if normalized not in wanted:
+                continue
+            if isinstance(value, list):
+                return ' '.join(str(part) for part in value if part)
+            return str(value or '')
+        return ''
+
+    def _infer_job_level(self, item):
+        return self._normalize_level('', item)
+
+    def _infer_job_type(self, item):
+        return self._normalize_job_type('', item)
+
+    def _metadata_value(self, item, names):
+        for metadata in item.get('metadata') or []:
+            if not isinstance(metadata, dict):
+                continue
+            name = str(metadata.get('name') or '').lower()
+            value = metadata.get('value')
+            if value in (None, '', []):
+                continue
+            if any(term in name for term in names):
+                if isinstance(value, list):
+                    return ', '.join(str(part) for part in value if part)
+                return str(value)
+        return ''
+
+    def _normalize_level(self, value, item):
+        text = f"{value or ''} {self._generic_title_text(item)}".lower()
+        if any(term in text for term in ('intern', 'internship')):
+            return 'Internship'
+        if any(term in text for term in ('entry level', 'early career', 'new grad', 'graduate', 'junior', 'jr.')):
+            return 'Entry Level'
+        if any(term in text for term in ('associate', 'coordinator')):
+            return 'Associate'
+        if any(term in text for term in ('mid level', 'mid-level')):
+            return 'Mid Level'
+        return 'Not listed'
+
+    def _normalize_job_type(self, value, item):
+        location = self._generic_location_text(item)
+        text = f"{value or ''} {self._generic_title_text(item)} {location}".lower()
+        types = []
+        if any(term in text for term in ('intern', 'internship')):
+            types.append('Internship')
+        if any(term in text for term in ('contract', 'contractor', 'temporary', 'temp ')):
+            types.append('Contract')
+        if any(term in text for term in ('part-time', 'part time')):
+            types.append('Part-time')
+        elif any(term in text for term in ('full-time', 'full time', 'fulltime', 'full time')):
+            types.append('Full-time')
+        if any(term in text for term in ('remote', 'flexible / remote')):
+            types.append('Remote')
+        elif 'telework eligible' in text:
+            types.append('Telework eligible')
+        elif any(term in text for term in ('hybrid',)):
+            types.append('Hybrid')
+        elif location:
+            types.append('On-site')
+        seen = []
+        for item_type in types:
+            if item_type not in seen:
+                seen.append(item_type)
+        return ' / '.join(seen) if seen else 'Not listed'
+
+    def _themuse_job_payload(self, item):
+            company = item.get('company') if isinstance(item.get('company'), dict) else {}
+            refs = item.get('refs') if isinstance(item.get('refs'), dict) else {}
+            locations = item.get('locations') if isinstance(item.get('locations'), list) else []
+            return {
+                'id': f"themuse-{item.get('id') or refs.get('landing_page') or item.get('name')}",
+                'title': item.get('name') or '',
+                'company': company.get('name') or '',
+                'location': ', '.join(loc.get('name', '') for loc in locations if isinstance(loc, dict) and loc.get('name')),
+                'salary': self._salary_or_scan(None, item),
+                'level': self._themuse_level(item),
+                'job_type': self._themuse_job_type(item),
+                'url': refs.get('landing_page') or refs.get('apply') or '',
+                'posted_at': item.get('publication_date') or '',
+                'description': re.sub(r'<[^>]+>', ' ', item.get('contents') or '').strip(),
+            }
 
     def _jl_apply(self, body):
         lead_id = (body.get('lead_id') or '').strip()

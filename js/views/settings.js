@@ -29,9 +29,84 @@ const Settings = (() => {
     'mission_discussion_extraction',
   ];
 
+  const PROFILE_TAG_FIELDS = [
+    { key: 'target_roles', label: 'Target Roles', placeholder: 'Data Analyst, Business Analyst' },
+    { key: 'skills', label: 'Skills', placeholder: 'SQL, Python, Tableau' },
+    { key: 'must_have_keywords', label: 'Must-Have Keywords', placeholder: 'analytics, dashboard, forecasting' },
+    { key: 'excluded_keywords', label: 'Excluded Keywords', placeholder: 'senior, unpaid, commission' },
+    { key: 'preferred_locations', label: 'Preferred Locations', placeholder: 'Los Angeles, Santa Monica, Remote' },
+    { key: 'affinity_schools', label: 'Affinity Schools', placeholder: 'USC, Marshall, UofA, Eller' },
+  ];
+
+  const DEFAULT_CANDIDATE_PROFILE = {
+    target_roles: [],
+    skills: [],
+    must_have_keywords: [],
+    excluded_keywords: [],
+    preferred_locations: [],
+    affinity_schools: ['USC', 'Marshall', 'UofA', 'Eller'],
+  };
+
+  const SCORING_WEIGHT_FIELDS = [
+    { key: 'title_match_weight', label: 'Title match weight', defaultValue: 40 },
+    { key: 'skills_weight', label: 'Skills weight', defaultValue: 35 },
+    { key: 'must_have_keywords_weight', label: 'Must-have keywords weight', defaultValue: 20 },
+    { key: 'location_bonus', label: 'Location bonus', defaultValue: 5 },
+    { key: 'excluded_keyword_penalty', label: 'Excluded keyword penalty', defaultValue: -40 },
+    { key: 'affinity_school_bonus', label: 'Affinity school bonus', defaultValue: 15 },
+  ];
+
+  const JOB_SOURCE_FIELDS = [
+    {
+      key: 'greenhouse',
+      label: 'Greenhouse',
+      description: 'Curated company career boards using the public Greenhouse Job Board API.',
+      requiresKey: false,
+    },
+    {
+      key: 'lever',
+      label: 'Lever',
+      description: 'Curated company career boards using the public Lever postings API.',
+      requiresKey: false,
+    },
+    {
+      key: 'usajobs',
+      label: 'USAJOBS',
+      description: 'Federal analytics and IT roles. Requires a USAJOBS API key.',
+      requiresKey: true,
+    },
+    {
+      key: 'adzuna',
+      label: 'Adzuna',
+      description: 'Broad job search API for analytics roles. Enter the Adzuna app key; the approved App ID is built in.',
+      requiresKey: true,
+    },
+    {
+      key: 'the_muse',
+      label: 'The Muse',
+      description: 'Company-focused roles and career content with structured listings.',
+      requiresKey: false,
+    },
+    {
+      key: 'indeed_rss',
+      label: 'Indeed RSS',
+      description: 'RSS-based search feed. Indeed may block automated requests; status appears after refresh.',
+      requiresKey: false,
+    },
+    {
+      key: 'built_in_la',
+      label: 'Built In LA',
+      description: 'Los Angeles tech-company listings and startup-market leads.',
+      requiresKey: false,
+    },
+  ];
+
+  let candidateProfileDraft = null;
+
   function render() {
     const status = Config.get() || {};
     const profile = Storage.get('profile', {});
+    candidateProfileDraft = _loadCandidateProfileDraft(profile);
     const container = document.getElementById('settings-content');
 
     container.innerHTML = `
@@ -91,6 +166,46 @@ const Settings = (() => {
           </div>
           <div style="margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="Settings.saveProfile()">Save Profile</button>
+          </div>
+        </div>
+
+        <!-- Job Search Profile -->
+        <div class="settings-section">
+          <button type="button" onclick="Settings.toggleSection('job-search-profile')"
+            style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:none;border:0;border-bottom:1px solid var(--border);padding:0 0 8px;margin-bottom:12px;color:var(--text);cursor:pointer;text-align:left">
+            <span class="settings-section-title" style="border:0;padding:0;margin:0">Job Search Profile</span>
+            <span id="job-search-profile-chevron" style="color:var(--gold);font-size:18px;line-height:1;transition:transform 0.2s ease">v</span>
+          </button>
+          <div id="job-search-profile-panel" style="display:block">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+              These tags shape the Job Leads matching profile. Type a value and press Enter.
+            </div>
+            ${PROFILE_TAG_FIELDS.map(_tagFieldHTML).join('')}
+            <div style="margin-top:18px">
+              <button type="button" onclick="Settings.toggleSection('advanced-scoring-weights')"
+                style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);cursor:pointer;text-align:left">
+                <span style="font-size:13px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em">Advanced Scoring Weights</span>
+                <span id="advanced-scoring-weights-chevron" style="color:var(--gold);font-size:16px;line-height:1;transition:transform 0.2s ease;transform:rotate(-90deg)">v</span>
+              </button>
+              <div id="advanced-scoring-weights-panel" style="display:none;border:1px solid var(--border);border-top:0;border-radius:0 0 8px 8px;padding:14px 12px">
+                ${SCORING_WEIGHT_FIELDS.map(_weightFieldHTML).join('')}
+              </div>
+            </div>
+            <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="Settings.saveJobSearchProfile()">Save Profile</button>
+              <span id="job-search-profile-error" style="font-size:12px;color:var(--danger)"></span>
+            </div>
+            <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border)">
+              <div class="settings-section-title" style="font-size:13px">Job Sources</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+                Choose which feeds the Job Leads tool may use. API keys stay in local config only.
+              </div>
+              ${JOB_SOURCE_FIELDS.map(_jobSourceFieldHTML).join('')}
+              <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <button class="btn btn-primary btn-sm" onclick="Settings.saveJobSources()">Save Sources</button>
+                <span id="job-sources-error" style="font-size:12px;color:var(--danger)"></span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -211,6 +326,7 @@ const Settings = (() => {
           </div>
         </div>
       </div>`;
+    _loadJobSearchSettings();
   }
 
   function saveProfile() {
@@ -379,6 +495,305 @@ const Settings = (() => {
     setTimeout(() => location.reload(), 1500);
   }
 
+  function toggleSection(sectionId) {
+    const panel = document.getElementById(`${sectionId}-panel`);
+    const chevron = document.getElementById(`${sectionId}-chevron`);
+    if (!panel) return;
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+  }
+
+  function handleTagKey(event, key) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const input = event.target;
+    const values = _splitTags(input.value);
+    if (!values.length) return;
+    const current = candidateProfileDraft?.[key] || [];
+    const normalized = new Set(current.map(v => v.toLowerCase()));
+    values.forEach(value => {
+      if (!normalized.has(value.toLowerCase())) {
+        current.push(value);
+        normalized.add(value.toLowerCase());
+      }
+    });
+    candidateProfileDraft[key] = current;
+    input.value = '';
+    _renderTagList(key);
+  }
+
+  function removeProfileTag(key, index) {
+    const current = candidateProfileDraft?.[key] || [];
+    current.splice(index, 1);
+    candidateProfileDraft[key] = current;
+    _renderTagList(key);
+  }
+
+  function resetScoringWeight(key) {
+    const field = SCORING_WEIGHT_FIELDS.find(item => item.key === key);
+    const input = document.getElementById(`candidate-weight-${key}`);
+    if (!field || !input) return;
+    input.value = field.defaultValue;
+  }
+
+  async function saveJobSearchProfile() {
+    const errorEl = document.getElementById('job-search-profile-error');
+    if (errorEl) errorEl.textContent = '';
+
+    const profile = _collectCandidateProfile();
+    try {
+      const response = await fetch('/api/jl/save-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) {
+        throw new Error(result.error || 'Could not save profile');
+      }
+      Storage.set('candidate_profile', profile);
+      UI.notify('Profile saved', 'success');
+    } catch (err) {
+      if (errorEl) errorEl.textContent = err.message;
+      UI.notify('Profile save failed', 'error');
+    }
+  }
+
+  async function saveJobSources() {
+    const errorEl = document.getElementById('job-sources-error');
+    if (errorEl) errorEl.textContent = '';
+
+    try {
+      const response = await fetch('/api/config/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sources: _collectJobSources() }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) {
+        throw new Error(result.error || 'Could not save sources');
+      }
+      UI.notify('Sources saved', 'success');
+    } catch (err) {
+      if (errorEl) errorEl.textContent = err.message;
+      UI.notify('Source save failed', 'error');
+    }
+  }
+
+  function toggleSourceKeyVisibility(key) {
+    const input = document.getElementById(`source-${key}-key`);
+    const button = document.getElementById(`source-${key}-show`);
+    if (!input || !button) return;
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    button.textContent = showing ? 'Show' : 'Hide';
+  }
+
+  async function _loadJobSearchSettings() {
+    const [profileResult, sourcesResult] = await Promise.allSettled([
+      fetch('/api/jl/profile').then(r => r.json().then(data => ({ ok: r.ok, data }))),
+      fetch('/api/config/sources').then(r => r.json().then(data => ({ ok: r.ok, data }))),
+    ]);
+
+    if (profileResult.status === 'fulfilled' && profileResult.value.ok && profileResult.value.data?.ok !== false) {
+      _applyCandidateProfile(profileResult.value.data.profile || {});
+    }
+    if (sourcesResult.status === 'fulfilled' && sourcesResult.value.ok && sourcesResult.value.data?.ok !== false) {
+      _applyJobSources(sourcesResult.value.data);
+    }
+  }
+
+  function _applyCandidateProfile(profile) {
+    const localProfile = Storage.get('profile', {});
+    candidateProfileDraft = _candidateProfileDraftFrom(profile, localProfile);
+    PROFILE_TAG_FIELDS.forEach(field => _renderTagList(field.key));
+    SCORING_WEIGHT_FIELDS.forEach(field => {
+      const input = document.getElementById(`candidate-weight-${field.key}`);
+      if (input) input.value = candidateProfileDraft.scoring_weights[field.key];
+    });
+  }
+
+  function _applyJobSources(payload) {
+    const sources = payload.sources || {};
+    const health = payload.health || {};
+    JOB_SOURCE_FIELDS.forEach(source => {
+      const saved = sources[source.key] || {};
+      const checkbox = document.getElementById(`source-${source.key}-enabled`);
+      const keyInput = document.getElementById(`source-${source.key}-key`);
+      const statusEl = document.getElementById(`source-${source.key}-status`);
+      if (checkbox) checkbox.checked = !!saved.enabled;
+      if (keyInput && source.requiresKey) keyInput.value = saved.api_key || '';
+      if (statusEl) statusEl.textContent = _sourceStatusText(source, health);
+    });
+  }
+
+  function _collectCandidateProfile() {
+    const profile = Storage.get('profile', {});
+    const collected = {
+      name: profile.name || DEFAULT_CONTACTS.name,
+      target_titles: [...(candidateProfileDraft?.target_roles || [])],
+      target_roles: [...(candidateProfileDraft?.target_roles || [])],
+      skills: [...(candidateProfileDraft?.skills || [])],
+      must_have_keywords: [...(candidateProfileDraft?.must_have_keywords || [])],
+      excluded_keywords: [...(candidateProfileDraft?.excluded_keywords || [])],
+      preferred_locations: [...(candidateProfileDraft?.preferred_locations || [])],
+      affinity_schools: [...(candidateProfileDraft?.affinity_schools || [])],
+      scoring_weights: {},
+    };
+    SCORING_WEIGHT_FIELDS.forEach(field => {
+      const input = document.getElementById(`candidate-weight-${field.key}`);
+      const value = Number(input?.value);
+      collected.scoring_weights[field.key] = Number.isFinite(value) ? value : field.defaultValue;
+    });
+    return collected;
+  }
+
+  function _collectJobSources() {
+    const sources = {};
+    JOB_SOURCE_FIELDS.forEach(source => {
+      sources[source.key] = {
+        enabled: !!document.getElementById(`source-${source.key}-enabled`)?.checked,
+      };
+      if (source.requiresKey) {
+        sources[source.key].api_key = document.getElementById(`source-${source.key}-key`)?.value.trim() || '';
+      }
+    });
+    return sources;
+  }
+
+  function _loadCandidateProfileDraft(profile) {
+    const saved = Storage.get('candidate_profile', {});
+    return _candidateProfileDraftFrom(saved, profile);
+  }
+
+  function _candidateProfileDraftFrom(saved, profile) {
+    const draft = {};
+    PROFILE_TAG_FIELDS.forEach(field => {
+      const savedValues = Array.isArray(saved[field.key]) ? saved[field.key] : (
+        field.key === 'target_roles' && Array.isArray(saved.target_titles) ? saved.target_titles : []
+      );
+      const profileValues = Array.isArray(profile[field.key]) ? profile[field.key] : [];
+      const defaultValues = DEFAULT_CANDIDATE_PROFILE[field.key] || [];
+      const source = savedValues.length ? savedValues : (profileValues.length ? profileValues : defaultValues);
+      draft[field.key] = [...source];
+    });
+    draft.scoring_weights = {};
+    const savedWeights = saved.scoring_weights || {};
+    SCORING_WEIGHT_FIELDS.forEach(field => {
+      const savedValue = Number(savedWeights[field.key]);
+      draft.scoring_weights[field.key] = Number.isFinite(savedValue) ? savedValue : field.defaultValue;
+    });
+    return draft;
+  }
+
+  function _tagFieldHTML(field) {
+    return `
+      <div class="setting-row" style="align-items:flex-start">
+        <span class="setting-label" style="padding-top:8px">${field.label}</span>
+        <div class="setting-control">
+          <div id="candidate-${field.key}-list" class="tag-list" style="margin-top:0">
+            ${_tagListHTML(field.key)}
+          </div>
+          <input id="candidate-${field.key}-input" type="text"
+            placeholder="${_esc(field.placeholder)}"
+            onkeydown="Settings.handleTagKey(event, '${field.key}')"
+            style="margin-top:8px">
+        </div>
+      </div>`;
+  }
+
+  function _tagListHTML(key) {
+    const values = candidateProfileDraft?.[key] || [];
+    if (!values.length) {
+      return `<span style="font-size:12px;color:var(--text-muted);font-style:italic">No tags yet</span>`;
+    }
+    return values.map((value, index) => `
+      <span class="tag">
+        <span>${_esc(value)}</span>
+        <button type="button" class="tag-remove" onclick="Settings.removeProfileTag('${key}', ${index})"
+          style="background:none;border:0;padding:0" aria-label="Remove ${_esc(value)}">&times;</button>
+      </span>`).join('');
+  }
+
+  function _weightFieldHTML(field) {
+    const value = candidateProfileDraft?.scoring_weights?.[field.key] ?? field.defaultValue;
+    return `
+      <div class="setting-row">
+        <span class="setting-label">${field.label}</span>
+        <div class="setting-control" style="display:flex;align-items:center;gap:10px">
+          <input id="candidate-weight-${field.key}" type="number" value="${_esc(value)}" style="max-width:100px">
+          <button type="button" onclick="Settings.resetScoringWeight('${field.key}')"
+            style="background:none;border:0;color:var(--gold);font-size:12px;cursor:pointer;padding:0">
+            Reset to default
+          </button>
+        </div>
+      </div>`;
+  }
+
+  function _jobSourceFieldHTML(source) {
+    const keyField = source.requiresKey ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <input id="source-${source.key}-key" type="password" placeholder="${source.key === 'adzuna' ? 'Adzuna app key' : 'API key'}"
+          autocomplete="off" style="font-family:monospace;font-size:12px">
+        <button id="source-${source.key}-show" type="button" class="btn btn-ghost btn-sm"
+          onclick="Settings.toggleSourceKeyVisibility('${source.key}')">Show</button>
+      </div>` : `
+      <div style="font-size:12px;color:var(--text-muted);margin-top:8px">No API key required</div>`;
+
+    return `
+      <div class="setting-row" style="align-items:flex-start;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
+        <span class="setting-label" style="padding-top:2px">
+          <label style="display:flex;align-items:center;gap:8px;color:var(--text)">
+            <input id="source-${source.key}-enabled" type="checkbox">
+            ${source.label}
+          </label>
+        </span>
+        <div class="setting-control">
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.45">${source.description}</div>
+          ${keyField}
+          <div id="source-${source.key}-status" style="font-size:11px;color:var(--text-muted);margin-top:8px">
+            Last run: not loaded yet
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function _sourceStatusText(source, health) {
+    const items = Array.isArray(health.sources) ? health.sources : [];
+    const match = items.find(item => {
+      const label = String(item.label || '').toLowerCase();
+      const id = String(item.id || item.source_id || item.source || '').toLowerCase();
+      return label === source.label.toLowerCase() || id === source.key.toLowerCase();
+    });
+    if (!match) {
+      return `Last run: ${health.finished_at_utc ? _formatDateTime(health.finished_at_utc) : 'not yet run'}`;
+    }
+    const status = match.status || 'unknown';
+    const count = Number.isFinite(Number(match.incoming)) ? `, ${Number(match.incoming)} found` : '';
+    const added = Number.isFinite(Number(match.added)) ? `, ${Number(match.added)} added` : '';
+    const error = match.error ? ` - ${match.error}` : '';
+    return `Last run: ${status}${count}${added}${error}`;
+  }
+
+  function _formatDateTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'not yet run';
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function _renderTagList(key) {
+    const list = document.getElementById(`candidate-${key}-list`);
+    if (list) list.innerHTML = _tagListHTML(key);
+  }
+
+  function _splitTags(value) {
+    return String(value || '')
+      .split(',')
+      .map(part => part.trim())
+      .filter(Boolean);
+  }
+
   function _todayStamp() {
     const d = new Date();
     return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
@@ -399,5 +814,23 @@ const Settings = (() => {
     return String(str || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { render, saveProfile, saveParentEmails, saveApiKey, connectDrive, disconnectDrive, exportData, chooseBackupFile, restoreBackup, resetAll };
+  return {
+    render,
+    saveProfile,
+    saveParentEmails,
+    saveApiKey,
+    connectDrive,
+    disconnectDrive,
+    exportData,
+    chooseBackupFile,
+    restoreBackup,
+    resetAll,
+    toggleSection,
+    handleTagKey,
+    removeProfileTag,
+    resetScoringWeight,
+    saveJobSearchProfile,
+    saveJobSources,
+    toggleSourceKeyVisibility,
+  };
 })();

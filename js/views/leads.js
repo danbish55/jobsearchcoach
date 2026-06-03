@@ -1,11 +1,13 @@
 /* Job Leads view */
 const JobLeads = (() => {
-  const SOURCE_IDS = ['adzuna', 'indeed', 'the_muse', 'builtin_la'];
   const SOURCE_LABELS = {
-    adzuna: 'adzuna',
-    indeed: 'indeed',
-    the_muse: 'the_muse',
-    builtin_la: 'builtin_la',
+    greenhouse: 'Greenhouse',
+    lever: 'Lever',
+    usajobs: 'USAJOBS',
+    adzuna: 'Adzuna',
+    indeed_rss: 'Indeed RSS',
+    the_muse: 'The Muse',
+    built_in_la: 'Built In LA',
   };
 
   let _leads = [];
@@ -15,6 +17,10 @@ const JobLeads = (() => {
   let _error = '';
   let _tierFilter = 'all';
   let _stateFilter = 'all';
+  let _sourceFilter = 'all';
+  let _sortKey = 'score';
+  let _sortDirection = 'desc';
+  let _lastLoadedAt = '';
   const _transitioning = new Set();
   const _actionErrors = {};
   let _activeApplyLeadId = '';
@@ -33,7 +39,7 @@ const JobLeads = (() => {
             <div class="job-leads-health">${_healthSummary()}</div>
           </div>
           <button id="job-leads-refresh-btn" class="btn btn-primary btn-sm" onclick="JobLeads.refresh()" ${_loading || _running ? 'disabled' : ''}>
-            ${_running ? 'Refreshing...' : 'Refresh Job Leads'}
+            ${_running ? 'Reloading...' : 'Reload'}
           </button>
         </div>
 
@@ -50,13 +56,19 @@ const JobLeads = (() => {
             </select>
           </label>
           <label>
-            State
+            Status
             <select id="job-leads-state-filter" onchange="JobLeads.setStateFilter(this.value)">
               ${_option('all', 'All', _stateFilter)}
               ${_option('pending_review', 'Pending', _stateFilter)}
               ${_option('approved', 'Approved', _stateFilter)}
               ${_option('rejected', 'Rejected', _stateFilter)}
               ${_option('applied', 'Applied', _stateFilter)}
+            </select>
+          </label>
+          <label>
+            Source
+            <select id="job-leads-source-filter" onchange="JobLeads.setSourceFilter(this.value)">
+              ${_sourceFilterOptionsHTML()}
             </select>
           </label>
           <div class="job-leads-count">${_filteredLeads().length} of ${_leads.length} leads</div>
@@ -83,6 +95,7 @@ const JobLeads = (() => {
       ]);
       _leads = _normalizeLeads(leads);
       _health = health;
+      _lastLoadedAt = new Date().toISOString();
     } catch (err) {
       _error = err.message || 'Unknown error';
     } finally {
@@ -125,6 +138,22 @@ const JobLeads = (() => {
     _stateFilter = value || 'all';
     _renderBodyOnly();
     _updateCount();
+  }
+
+  function setSourceFilter(value) {
+    _sourceFilter = value || 'all';
+    _renderBodyOnly();
+    _updateCount();
+  }
+
+  function setSort(key) {
+    if (_sortKey === key) {
+      _sortDirection = _sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      _sortKey = key;
+      _sortDirection = key === 'score' || key === 'posted' ? 'desc' : 'asc';
+    }
+    _renderBodyOnly();
   }
 
   function openJob(url) {
@@ -178,39 +207,58 @@ const JobLeads = (() => {
       </div>`;
     }
 
-    return `<div class="job-leads-grid">${leads.map(_leadCardHTML).join('')}</div>`;
+    return `<div class="job-leads-list" role="table" aria-label="Job leads">
+      <div class="job-leads-row job-leads-row-head" role="row">
+        ${_sortHeaderHTML('score', 'Score')}
+        ${_sortHeaderHTML('company', 'Company')}
+        ${_sortHeaderHTML('role', 'Role')}
+        ${_sortHeaderHTML('city', 'City')}
+        ${_sortHeaderHTML('level', 'Level / Type')}
+        ${_sortHeaderHTML('salary', 'Salary')}
+        ${_sortHeaderHTML('posted', 'Posted')}
+        <div>Actions / Source</div>
+      </div>
+      ${leads.map(_leadCardHTML).join('')}
+    </div>`;
   }
 
-  function _leadCardHTML(item) {
+  function _leadCardHTML(item, index) {
     const lead = item.lead || item;
     const leadId = _leadId(item);
     const score = _score(item);
     const tier = item.tier || _tierFromScore(score);
     const state = _leadState(item);
+    const source = _displaySource(lead.source || item.source || 'JL');
+    const role = lead.title || lead.role || 'Untitled role';
+    const company = lead.company || 'Unknown company';
+    const city = _cityFromLocation(lead.location);
+    const description = _truncate(_plainText(lead.description), 190);
     return `
-      <article class="card job-lead-card" data-lead-id="${_escAttr(leadId)}">
-        <div class="job-lead-top">
+      <article class="card job-lead-card job-leads-row ${index % 2 ? 'alternate' : ''}" data-lead-id="${_escAttr(leadId)}" role="row">
+        <div class="job-lead-score-cell" role="cell">
           <span class="job-lead-score ${_tierClass(tier)}">${score}</span>
           <span class="job-lead-pill ${_stateClass(state)}">${_stateLabel(state)}</span>
         </div>
-        <div class="job-lead-company">${_esc(lead.company || 'Unknown company')}</div>
-        <div class="job-lead-role">${_esc(lead.title || lead.role || 'Untitled role')}</div>
-        <div class="job-lead-meta">
-          <span>${lead.location ? _esc(lead.location) : '&mdash;'}</span>
-          <span>${_esc(lead.source || item.source || 'source')}</span>
+        <div class="job-lead-company" role="cell">${_esc(company)}</div>
+        <div class="job-lead-role-cell" role="cell">
+          <div class="job-lead-role">${_esc(role)}</div>
+          <div class="job-lead-description">${description ? _esc(description) : _esc(source)}</div>
         </div>
-        <div class="job-lead-detail-row">
-          <span>Salary</span><strong>${lead.salary ? _esc(lead.salary) : '&mdash;'}</strong>
+        <div class="job-lead-city" role="cell">${city ? _esc(city) : '&mdash;'}</div>
+        <div class="job-lead-level" role="cell">
+          <div><strong>Level:</strong> ${_esc(_displayLevel(lead))}</div>
+          <div><strong>Type:</strong> ${_esc(_displayJobType(lead))}</div>
         </div>
-        <div class="job-lead-detail-row">
-          <span>Posted</span><strong>${lead.posted_at ? _esc(_formatDate(lead.posted_at)) : '&mdash;'}</strong>
+        <div class="job-lead-salary" role="cell">${_salaryHTML(lead.salary)}</div>
+        <div class="job-lead-posted" role="cell">${lead.posted_at ? _esc(_formatDate(lead.posted_at)) : '&mdash;'}</div>
+        <div class="job-lead-actions-cell" role="cell">
+          <div class="job-lead-actions">
+            <button class="btn btn-primary btn-sm" onclick="JobLeads.openJob('${_escAttr(lead.url || '')}')" ${lead.url ? '' : 'disabled'}>Open Job</button>
+            ${_reviewActionsHTML(item)}
+            <button class="btn btn-sm job-lead-source-btn" type="button" aria-label="Source: ${_escAttr(source)}">${_esc(source)}</button>
+          </div>
+          ${_actionErrors[leadId] ? `<div class="job-lead-inline-error">${_esc(_actionErrors[leadId])}</div>` : ''}
         </div>
-        <div class="job-lead-actions">
-          <button class="btn btn-primary btn-sm" onclick="JobLeads.openJob('${_escAttr(lead.url || '')}')" ${lead.url ? '' : 'disabled'}>Open Job</button>
-          <span class="job-lead-source-tag">${_esc(lead.source || item.source || 'JL')}</span>
-        </div>
-        ${_reviewActionsHTML(item)}
-        ${_actionErrors[leadId] ? `<div class="job-lead-inline-error">${_esc(_actionErrors[leadId])}</div>` : ''}
       </article>`;
   }
 
@@ -244,21 +292,113 @@ const JobLeads = (() => {
     return '';
   }
 
+  function _salaryHTML(value) {
+    const text = String(value || '').trim();
+    if (!text) return '&mdash;';
+    const range = _splitSalaryRange(text);
+    if (!range) return _esc(text);
+    return `<span class="job-lead-salary-range"><span>${_esc(range[0])}</span><span>${_esc(range[1])}</span></span>`;
+  }
+
+  function _splitSalaryRange(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^(.+?)\s*(?:—|–|-|\bto\b)\s*(.+)$/i);
+    if (!match) return null;
+    const low = match[1].trim();
+    const high = match[2].trim();
+    if (!low || !high) return null;
+    return [low, high];
+  }
+
+  function _sortHeaderHTML(key, label) {
+    const active = _sortKey === key;
+    const arrow = !active ? '' : _sortDirection === 'asc' ? ' ↑' : ' ↓';
+    return `<button class="job-leads-sort-header ${active ? 'active' : ''}" type="button" onclick="JobLeads.setSort('${_escAttr(key)}')" aria-label="Sort by ${_escAttr(label)}">${_esc(label)}${arrow}</button>`;
+  }
+
+  function _sortLeads(leads) {
+    const sorted = [...leads];
+    sorted.sort((a, b) => {
+      const aValue = _sortValue(a, _sortKey);
+      const bValue = _sortValue(b, _sortKey);
+      let result = 0;
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        result = aValue - bValue;
+      } else {
+        result = String(aValue || '').localeCompare(String(bValue || ''), undefined, { sensitivity: 'base', numeric: true });
+      }
+      if (result === 0 && _sortKey !== 'score') {
+        result = _score(a) - _score(b);
+      }
+      return _sortDirection === 'asc' ? result : -result;
+    });
+    return sorted;
+  }
+
+  function _sortValue(item, key) {
+    const lead = item.lead || item;
+    if (key === 'score') return _score(item);
+    if (key === 'company') return lead.company || '';
+    if (key === 'role') return lead.title || lead.role || '';
+    if (key === 'city') return _cityFromLocation(lead.location);
+    if (key === 'level') return `${_displayLevel(lead)} ${_displayJobType(lead)}`;
+    if (key === 'salary') return lead.salary || '';
+    if (key === 'posted') {
+      const value = Date.parse(lead.posted_at || '');
+      return Number.isFinite(value) ? value : 0;
+    }
+    return '';
+  }
+
   function _filteredLeads() {
-    return _leads
+    const filtered = _leads
       .filter(item => _tierFilter === 'all' || (item.tier || _tierFromScore(_score(item))) === _tierFilter)
       .filter(item => {
-        const lead = item.lead || item;
         const state = _leadState(item);
         return _stateFilter === 'all' || state === _stateFilter;
+      })
+      .filter(item => {
+        if (_sourceFilter === 'all') return true;
+        return _sourceFilterKey(item) === _sourceFilter;
       });
+    return _sortLeads(filtered);
+  }
+
+  function _sourceFilterOptionsHTML() {
+    const options = _activeSourceOptions();
+    if (_sourceFilter !== 'all' && !options.some(option => option.key === _sourceFilter)) {
+      _sourceFilter = 'all';
+    }
+    return [
+      _option('all', 'All Sources', _sourceFilter),
+      ...options.map(option => _option(option.key, option.label, _sourceFilter)),
+    ].join('');
+  }
+
+  function _activeSourceOptions() {
+    const sources = new Map();
+    _leads.forEach(item => {
+      const key = _sourceFilterKey(item);
+      if (!key || sources.has(key)) return;
+      const lead = item.lead || item;
+      sources.set(key, _displaySource(lead.source || item.source || 'JL'));
+    });
+    return [...sources.entries()]
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+  }
+
+  function _sourceFilterKey(item) {
+    const lead = item.lead || item;
+    return String(lead.source || item.source || 'JL')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
   }
 
   function _normalizeLeads(payload) {
     const rows = Array.isArray(payload) ? payload : [];
-    return rows
-      .map(item => ({ ...item, score: _score(item), tier: item.tier || _tierFromScore(_score(item)) }))
-      .sort((a, b) => _score(b) - _score(a));
+    return rows.map(item => ({ ...item, score: _score(item), tier: item.tier || _tierFromScore(_score(item)) }));
   }
 
   async function _fetchJSON(url, options = {}) {
@@ -315,6 +455,15 @@ const JobLeads = (() => {
             <button class="btn btn-gold btn-sm" onclick="JobLeads.draftCoverLetter()">Draft Cover Letter</button>
           </div>
           <p class="job-lead-apply-note">Profile info copied to clipboard &#10003;</p>
+          <div class="job-lead-apply-instructions">
+            <strong>Suggested application flow:</strong>
+            <ol>
+              <li>Draft the cover letter here and save a copy if you want to keep it.</li>
+              <li>Open the job posting, then follow the employer's application steps.</li>
+              <li>Select the best resume from the resume folder and paste the cover letter if the form asks for one.</li>
+              <li>Submit on the job site first, then come back here and click "Yes, I Applied."</li>
+            </ol>
+          </div>
         </section>
 
         <section id="job-lead-cover-letter-section" class="job-lead-apply-section hidden">
@@ -341,6 +490,7 @@ const JobLeads = (() => {
         { id: 'close', label: 'Not Yet - Close', class: 'btn-ghost', action: () => closeApplyModal(true) },
       ]
     );
+    document.querySelector('#active-modal .modal')?.classList.add('job-lead-apply-shell');
   }
 
   async function openResumeFolder() {
@@ -666,24 +816,50 @@ Description: ${lead.description || ''}`;
 
   function _healthSummary() {
     const timestamp = _health?.finished_at_utc || _health?.updated_at || _health?.last_updated || null;
-    const sources = _sourceHealthItems();
-    return `Last updated: ${timestamp ? _formatDateTime(timestamp) : 'not yet run'} | ${_leads.length} leads | Sources: ${sources}`;
+    return `<div class="job-leads-health-meta">Last updated: ${timestamp ? _formatDateTime(timestamp) : 'not yet run'} | ${_leads.length} leads</div>`;
   }
 
-  function _sourceHealthItems() {
-    const sourceRows = Array.isArray(_health?.sources) ? _health.sources : [];
-    return SOURCE_IDS.map(id => {
-      const row = sourceRows.find(item => _sourceKey(item) === id);
-      const ok = !!row && row.status !== 'error' && Number(row.incoming || row.added || 0) > 0;
-      return `<span class="${ok ? 'job-leads-source-ok' : 'job-leads-source-bad'}">${SOURCE_LABELS[id]} ${ok ? '&#10003;' : '&#10005;'}</span>`;
-    }).join(' ');
+  function _jlConnectionHTML() {
+    const timestamp = _health?.finished_at_utc || _health?.updated_at || _health?.last_updated || _lastLoadedAt || null;
+    const connected = !_error && !_loading && !_running && _leads.length > 0;
+    return `<div class="job-leads-connection ${connected ? 'connected' : ''}">
+      <div>
+        <strong>${connected ? 'Live JL feed connected' : 'JL feed status'}</strong>
+        <span>${connected ? `${_leads.length} scored leads loaded from JobLeadsTool.` : 'Reload leads to pull the latest scored output.'}</span>
+      </div>
+      <div class="job-leads-connection-meta">${timestamp ? `Last JL run: ${_formatDateTime(timestamp)}` : 'No JL run timestamp yet'}</div>
+    </div>`;
   }
 
-  function _sourceKey(item) {
-    return String(item?.source_id || item?.id || item?.source || item?.label || '')
+  function _displaySource(value) {
+    const key = String(value || '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '');
+    return SOURCE_LABELS[key] || String(value || 'JL').replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  function _displayLevel(lead) {
+    const explicit = String(lead?.level || '').trim();
+    if (explicit) return explicit;
+    const title = String(lead?.title || lead?.role || '').toLowerCase();
+    if (/(intern|internship)/.test(title)) return 'Internship';
+    if (/(entry level|early career|new grad|graduate|junior|jr\.)/.test(title)) return 'Entry Level';
+    if (/(associate|coordinator)/.test(title)) return 'Associate';
+    return 'Not listed';
+  }
+
+  function _displayJobType(lead) {
+    const explicit = String(lead?.job_type || '').trim();
+    if (explicit) return explicit;
+    const title = String(lead?.title || lead?.role || '').toLowerCase();
+    const location = String(lead?.location || '').toLowerCase();
+    const types = [];
+    if (/(intern|internship)/.test(title)) types.push('Internship');
+    if (/(contract|contractor|temporary)/.test(title)) types.push('Contract');
+    if (/remote|flexible \/ remote/.test(location)) types.push('Remote');
+    else if (location) types.push('On-site');
+    return types.length ? types.join(' / ') : 'Not listed';
   }
 
   function _renderBodyOnly() {
@@ -755,6 +931,27 @@ Description: ${lead.description || ''}`;
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
+  function _cityFromLocation(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return text.split(',')[0].trim() || text;
+  }
+
+  function _plainText(value) {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = String(value || '');
+    return textarea.value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function _truncate(value, maxLength) {
+    const text = String(value || '').trim();
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+  }
+
   function _ensureStyles() {
     if (document.getElementById('job-leads-style')) return;
     const style = document.createElement('style');
@@ -762,61 +959,147 @@ Description: ${lead.description || ''}`;
     style.textContent = `
       .job-leads-page { display:flex; flex-direction:column; gap:16px; }
       .job-leads-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
-      .job-leads-health { margin-top:8px; color:var(--text-muted); font-size:12px; line-height:1.5; }
-      .job-leads-source-ok { color:var(--success); margin-right:8px; white-space:nowrap; }
-      .job-leads-source-bad { color:var(--danger); margin-right:8px; white-space:nowrap; }
+      .job-leads-health { margin-top:8px; color:var(--text-muted); font-size:14px; line-height:1.5; }
+      .job-leads-health-meta { margin-bottom:5px; }
       .job-leads-filter-row { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
-      .job-leads-filter-row label { display:flex; flex-direction:column; gap:4px; color:var(--text-muted); font-size:12px; font-weight:700; }
+      .job-leads-filter-row label { display:flex; flex-direction:column; gap:4px; color:var(--text-muted); font-size:14px; font-weight:700; }
       .job-leads-filter-row select { min-width:130px; }
-      .job-leads-count { margin-left:auto; color:var(--text-muted); font-size:13px; padding-bottom:8px; }
+      .job-leads-count { margin-left:auto; color:var(--text-muted); font-size:15px; padding-bottom:8px; }
       .job-leads-pending-apply-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; border:1px solid rgba(184,137,29,0.5); border-radius:8px; background:rgba(184,137,29,0.12); color:var(--text); }
       .job-leads-pending-apply-banner strong { display:block; margin-bottom:3px; }
-      .job-leads-pending-apply-status { margin-top:5px; font-size:12px; color:var(--text-muted); }
+      .job-leads-pending-apply-status { margin-top:5px; font-size:14px; color:var(--text-muted); }
       .job-leads-pending-apply-status.success { color:var(--success); }
       .job-leads-pending-apply-status.error { color:var(--danger); }
-      .job-leads-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
-      .job-lead-card { display:flex; flex-direction:column; gap:10px; min-height:230px; }
-      .job-lead-top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+      .job-leads-connection { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.03); color:var(--text); }
+      body.light .job-leads-connection { background:rgba(255,255,255,0.72); }
+      .job-leads-connection.connected { border-color:rgba(34,197,94,0.35); background:rgba(34,197,94,0.08); }
+      .job-leads-connection strong { display:block; color:var(--text); font-size:15px; margin-bottom:2px; }
+      .job-leads-connection span { color:var(--text-muted); font-size:14px; }
+      .job-leads-connection-meta { color:var(--text-muted); font-size:14px; white-space:nowrap; }
+      .job-leads-list { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.025); }
+      body.light .job-leads-list { background:rgba(255,255,255,0.72); }
+      .job-leads-row { display:grid; grid-template-columns:70px minmax(125px,0.95fr) minmax(240px,1.55fr) minmax(95px,0.7fr) minmax(92px,0.68fr) minmax(84px,0.62fr) minmax(82px,0.58fr) minmax(188px,210px); gap:12px; align-items:center; }
+      .job-leads-row-head { padding:10px 14px; color:var(--text-muted); font-size:12px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; background:rgba(0,0,0,0.16); border-bottom:1px solid var(--border); }
+      body.light .job-leads-row-head { background:rgba(61,75,90,0.08); }
+      .job-leads-sort-header { appearance:none; border:0; background:transparent; color:inherit; font:inherit; letter-spacing:inherit; text-transform:inherit; text-align:left; padding:0; cursor:pointer; }
+      .job-leads-sort-header:hover, .job-leads-sort-header.active { color:var(--gold); }
+      .job-lead-card { border:0; border-radius:0; box-shadow:none; padding:13px 14px; min-height:0; border-bottom:1px solid var(--border); background:rgba(255,255,255,0.018); }
+      .job-lead-card:last-child { border-bottom:0; }
+      .job-lead-card.alternate { background:rgba(255,255,255,0.045); }
+      body.light .job-lead-card { background:rgba(255,255,255,0.62); }
+      body.light .job-lead-card.alternate { background:rgba(61,75,90,0.045); }
+      .job-lead-score-cell { display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
       .job-lead-score { display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:30px; border-radius:999px; font-weight:900; color:#fff; }
       .job-lead-score.tier-one { background:var(--success); }
       .job-lead-score.tier-two { background:#b8891d; }
       .job-lead-score.tier-three { background:#6b7280; }
-      .job-lead-pill { border-radius:999px; padding:4px 8px; font-size:11px; font-weight:800; text-transform:uppercase; }
+      .job-lead-pill { border-radius:999px; padding:4px 8px; font-size:12px; font-weight:800; text-transform:uppercase; }
       .state-pending-review { background:rgba(59,130,246,0.18); color:#60a5fa; }
       .state-approved { background:rgba(34,197,94,0.18); color:var(--success); }
       .state-rejected { background:rgba(239,68,68,0.18); color:var(--danger); }
       .state-applied { background:rgba(168,85,247,0.18); color:#c084fc; }
-      .job-lead-company { font-size:17px; font-weight:900; color:var(--text); }
-      .job-lead-role { color:var(--text); line-height:1.35; }
-      .job-lead-meta { display:flex; justify-content:space-between; gap:8px; color:var(--text-muted); font-size:12px; }
-      .job-lead-detail-row { display:flex; justify-content:space-between; gap:10px; color:var(--text-muted); font-size:12px; border-top:1px solid var(--border); padding-top:8px; }
+      .job-lead-company { font-size:19px; font-weight:900; color:var(--text); line-height:1.22; }
+      .job-lead-role-cell { min-width:0; }
+      .job-lead-role { color:var(--text); line-height:1.38; font-size:16px; }
+      .job-lead-description { color:var(--text-muted); font-size:14px; line-height:1.35; margin-top:4px; }
+      .job-lead-meta { display:flex; justify-content:space-between; gap:8px; color:var(--text-muted); font-size:14px; }
+      .job-lead-detail-row { display:flex; justify-content:space-between; gap:10px; color:var(--text-muted); font-size:14px; border-top:1px solid var(--border); padding-top:8px; }
       .job-lead-detail-row strong { color:var(--text); text-align:right; }
-      .job-lead-actions { margin-top:auto; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+      .job-lead-city, .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text); font-size:14px; line-height:1.35; }
+      .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text-muted); }
+      .job-lead-level strong { color:var(--text); font-weight:800; }
+      .job-lead-salary-range { display:inline-flex; flex-direction:column; gap:2px; line-height:1.25; }
+      .job-lead-actions-cell { min-width:0; justify-self:end; width:min(100%, 210px); }
+      .job-lead-actions { display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap; }
       .job-lead-review-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .job-lead-actions .btn { max-width:116px; }
       .job-lead-approve-btn { background:var(--success); border-color:var(--success); color:#fff; }
       .job-lead-reject-btn { background:var(--danger); border-color:var(--danger); color:#fff; }
       .job-lead-apply-btn { background:var(--gold); border-color:var(--gold); color:#111827; }
-      .job-lead-inline-error { color:var(--danger); font-size:12px; line-height:1.35; border-top:1px solid var(--border); padding-top:8px; }
-      .job-lead-apply-modal { display:flex; flex-direction:column; gap:16px; min-width:min(560px, calc(100vw - 56px)); }
+      .job-lead-source-btn { background:#d97706; border-color:#d97706; color:#fff; cursor:default; max-width:116px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .job-lead-source-btn:hover { background:#d97706; border-color:#d97706; color:#fff; }
+      .job-lead-inline-error { color:var(--danger); font-size:14px; line-height:1.35; margin-top:8px; text-align:right; }
+      .job-lead-apply-shell { width:min(920px, calc(100vw - 56px)); max-width:min(920px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
+      .job-lead-apply-shell .modal-title { flex-shrink:0; }
+      .job-lead-apply-shell .modal-body { min-height:0; overflow-y:auto; padding-right:8px; }
+      .job-lead-apply-shell .modal-footer { flex-shrink:0; }
+      .job-lead-apply-modal { display:flex; flex-direction:column; gap:16px; width:100%; min-width:0; }
       .job-lead-apply-section { border:1px solid var(--border); border-radius:8px; padding:14px; background:rgba(255,255,255,0.03); }
       body.light .job-lead-apply-section { background:rgba(255,255,255,0.72); }
-      .job-lead-apply-section-title { color:var(--gold); font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
+      .job-lead-apply-section-title { color:var(--gold); font-size:14px; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
       .job-lead-apply-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
       .job-lead-apply-note { margin:10px 0 0; color:var(--text); line-height:1.5; }
-      .job-lead-apply-status { min-height:18px; margin-top:10px; color:var(--text-muted); font-size:13px; line-height:1.45; }
+      .job-lead-apply-instructions { margin-top:12px; color:var(--text); line-height:1.5; font-size:15px; }
+      .job-lead-apply-instructions strong { color:var(--gold); }
+      .job-lead-apply-instructions ol { margin:8px 0 0 20px; padding:0; }
+      .job-lead-apply-instructions li { margin:4px 0; }
+      .job-lead-apply-status { min-height:18px; margin-top:10px; color:var(--text-muted); font-size:15px; line-height:1.45; }
       .job-lead-apply-status.success { color:var(--success); }
       .job-lead-apply-status.error { color:var(--danger); }
       .job-lead-cover-loading { display:flex; align-items:center; gap:10px; color:var(--text-muted); margin-bottom:10px; }
-      .job-lead-cover-text { width:100%; min-height:180px; resize:vertical; margin-bottom:10px; }
+      .job-lead-cover-text { width:100%; box-sizing:border-box; min-height:320px; max-height:calc(100vh - 360px); overflow:auto; resize:vertical; margin-bottom:10px; white-space:pre-wrap; }
       .hidden { display:none !important; }
-      .job-lead-source-tag { color:var(--gold); font-size:11px; font-weight:800; text-transform:uppercase; }
       .job-leads-loading, .job-leads-error { display:flex; align-items:center; justify-content:center; min-height:180px; gap:12px; text-align:center; }
       .job-leads-error { flex-direction:column; color:var(--text); }
       .job-leads-spinner { width:24px; height:24px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--gold); animation:jobLeadsSpin 0.8s linear infinite; }
       @keyframes jobLeadsSpin { to { transform:rotate(360deg); } }
+      @media (max-width:1180px) {
+        .job-leads-row-head { display:none; }
+        .job-lead-card.job-leads-row {
+          grid-template-columns:70px minmax(130px,0.9fr) minmax(250px,1.5fr) minmax(205px,1fr);
+          grid-template-areas:
+            "score company role actions"
+            "score city role actions"
+            "score level salary actions"
+            "score posted posted actions";
+          gap:8px 12px;
+          align-items:start;
+          padding:12px 14px;
+        }
+        .job-lead-score-cell { grid-area:score; }
+        .job-lead-company { grid-area:company; min-width:0; font-size:18px; }
+        .job-lead-role-cell { grid-area:role; }
+        .job-lead-city { grid-area:city; }
+        .job-lead-level { grid-area:level; }
+        .job-lead-salary { grid-area:salary; }
+        .job-lead-posted { grid-area:posted; }
+        .job-lead-actions-cell { grid-area:actions; justify-self:end; width:124px; }
+        .job-lead-city::before { content:"City: "; color:var(--text-muted); font-weight:800; }
+        .job-lead-salary::before { content:"Salary: "; color:var(--text-muted); font-weight:800; }
+        .job-lead-posted::before { content:"Posted: "; color:var(--text-muted); font-weight:800; }
+        .job-lead-actions { justify-content:flex-end; align-items:flex-end; flex-direction:column; }
+        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:116px; }
+        .job-lead-review-actions { flex-direction:column; align-items:flex-end; }
+      }
+      @media (max-width:980px) {
+        .job-lead-card.job-leads-row {
+          grid-template-columns:66px minmax(0,1fr);
+          grid-template-areas:
+            "score company"
+            "score role"
+            "score city"
+            "score level"
+            "score salary"
+            "score posted"
+            "actions actions";
+        }
+        .job-lead-actions-cell { justify-self:start; width:auto; max-width:100%; }
+        .job-lead-actions { justify-content:flex-start; align-items:center; flex-direction:row; }
+        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:116px; }
+        .job-lead-review-actions { flex-direction:row; align-items:center; }
+      }
       @media (max-width:760px) {
         .job-leads-header { flex-direction:column; }
         .job-leads-count { margin-left:0; }
+        .job-leads-connection { flex-direction:column; align-items:flex-start; }
+        .job-leads-connection-meta { white-space:normal; }
+        .job-leads-row-head { display:none; }
+        .job-lead-card.job-leads-row { grid-template-columns:1fr; grid-template-areas:"score" "company" "role" "city" "level" "salary" "posted" "actions"; gap:9px; }
+        .job-lead-card { padding:14px; }
+        .job-lead-score-cell { flex-direction:row; align-items:center; }
+        .job-lead-actions-cell { justify-self:start; width:auto; }
+        .job-lead-actions { justify-content:flex-start; }
+        .job-lead-inline-error { text-align:left; }
       }
     `;
     document.head.appendChild(style);
@@ -840,6 +1123,8 @@ Description: ${lead.description || ''}`;
     refresh,
     setTierFilter,
     setStateFilter,
+    setSourceFilter,
+    setSort,
     openJob,
     applyLead,
     openResumeFolder,
