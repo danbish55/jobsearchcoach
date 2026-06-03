@@ -8,6 +8,38 @@ const JobLeads = (() => {
     indeed_rss: 'Indeed RSS',
     the_muse: 'The Muse',
     built_in_la: 'Built In LA',
+    manual: 'Added Manually',
+  };
+  const STATE_ABBREVIATIONS = {
+    alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA',
+    colorado: 'CO', connecticut: 'CT', delaware: 'DE', florida: 'FL', georgia: 'GA',
+    hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA',
+    kansas: 'KS', kentucky: 'KY', louisiana: 'LA', maine: 'ME', maryland: 'MD',
+    massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS',
+    missouri: 'MO', montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH',
+    'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC',
+    'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA',
+    'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN',
+    texas: 'TX', utah: 'UT', vermont: 'VT', virginia: 'VA', washington: 'WA',
+    'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY', 'district of columbia': 'DC',
+  };
+  const COUNTY_STATE_HINTS = {
+    'los angeles county': 'CA',
+    'orange county': 'CA',
+    'san diego county': 'CA',
+    'riverside county': 'CA',
+    'ventura county': 'CA',
+    'tarrant county': 'TX',
+    'dallas county': 'TX',
+    'travis county': 'TX',
+    'king county': 'WA',
+    'pierce county': 'WA',
+    'multnomah county': 'OR',
+    'washington county': 'OR',
+    'denver county': 'CO',
+    'boulder county': 'CO',
+    'salt lake county': 'UT',
+    'clark county': 'NV',
   };
 
   let _leads = [];
@@ -40,6 +72,9 @@ const JobLeads = (() => {
           </div>
           <button id="job-leads-refresh-btn" class="btn btn-primary btn-sm" onclick="JobLeads.refresh()" ${_loading || _running ? 'disabled' : ''}>
             ${_running ? 'Reloading...' : 'Reload'}
+          </button>
+          <button class="btn btn-primary btn-sm job-leads-manual-btn" onclick="JobLeads.openManualJobModal()" ${_loading || _running ? 'disabled' : ''}>
+            ＋ Add Job Manually
           </button>
         </div>
 
@@ -161,6 +196,90 @@ const JobLeads = (() => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  function openManualJobModal() {
+    const body = `
+      <div class="job-lead-manual-modal">
+        <div class="job-lead-manual-tip">
+          Tip: Have the job posting open in your browser. Paste the URL above and click Submit — we'll try to fetch it automatically. If you see an error, just copy everything on the job page and paste it into the Job Description box below.
+        </div>
+        <div id="job-lead-manual-error" class="job-lead-manual-error hidden"></div>
+        <label class="job-lead-manual-field">
+          <span>Job Posting URL</span>
+          <input id="manual-job-url" type="url" placeholder="Paste the URL from your browser address bar">
+        </label>
+        <label class="job-lead-manual-field">
+          <span>Job Description (paste if URL doesn't work)</span>
+          <textarea id="manual-job-raw-text" rows="8" placeholder="If the page couldn't be fetched automatically, paste the full job description text here including title, company, location, and requirements"></textarea>
+        </label>
+        <label class="job-lead-manual-field">
+          <span>Job Title <em>(optional override)</em></span>
+          <input id="manual-job-title" type="text">
+        </label>
+        <label class="job-lead-manual-field">
+          <span>Company Name <em>(optional override)</em></span>
+          <input id="manual-job-company" type="text">
+        </label>
+        <label class="job-lead-manual-field">
+          <span>Location <em>(optional override)</em></span>
+          <input id="manual-job-location" type="text">
+        </label>
+      </div>`;
+    UI.showModal('Add Job Manually', body, [
+      { id: 'submit-manual-job', label: 'Submit', class: 'btn-primary', close: false, action: () => submitManualJob() },
+      { id: 'cancel-manual-job', label: 'Cancel', class: 'btn-ghost' },
+    ]);
+    document.querySelector('#active-modal .modal')?.classList.add('job-lead-manual-shell');
+  }
+
+  async function submitManualJob() {
+    const button = document.getElementById('modal-btn-submit-manual-job');
+    const error = document.getElementById('job-lead-manual-error');
+    const payload = {
+      url: document.getElementById('manual-job-url')?.value?.trim() || '',
+      raw_text: document.getElementById('manual-job-raw-text')?.value?.trim() || '',
+      title: document.getElementById('manual-job-title')?.value?.trim() || '',
+      company: document.getElementById('manual-job-company')?.value?.trim() || '',
+      location: document.getElementById('manual-job-location')?.value?.trim() || '',
+    };
+    if (error) {
+      error.textContent = '';
+      error.classList.add('hidden');
+    }
+    if (!payload.url && !payload.raw_text) {
+      _setManualJobError('Paste a job URL or paste the job description text.');
+      return;
+    }
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Submitting...';
+    }
+    try {
+      const result = await _fetchJSON('/api/jl/add-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (result.success === false) throw new Error(result.error || 'Could not add manual job.');
+      UI.closeModal();
+      await load();
+      UI.notify('Manual job added to leads.', 'success');
+    } catch (err) {
+      _setManualJobError(err.message || 'Could not add manual job.');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Submit';
+      }
+    }
+  }
+
+  function _setManualJobError(message) {
+    const error = document.getElementById('job-lead-manual-error');
+    if (!error) return;
+    error.textContent = `${message} You can keep this window open, paste the posting text below, and click Submit again.`;
+    error.classList.remove('hidden');
+  }
+
   async function applyLead(leadId) {
     const item = _leads.find(candidate => _leadId(candidate) === leadId);
     if (!item) return;
@@ -188,7 +307,7 @@ const JobLeads = (() => {
     if (_loading || _running) {
       return `<div class="card job-leads-loading">
         <div class="job-leads-spinner"></div>
-        <div>${_running ? 'Running JobLeadsTool cycle...' : 'Loading job leads...'}</div>
+        <div>${_running ? 'Running JobLeadsTool cycle... Please be patient - this takes a while.' : 'Loading job leads...'}</div>
       </div>`;
     }
 
@@ -212,7 +331,7 @@ const JobLeads = (() => {
         ${_sortHeaderHTML('score', 'Score')}
         ${_sortHeaderHTML('company', 'Company')}
         ${_sortHeaderHTML('role', 'Role')}
-        ${_sortHeaderHTML('city', 'City')}
+        ${_sortHeaderHTML('city', 'City/ST')}
         ${_sortHeaderHTML('level', 'Level / Type')}
         ${_sortHeaderHTML('salary', 'Salary')}
         ${_sortHeaderHTML('posted', 'Posted')}
@@ -236,7 +355,10 @@ const JobLeads = (() => {
     return `
       <article class="card job-lead-card job-leads-row ${index % 2 ? 'alternate' : ''}" data-lead-id="${_escAttr(leadId)}" role="row">
         <div class="job-lead-score-cell" role="cell">
-          <span class="job-lead-score ${_tierClass(tier)}">${score}</span>
+          <div class="job-lead-score-row">
+            <span class="job-lead-score ${_tierClass(tier)}">${score}</span>
+            ${_redFlagHTML(item)}
+          </div>
           <span class="job-lead-pill ${_stateClass(state)}">${_stateLabel(state)}</span>
         </div>
         <div class="job-lead-company" role="cell">${_esc(company)}</div>
@@ -292,12 +414,34 @@ const JobLeads = (() => {
     return '';
   }
 
+  function _redFlagHTML(item) {
+    const flags = Array.isArray(item?.red_flags) ? item.red_flags : [];
+    if (!flags.length) return '';
+    const reasons = flags.map(_redFlagReason).filter(Boolean);
+    if (!reasons.length) return '';
+    const title = reasons.join('\n');
+    return `<span class="job-lead-red-flag" tabindex="0" role="img" aria-label="${_escAttr(title)}">
+      <span aria-hidden="true">🚩</span>
+      <span class="job-lead-red-flag-tooltip">${reasons.map(reason => `<span>${_esc(reason)}</span>`).join('')}</span>
+    </span>`;
+  }
+
+  function _redFlagReason(flag) {
+    const reasons = {
+      staffing_agency: 'Posted by a staffing agency or body shop — you may not be hired directly by the end employer.',
+      cth_intermediary: 'Contract-to-hire through a third party — conversion to full-time is not guaranteed and may take 12+ months.',
+      low_hourly_rate: 'Hourly rate detected that annualizes below $100K — verify total compensation before applying.',
+      vague_conversion: 'Posting uses vague conversion language — ask for a written conversion timeline before accepting.',
+    };
+    return reasons[flag] || '';
+  }
+
   function _salaryHTML(value) {
     const text = String(value || '').trim();
     if (!text) return '&mdash;';
     const range = _splitSalaryRange(text);
-    if (!range) return _esc(text);
-    return `<span class="job-lead-salary-range"><span>${_esc(range[0])}</span><span>${_esc(range[1])}</span></span>`;
+    if (!range) return _esc(_formatSalaryValue(text));
+    return `<span class="job-lead-salary-range"><span>${_esc(_formatSalaryValue(range[0]))} -</span><span>${_esc(_formatSalaryValue(range[1]))}</span></span>`;
   }
 
   function _splitSalaryRange(value) {
@@ -308,6 +452,20 @@ const JobLeads = (() => {
     const high = match[2].trim();
     if (!low || !high) return null;
     return [low, high];
+  }
+
+  function _formatSalaryValue(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const cleaned = text.replace(/,/g, '');
+    const match = cleaned.match(/\$?\s*(\d+(?:\.\d+)?)(k)?/i);
+    if (!match) return text;
+    const rawNumber = Number(match[1]);
+    if (!Number.isFinite(rawNumber)) return text;
+    const amount = match[2] ? rawNumber * 1000 : rawNumber;
+    if (amount < 1000) return text;
+    const formatted = `$${Math.round(amount).toLocaleString('en-US')}`;
+    return text.replace(match[0], formatted);
   }
 
   function _sortHeaderHTML(key, label) {
@@ -934,7 +1092,22 @@ Description: ${lead.description || ''}`;
   function _cityFromLocation(value) {
     const text = String(value || '').trim();
     if (!text) return '';
-    return text.split(',')[0].trim() || text;
+    if (/^(remote|hybrid|flexible \/ remote|united states)$/i.test(text)) return text;
+    const parts = text.split(',').map(part => part.trim()).filter(Boolean);
+    const city = parts[0] || text;
+    const state = _stateAbbreviationFromLocationParts(parts);
+    return state ? `${city}, ${state}` : city;
+  }
+
+  function _stateAbbreviationFromLocationParts(parts) {
+    for (let index = 1; index < parts.length; index += 1) {
+      const part = parts[index].replace(/\b(united states|usa|us)\b/ig, '').trim();
+      if (/^[A-Z]{2}$/.test(part)) return part;
+      const normalized = part.toLowerCase();
+      if (STATE_ABBREVIATIONS[normalized]) return STATE_ABBREVIATIONS[normalized];
+      if (COUNTY_STATE_HINTS[normalized]) return COUNTY_STATE_HINTS[normalized];
+    }
+    return '';
   }
 
   function _plainText(value) {
@@ -959,6 +1132,8 @@ Description: ${lead.description || ''}`;
     style.textContent = `
       .job-leads-page { display:flex; flex-direction:column; gap:16px; }
       .job-leads-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+      .job-leads-header > button { margin-left:8px; }
+      .job-leads-header > button + button { margin-left:0; }
       .job-leads-health { margin-top:8px; color:var(--text-muted); font-size:14px; line-height:1.5; }
       .job-leads-health-meta { margin-bottom:5px; }
       .job-leads-filter-row { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
@@ -989,10 +1164,17 @@ Description: ${lead.description || ''}`;
       body.light .job-lead-card { background:rgba(255,255,255,0.62); }
       body.light .job-lead-card.alternate { background:rgba(61,75,90,0.045); }
       .job-lead-score-cell { display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
+      .job-lead-score-row { display:flex; align-items:center; gap:7px; position:relative; }
       .job-lead-score { display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:30px; border-radius:999px; font-weight:900; color:#fff; }
       .job-lead-score.tier-one { background:var(--success); }
       .job-lead-score.tier-two { background:#b8891d; }
       .job-lead-score.tier-three { background:#6b7280; }
+      .job-lead-red-flag { position:relative; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:999px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.28); cursor:help; line-height:1; font-size:14px; }
+      .job-lead-red-flag-tooltip { position:absolute; z-index:20; left:0; top:calc(100% + 8px); display:none; width:min(320px, 70vw); padding:10px 12px; border-radius:8px; border:1px solid rgba(239,68,68,0.35); background:var(--card-bg); color:var(--text); box-shadow:0 14px 32px rgba(0,0,0,0.28); font-size:12px; line-height:1.45; font-weight:600; }
+      .job-lead-red-flag-tooltip span { display:block; }
+      .job-lead-red-flag-tooltip span + span { margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
+      .job-lead-red-flag:hover .job-lead-red-flag-tooltip,
+      .job-lead-red-flag:focus .job-lead-red-flag-tooltip { display:block; }
       .job-lead-pill { border-radius:999px; padding:4px 8px; font-size:12px; font-weight:800; text-transform:uppercase; }
       .state-pending-review { background:rgba(59,130,246,0.18); color:#60a5fa; }
       .state-approved { background:rgba(34,197,94,0.18); color:var(--success); }
@@ -1038,6 +1220,17 @@ Description: ${lead.description || ''}`;
       .job-lead-apply-status.error { color:var(--danger); }
       .job-lead-cover-loading { display:flex; align-items:center; gap:10px; color:var(--text-muted); margin-bottom:10px; }
       .job-lead-cover-text { width:100%; box-sizing:border-box; min-height:320px; max-height:calc(100vh - 360px); overflow:auto; resize:vertical; margin-bottom:10px; white-space:pre-wrap; }
+      .job-lead-manual-shell { width:min(760px, calc(100vw - 56px)); max-width:min(760px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
+      .job-lead-manual-shell .modal-body { min-height:0; overflow-y:auto; padding-right:8px; }
+      .job-lead-manual-modal { display:flex; flex-direction:column; gap:13px; }
+      .job-lead-manual-tip { border:1px solid rgba(59,130,246,0.28); border-radius:8px; background:rgba(59,130,246,0.1); color:var(--text); padding:11px 12px; line-height:1.45; font-size:14px; }
+      .job-lead-manual-error { border:1px solid rgba(239,68,68,0.35); border-radius:8px; background:rgba(239,68,68,0.1); color:var(--danger); padding:10px 12px; line-height:1.45; font-size:14px; }
+      .job-lead-manual-field { display:flex; flex-direction:column; gap:5px; color:var(--text); font-weight:800; }
+      .job-lead-manual-field span { font-size:14px; }
+      .job-lead-manual-field em { color:var(--text-muted); font-style:normal; font-weight:600; }
+      .job-lead-manual-field input,
+      .job-lead-manual-field textarea { width:100%; box-sizing:border-box; }
+      .job-lead-manual-field textarea { resize:vertical; min-height:180px; }
       .hidden { display:none !important; }
       .job-leads-loading, .job-leads-error { display:flex; align-items:center; justify-content:center; min-height:180px; gap:12px; text-align:center; }
       .job-leads-error { flex-direction:column; color:var(--text); }
@@ -1064,7 +1257,7 @@ Description: ${lead.description || ''}`;
         .job-lead-salary { grid-area:salary; }
         .job-lead-posted { grid-area:posted; }
         .job-lead-actions-cell { grid-area:actions; justify-self:end; width:124px; }
-        .job-lead-city::before { content:"City: "; color:var(--text-muted); font-weight:800; }
+        .job-lead-city::before { content:"City/ST: "; color:var(--text-muted); font-weight:800; }
         .job-lead-salary::before { content:"Salary: "; color:var(--text-muted); font-weight:800; }
         .job-lead-posted::before { content:"Posted: "; color:var(--text-muted); font-weight:800; }
         .job-lead-actions { justify-content:flex-end; align-items:flex-end; flex-direction:column; }
@@ -1090,6 +1283,7 @@ Description: ${lead.description || ''}`;
       }
       @media (max-width:760px) {
         .job-leads-header { flex-direction:column; }
+        .job-leads-header > button { margin-left:0; }
         .job-leads-count { margin-left:0; }
         .job-leads-connection { flex-direction:column; align-items:flex-start; }
         .job-leads-connection-meta { white-space:normal; }
@@ -1126,6 +1320,8 @@ Description: ${lead.description || ''}`;
     setSourceFilter,
     setSort,
     openJob,
+    openManualJobModal,
+    submitManualJob,
     applyLead,
     openResumeFolder,
     draftCoverLetter,

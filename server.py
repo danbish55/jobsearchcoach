@@ -501,6 +501,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._jl_transition(body, 'rejected')
         elif path == '/api/jl/apply':
             self._jl_apply(body)
+        elif path == '/api/jl/add-manual':
+            self._jl_add_manual(body)
         elif path == '/api/jl/save-profile':
             self._jl_save_profile(body)
         elif path == '/api/extract-resume':
@@ -696,6 +698,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'skills': list_value('skills'),
             'preferred_locations': list_value('preferred_locations'),
             'must_have_keywords': list_value('must_have_keywords'),
+            'preferred_keywords': list_value('preferred_keywords'),
             'excluded_keywords': list_value('excluded_keywords'),
         }
 
@@ -770,6 +773,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         digest_path = Path(repo_dir) / 'outputs' / 'digest_cycle.txt'
         profile_path = Path(repo_dir) / 'config' / 'candidate_profile.yaml'
 
+        self._jl_source_filter_profile = self._load_jl_local_profile(repo_dir)
         sources = self._configured_jl_sources(repo_dir)
         source_health = run_sources_to_sqlite(db_path, sources)
         notes = getattr(self, '_jl_source_notes', [])
@@ -784,6 +788,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         scored = [
             item for item in scored
             if str((item.get('lead') or item).get('id') or item.get('lead_id') or item.get('id') or '') in current_lead_ids
+        ]
+        scored = [
+            item for item in scored
+            if not self._scored_jl_item_excluded_by_profile(item)
         ]
         scored_path.parent.mkdir(parents=True, exist_ok=True)
         scored_path.write_text(json.dumps(scored, indent=2), encoding='utf-8')
@@ -822,10 +830,29 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             jobs = payload.get('jobs') if isinstance(payload, dict) else []
             if not isinstance(jobs, list):
                 continue
-            for job in jobs:
-                if isinstance(job, dict) and job.get('id'):
-                    ids.add(str(job.get('id')))
+                for job in jobs:
+                    if isinstance(job, dict) and job.get('id'):
+                        ids.add(str(job.get('id')))
+        ids.update(self._manual_jl_lead_ids(repo_dir))
         return ids
+
+    def _manual_jl_lead_ids(self, repo_dir):
+        db_path = _job_leads_db_path(repo_dir)
+        if not os.path.exists(db_path):
+            return set()
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        try:
+            from job_leads_tool.sqlite_store import connect
+        except Exception:
+            return set()
+        conn = connect(db_path)
+        try:
+            rows = conn.execute("SELECT id FROM leads WHERE source = 'manual'").fetchall()
+            return {str(row['id']) for row in rows if row['id']}
+        finally:
+            conn.close()
 
     def _public_jl_health(self, health):
         if not isinstance(health, dict):
@@ -1132,9 +1159,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     job_id = str(item.get('PositionID') or item.get('PositionURI') or '')
                     if not job_id or job_id in seen_ids:
                         continue
-                    if self._generic_is_not_entry_level_role({'title': item.get('PositionTitle') or ''}):
+                    if self._generic_is_not_entry_level_role(item):
                         continue
                     if not self._usajobs_grade_allowed(item):
+                        continue
+                    if not self._usajobs_location_allowed(item):
                         continue
                     seen_ids.add(job_id)
                     jobs.append(self._usajobs_job_payload(item))
@@ -1156,12 +1185,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
     def _usajobs_job_payload(self, item):
         org = item.get('OrganizationName') or item.get('DepartmentName') or 'USAJOBS'
-        locations = item.get('PositionLocation') if isinstance(item.get('PositionLocation'), list) else []
-        location_text = ', '.join(
-            loc.get('LocationName', '')
-            for loc in locations
-            if isinstance(loc, dict) and loc.get('LocationName')
-        )
+        location_text = self._usajobs_display_location(item)
         remuneration = item.get('PositionRemuneration') if isinstance(item.get('PositionRemuneration'), list) else []
         salary = ''
         if remuneration and isinstance(remuneration[0], dict):
@@ -1178,6 +1202,48 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'posted_at': item.get('PublicationStartDate') or '',
             'description': item.get('QualificationSummary') or item.get('UserArea', {}).get('Details', {}).get('JobSummary') or '',
         }
+
+    def _usajobs_location_allowed(self, item):
+        if self._usajobs_has_flexible_work_site(item):
+            return True
+        locations = item.get('PositionLocation') if isinstance(item.get('PositionLocation'), list) else []
+        if not locations:
+            return self._generic_location_allowed(item)
+        return any(
+            self._generic_location_allowed({'location': loc.get('LocationName', '')})
+            for loc in locations
+            if isinstance(loc, dict) and loc.get('LocationName')
+        )
+
+    def _usajobs_display_location(self, item):
+        locations = item.get('PositionLocation') if isinstance(item.get('PositionLocation'), list) else []
+        names = [
+            loc.get('LocationName', '')
+            for loc in locations
+            if isinstance(loc, dict) and loc.get('LocationName')
+        ]
+        if not names:
+            return self._generic_location_text(item)
+        if self._usajobs_has_flexible_work_site(item):
+            return names[0]
+        for name in names:
+            if self._generic_location_allowed({'location': name}):
+                return name
+        return names[0]
+
+    def _usajobs_has_flexible_work_site(self, item):
+        details = item.get('UserArea', {}).get('Details', {}) if isinstance(item.get('UserArea'), dict) else {}
+        work_site = self._usajobs_detail_by_name(details, 'worksiteoption', 'worksiteoptions').lower()
+        telework = details.get('TeleworkEligible')
+        remote = details.get('RemoteIndicator')
+        return (
+            telework is True
+            or str(telework).lower() == 'true'
+            or remote is True
+            or str(remote).lower() == 'true'
+            or 'telework' in work_site
+            or 'remote' in work_site
+        )
 
     def _write_indeed_source(self, repo_dir):
         src_dir = os.path.join(repo_dir, 'src')
@@ -1303,10 +1369,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     job_id = str(item.get('id') or item.get('redirect_url') or '')
                     if not job_id or job_id in seen_ids:
                         continue
-                    if self._adzuna_is_not_entry_level_role(item):
+                    job_payload = self._adzuna_job_payload(item)
+                    if self._adzuna_is_not_entry_level_role(job_payload):
                         continue
                     seen_ids.add(job_id)
-                    jobs.append(self._adzuna_job_payload(item))
+                    jobs.append(job_payload)
 
         output = Path(repo_dir) / 'data' / 'adzuna_live.json'
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -1352,6 +1419,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         salary = ''
         if item.get('salary_min') or item.get('salary_max'):
             salary = f"{item.get('salary_min') or ''}-{item.get('salary_max') or ''}".strip('-')
+        url = item.get('redirect_url') or ''
+        description = re.sub(r'<[^>]+>', ' ', item.get('description') or '').strip()
+        detail_description = self._adzuna_detail_description(url, description)
+        if detail_description and detail_description not in description:
+            description = f'{description} {detail_description}'.strip()
         return {
             'id': f"adzuna-{item.get('id') or item.get('redirect_url') or item.get('title')}",
             'title': item.get('title') or '',
@@ -1360,10 +1432,48 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'salary': self._salary_or_scan(salary or None, item),
             'level': self._infer_job_level(item),
             'job_type': self._infer_job_type(item),
-            'url': item.get('redirect_url') or '',
+            'url': url,
             'posted_at': item.get('created') or '',
-            'description': re.sub(r'<[^>]+>', ' ', item.get('description') or '').strip(),
+            'description': description,
         }
+
+    def _adzuna_detail_description(self, url, api_description):
+        if not url:
+            return ''
+        if len(str(api_description or '')) >= 1500 and '…' not in str(api_description or ''):
+            return ''
+        url = self._adzuna_detail_fetch_url(url)
+        cache = getattr(self, '_adzuna_detail_cache', None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._adzuna_detail_cache = cache
+        if url in cache:
+            return cache[url]
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 JobSearchCoach/1.0'})
+            with urllib.request.urlopen(req, timeout=12) as response:
+                html = response.read().decode('utf-8', errors='ignore')
+        except Exception:
+            cache[url] = ''
+            return ''
+        for pattern in (
+            r'<script\b[^>]*>.*?</script>',
+            r'<style\b[^>]*>.*?</style>',
+            r'<nav\b[^>]*>.*?</nav>',
+            r'<footer\b[^>]*>.*?</footer>',
+        ):
+            html = re.sub(pattern, ' ', html, flags=re.I | re.S)
+        text = html_lib.unescape(re.sub(r'<[^>]+>', ' ', html))
+        text = re.sub(r'\s+', ' ', text).strip()
+        cache[url] = text[:12000]
+        return cache[url]
+
+    def _adzuna_detail_fetch_url(self, url):
+        text = str(url or '')
+        match = re.search(r'/land/ad/(\d+)', text)
+        if match:
+            return f'https://www.adzuna.com/details/{match.group(1)}?utm_medium=api&utm_source={ADZUNA_APP_ID}'
+        return text
 
     def _write_themuse_source(self, repo_dir):
         categories = [
@@ -1435,16 +1545,58 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'vice president',
             'vp ',
         )
-        return any(term in level_text for term in blocked_level_terms) or any(term in title for term in blocked_title_terms)
+        return (
+            any(term in level_text for term in blocked_level_terms)
+            or any(term in title for term in blocked_title_terms)
+            or self._generic_is_not_entry_level_role(item)
+        )
 
     def _themuse_location_allowed(self, item):
         return self._generic_location_allowed(item)
 
     def _generic_location_allowed(self, item):
         location_text = self._generic_location_text(item)
-        if location_text.strip().lower() in ('flexible / remote', 'remote', 'remote usa', 'united states'):
+        location_l = location_text.strip().lower()
+        if location_l in ('flexible / remote', 'remote', 'remote usa', 'united states') or 'hybrid' in location_l:
             return True
+        if self._location_has_disallowed_state(location_text):
+            return False
         allowed_terms = (
+            'west hollywood',
+            'silver lake',
+            'los feliz',
+            'koreatown',
+            'mid-wilshire',
+            'la brea',
+            'hancock park',
+            'larchmont',
+            'hollywood',
+            'century city',
+            'brentwood',
+            'westwood',
+            'beverly hills',
+            'playa vista',
+            'marina del rey',
+            'venice',
+            'el segundo',
+            'manhattan beach',
+            'hermosa beach',
+            'redondo beach',
+            'hawthorne',
+            'inglewood',
+            'alhambra',
+            'san gabriel',
+            'arcadia',
+            'monrovia',
+            'studio city',
+            'sherman oaks',
+            'encino',
+            'north hollywood',
+            'van nuys',
+            'chatsworth',
+            'downey',
+            'compton',
+            'carson',
             'los angeles',
             'santa monica',
             'culver city',
@@ -1462,8 +1614,65 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'oceanside',
             'encinitas',
             'san diego',
+            'la jolla',
+            'chula vista',
+            'escondido',
+            'del mar',
+            'el cajon',
+            'national city',
+            'dallas',
+            'fort worth',
+            'dfw',
+            'plano',
+            'irving',
+            'frisco',
+            'mckinney',
+            'arlington tx',
+            'austin',
+            'round rock',
+            'seattle',
+            'bellevue',
+            'redmond',
+            'kirkland',
+            'tacoma',
+            'portland',
+            'beaverton',
+            'hillsboro',
+            'denver',
+            'boulder',
+            'aurora co',
+            'lakewood co',
+            'salt lake city',
+            'provo',
+            'sandy ut',
+            'las vegas',
+            'henderson nv',
+            'summerlin',
         )
-        return any(term in location_text.lower() for term in allowed_terms)
+        profile_terms = tuple(term.lower() for term in self._jl_profile_terms('preferred_locations'))
+        return any(term in location_l for term in (profile_terms or allowed_terms))
+
+    def _location_has_disallowed_state(self, location_text):
+        allowed_states = {'CA', 'TX', 'WA', 'OR', 'CO', 'UT', 'NV'}
+        state_names = {
+            'california': 'CA',
+            'texas': 'TX',
+            'washington': 'WA',
+            'oregon': 'OR',
+            'colorado': 'CO',
+            'utah': 'UT',
+            'nevada': 'NV',
+        }
+        found = set()
+        for part in str(location_text or '').split(',')[1:]:
+            cleaned = re.sub(r'\b(united states|usa|us)\b', '', part, flags=re.I).strip()
+            if re.fullmatch(r'[A-Z]{2}', cleaned):
+                found.add(cleaned)
+            else:
+                normalized = cleaned.lower()
+                if normalized in state_names:
+                    found.add(state_names[normalized])
+        return bool(found) and not any(state in allowed_states for state in found)
 
     def _generic_location_text(self, item):
         if not isinstance(item, dict):
@@ -1483,11 +1692,18 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return str(categories.get('location'))
         return ''
 
+    def _preferred_location_display_from_names(self, names):
+        clean_names = [str(name or '').strip() for name in names if str(name or '').strip()]
+        for name in clean_names:
+            if self._generic_location_allowed({'location': name}):
+                return name
+        return clean_names[0] if clean_names else ''
+
     def _themuse_is_relevant_degree_role(self, item):
         return self._generic_is_relevant_degree_role(item)
 
     def _generic_is_not_entry_level_role(self, item):
-        title = self._generic_title_text(item).lower()
+        text = self._generic_search_text(item).lower()
         blocked_terms = (
             'senior',
             'sr.',
@@ -1502,10 +1718,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'vice president',
             'vp ',
         )
-        return any(term in title for term in blocked_terms)
+        if any(term in text for term in blocked_terms):
+            return True
+        return any(
+            self._jl_profile_term_matches(text, term)
+            for term in self._jl_profile_terms('excluded_keywords')
+        )
 
     def _generic_is_relevant_degree_role(self, item):
-        title = self._generic_title_text(item).lower()
+        text = self._generic_search_text(item).lower()
         relevant_terms = (
             'analyst',
             'analytics',
@@ -1553,7 +1774,87 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             'philosophy',
             'law',
         )
-        return any(term in title for term in relevant_terms) and not any(term in title for term in blocked_terms)
+        profile_terms = (
+            self._jl_profile_terms('target_titles')
+            + self._jl_profile_terms('skills')
+            + self._jl_profile_terms('must_have_keywords')
+            + self._jl_profile_terms('preferred_keywords')
+        )
+        matches_profile = any(
+            self._jl_profile_term_matches(text, term)
+            for term in profile_terms
+        )
+        matches_fallback = any(term in text for term in relevant_terms)
+        return (matches_profile or matches_fallback) and not any(term in text for term in blocked_terms)
+
+    def _scored_jl_item_excluded_by_profile(self, item):
+        lead = item.get('lead') if isinstance(item, dict) and isinstance(item.get('lead'), dict) else item
+        if not isinstance(lead, dict):
+            return False
+        return self._generic_is_not_entry_level_role(lead)
+
+    def _jl_profile_terms(self, key):
+        profile = getattr(self, '_jl_source_filter_profile', None)
+        if not isinstance(profile, dict):
+            return []
+        value = profile.get(key)
+        if not isinstance(value, list):
+            return []
+        return [str(term).strip() for term in value if str(term).strip()]
+
+    def _jl_profile_term_matches(self, text, term):
+        term_l = str(term or '').strip().lower()
+        if not term_l:
+            return False
+        normalized_text = re.sub(r'\s+', ' ', str(text or '').lower())
+        year_match = re.fullmatch(r'(\d+)\s*\+?\s*years?', term_l)
+        if year_match:
+            year_value = year_match.group(1)
+            year_words = {
+                '5': 'five',
+                '6': 'six',
+                '7': 'seven',
+                '8': 'eight',
+                '9': 'nine',
+                '10': 'ten',
+            }
+            years = rf'(?:{re.escape(year_value)}|{year_words.get(year_value, re.escape(year_value))})'
+            patterns = (
+                rf'\b{years}\s*\+\s*(?:years?|yrs?)\b',
+                rf'\b{years}\s*(?:or more|plus)\s*(?:years?|yrs?)\b',
+                rf'\b(?:at least|minimum(?: of)?|requires?|required)\s+{years}\s*(?:years?|yrs?)\b',
+                rf'\b{years}\s*(?:years?|yrs?)\s+(?:of\s+)?(?:\w+\s+){{0,4}}(?:experience|required)\b',
+            )
+            if any(re.search(pattern, normalized_text, flags=re.I) for pattern in patterns):
+                return True
+            threshold = int(year_value)
+            for range_match in re.finditer(r'\b(\d+)\s*(?:-|to)\s*(\d+)\s*(?:years?|yrs?)\b', normalized_text, flags=re.I):
+                low = int(range_match.group(1))
+                high = int(range_match.group(2))
+                if high >= threshold and low >= 2:
+                    return True
+            return False
+        return term_l in normalized_text
+
+    def _generic_search_text(self, item):
+        if not isinstance(item, dict):
+            return ''
+        parts = [
+            self._generic_title_text(item),
+            self._generic_location_text(item),
+            str(item.get('company') or item.get('company_name') or item.get('OrganizationName') or item.get('DepartmentName') or ''),
+            self._salary_scan_text(item),
+        ]
+        lead = item.get('lead') if isinstance(item.get('lead'), dict) else None
+        if lead:
+            parts.extend([
+                self._generic_title_text(lead),
+                self._generic_location_text(lead),
+                str(lead.get('company') or ''),
+                self._salary_scan_text(lead),
+            ])
+        text = ' '.join(str(part or '') for part in parts)
+        return re.sub(r'\s+', ' ', text).strip()
 
     def _generic_title_text(self, item):
         if not isinstance(item, dict):
@@ -1785,11 +2086,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             company = item.get('company') if isinstance(item.get('company'), dict) else {}
             refs = item.get('refs') if isinstance(item.get('refs'), dict) else {}
             locations = item.get('locations') if isinstance(item.get('locations'), list) else []
+            location_names = [loc.get('name', '') for loc in locations if isinstance(loc, dict) and loc.get('name')]
             return {
                 'id': f"themuse-{item.get('id') or refs.get('landing_page') or item.get('name')}",
                 'title': item.get('name') or '',
                 'company': company.get('name') or '',
-                'location': ', '.join(loc.get('name', '') for loc in locations if isinstance(loc, dict) and loc.get('name')),
+                'location': self._preferred_location_display_from_names(location_names),
                 'salary': self._salary_or_scan(None, item),
                 'level': self._themuse_level(item),
                 'job_type': self._themuse_job_type(item),
@@ -1830,6 +2132,135 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         self._json(updated)
+
+    def _jl_add_manual(self, body):
+        url = str(body.get('url') or '').strip()
+        raw_text = str(body.get('raw_text') or '').strip()
+        title = str(body.get('title') or '').strip()
+        company = str(body.get('company') or '').strip()
+        location = str(body.get('location') or '').strip()
+
+        fetched = {'text': '', 'title': '', 'h1': ''}
+        fetch_error = ''
+        if url:
+            try:
+                fetched = self._fetch_manual_job_content(url)
+            except Exception as exc:
+                fetch_error = str(exc)
+
+        source_text = fetched.get('text') if len(fetched.get('text') or '') >= 200 else ''
+        if url and fetched.get('text') and not source_text:
+            fetch_error = f"Fetched page text was too short ({len(fetched.get('text') or '')} characters)."
+        if not source_text and raw_text:
+            source_text = raw_text
+        if not source_text:
+            detail = f" Fetch detail: {fetch_error}" if fetch_error else ''
+            self._json({
+                'success': False,
+                'error': f'Could not retrieve job content. Please paste the job description text into the Job Description field and resubmit.{detail}',
+                'fetch_error': fetch_error,
+            }, 400)
+            return
+
+        try:
+            repo_dir = _job_leads_tool_dir_required()
+            db_path = _job_leads_db_path(repo_dir)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            src_dir = os.path.join(repo_dir, 'src')
+            if src_dir not in sys.path:
+                sys.path.insert(0, src_dir)
+
+            from job_leads_tool.cli import load_profile
+            from job_leads_tool.manual import build_manual_scored_lead
+            from job_leads_tool.models import JobLead
+            from job_leads_tool.sqlite_store import connect, upsert_leads
+
+            conn = connect(db_path)
+            try:
+                if url:
+                    existing = conn.execute('SELECT id FROM leads WHERE url = ? LIMIT 1', (url,)).fetchone()
+                    if existing is not None:
+                        self._json({'success': False, 'error': 'This job is already in your leads list.'}, 409)
+                        return
+
+                profile = load_profile(Path(repo_dir) / 'config' / 'candidate_profile.yaml')
+                scored = build_manual_scored_lead(
+                    profile,
+                    raw_text=source_text,
+                    url=url,
+                    title=title,
+                    company=company,
+                    location=location,
+                    page_title=fetched.get('title') or '',
+                    h1=fetched.get('h1') or '',
+                )
+                lead_data = scored.get('lead') or {}
+                lead = JobLead(
+                    id=lead_data.get('id') or scored.get('lead_id'),
+                    source='manual',
+                    company=lead_data.get('company') or '',
+                    title=lead_data.get('title') or '',
+                    location=lead_data.get('location') or '',
+                    salary=lead_data.get('salary'),
+                    url=lead_data.get('url') or url,
+                    posted_at=lead_data.get('posted_at'),
+                    description=lead_data.get('description') or source_text,
+                    content_hash=lead_data.get('content_hash') or '',
+                    level=lead_data.get('level'),
+                    job_type=lead_data.get('job_type'),
+                    ingested_at=lead_data.get('ingested_at'),
+                    approval_state=lead_data.get('approval_state') or 'pending_review',
+                )
+                upsert_leads(conn, [lead])
+            finally:
+                conn.close()
+
+            lead_id = scored.get('lead_id') or (scored.get('lead') or {}).get('id')
+            refreshed_match = self._append_jl_manual_scored_output(repo_dir, scored)
+        except Exception as exc:
+            self._json({'success': False, 'error': f'Could not add manual job: {exc}'}, 500)
+            return
+
+        self._json({'success': True, 'lead': refreshed_match})
+
+    def _fetch_manual_job_content(self, url):
+        try:
+            import requests
+        except Exception as exc:
+            raise RuntimeError(f'requests is unavailable: {exc}')
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        }
+        response = requests.get(url, headers=headers, timeout=18)
+        if response.status_code >= 400:
+            raise RuntimeError(f'Fetch returned HTTP {response.status_code}')
+        html = response.text or ''
+        return self._visible_text_from_html(html)
+
+    def _visible_text_from_html(self, html):
+        title = ''
+        h1 = ''
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, 'html.parser')
+            for tag in soup(['script', 'style', 'noscript', 'svg']):
+                tag.decompose()
+            title = soup.title.get_text(' ', strip=True) if soup.title else ''
+            h1_tag = soup.find('h1')
+            h1 = h1_tag.get_text(' ', strip=True) if h1_tag else ''
+            text = soup.get_text(' ', strip=True)
+        except Exception:
+            title_match = re.search(r'<title[^>]*>(.*?)</title>', html, flags=re.I | re.S)
+            title = html_lib.unescape(re.sub(r'<[^>]+>', ' ', title_match.group(1))).strip() if title_match else ''
+            h1_match = re.search(r'<h1[^>]*>(.*?)</h1>', html, flags=re.I | re.S)
+            h1 = html_lib.unescape(re.sub(r'<[^>]+>', ' ', h1_match.group(1))).strip() if h1_match else ''
+            cleaned = html
+            for pattern in (r'<script\b[^>]*>.*?</script>', r'<style\b[^>]*>.*?</style>', r'<noscript\b[^>]*>.*?</noscript>'):
+                cleaned = re.sub(pattern, ' ', cleaned, flags=re.I | re.S)
+            text = html_lib.unescape(re.sub(r'<[^>]+>', ' ', cleaned))
+            text = re.sub(r'\s+', ' ', text).strip()
+        return {'text': text, 'title': title, 'h1': h1}
 
     def _jl_transition(self, body, new_state):
         lead_id = (body.get('lead_id') or '').strip()
@@ -2066,6 +2497,71 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         with open(path, 'r', encoding='utf-8') as output_file:
             data = json.load(output_file)
         return data if isinstance(data, list) else []
+
+    def _refresh_jl_scored_output(self, repo_dir):
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        from job_leads_tool.cli import _score_from_db
+
+        profile_path = Path(repo_dir) / 'config' / 'candidate_profile.yaml'
+        db_path = _job_leads_db_path(repo_dir)
+        scored_path = Path(repo_dir) / 'outputs' / 'scored_leads.json'
+        self._jl_source_filter_profile = self._load_jl_local_profile(repo_dir)
+        scored = _score_from_db(profile_path, db_path)
+        current_ids = self._current_jl_source_ids(repo_dir)
+        current_ids.update(self._existing_jl_scored_output_ids(scored_path))
+        if current_ids:
+            scored = [
+                item for item in scored
+                if str((item.get('lead') or item).get('id') or item.get('lead_id') or item.get('id') or '') in current_ids
+            ]
+        scored = [
+            item for item in scored
+            if not self._scored_jl_item_excluded_by_profile(item)
+        ]
+        scored_path.parent.mkdir(parents=True, exist_ok=True)
+        scored_path.write_text(json.dumps(scored, indent=2), encoding='utf-8')
+        return scored
+
+    def _append_jl_manual_scored_output(self, repo_dir, scored):
+        scored_path = Path(repo_dir) / 'outputs' / 'scored_leads.json'
+        rows = []
+        if scored_path.exists():
+            try:
+                existing = json.loads(scored_path.read_text(encoding='utf-8'))
+                if isinstance(existing, list):
+                    rows = existing
+            except Exception:
+                rows = []
+        lead_id = str(scored.get('lead_id') or (scored.get('lead') or {}).get('id') or '')
+        rows = [
+            row for row in rows
+            if str(row.get('lead_id') or (row.get('lead') or {}).get('id') or '') != lead_id
+        ]
+        rows.append(scored)
+        rows = _sort_scored_leads(rows)
+        scored_path.parent.mkdir(parents=True, exist_ok=True)
+        scored_path.write_text(json.dumps(rows, indent=2), encoding='utf-8')
+        return next(
+            (row for row in rows if str(row.get('lead_id') or (row.get('lead') or {}).get('id') or '') == lead_id),
+            scored,
+        )
+
+    def _existing_jl_scored_output_ids(self, scored_path):
+        if not scored_path.exists():
+            return set()
+        try:
+            rows = json.loads(scored_path.read_text(encoding='utf-8'))
+        except Exception:
+            return set()
+        ids = set()
+        for item in rows if isinstance(rows, list) else []:
+            lead = item.get('lead') if isinstance(item, dict) and isinstance(item.get('lead'), dict) else item
+            lead_id = (lead or {}).get('id') or item.get('lead_id') if isinstance(item, dict) else ''
+            if lead_id:
+                ids.add(str(lead_id))
+        return ids
 
     def _try_load_jl_drive_leads(self, repo_dir):
         src_dir = os.path.join(repo_dir, 'src')
