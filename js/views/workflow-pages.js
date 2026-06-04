@@ -282,6 +282,7 @@ const WorkflowPages = (() => {
       if (_hasHistory(page)) {
         _prependActivityHistory(viewId, page, payload);
         _renderActivityHistory(viewId);
+        Gauges.increment(page.gaugeId);
       }
       status.textContent = 'Logged. Your dashboard gauge has been updated.';
       status.classList.add('success');
@@ -646,6 +647,7 @@ const WorkflowPages = (() => {
           Storage.merge('progress', { [key]: nextHistory });
           UI.closeModal();
           _renderActivityHistory(viewId);
+          Gauges.increment(page.gaugeId);
         },
       },
       { id: 'cancel', label: 'Cancel', class: 'btn-ghost' },
@@ -661,6 +663,7 @@ const WorkflowPages = (() => {
     Storage.merge('progress', { [key]: nextHistory });
     if (_expandedHistoryByKey[page.key] === id) _expandedHistoryByKey[page.key] = null;
     _renderActivityHistory(viewId);
+    Gauges.increment(page.gaugeId);
   }
 
   function _historyEntryFromPayload(page, payload) {

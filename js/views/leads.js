@@ -870,10 +870,10 @@ Description: ${lead.description || ''}`;
       if (index >= 0) {
         _leads[index] = _mergeUpdatedLead(_leads[index], updated);
         appliedLead = _leads[index];
-        _recordJscApplication(appliedLead);
         _renderBodyOnly();
         _updateCount();
       }
+      _recordJscApplication(appliedLead);
       _setApplyStatus('Application recorded.');
       const lead = appliedLead.lead || appliedLead;
       UI.notify(`Application recorded for ${lead.title || lead.role || 'role'} at ${lead.company || 'company'}`, 'success');
@@ -893,7 +893,8 @@ Description: ${lead.description || ''}`;
     const lead = item.lead || item;
     Jobs.addApplication({
       company: lead.company,
-      role: lead.title,
+      source_lead_id: _leadId(item),
+      role: lead.title || lead.role,
       date: new Date().toISOString().split('T')[0],
       status: 'applied',
       url: lead.url,
@@ -1423,5 +1424,6 @@ Description: ${lead.description || ''}`;
     approveLead,
     rejectLead,
     deleteLead,
+    __testRecordJscApplication: _recordJscApplication,
   };
 })();

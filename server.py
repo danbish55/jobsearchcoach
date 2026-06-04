@@ -423,6 +423,18 @@ def _resolve_resumes_folder():
     return os.path.abspath(os.path.expanduser(configured))
 
 
+def _count_resume_files():
+    folder = _resolve_resumes_folder()
+    if not os.path.isdir(folder):
+        return {'path': folder, 'count': 0}
+    count = 0
+    for name in os.listdir(folder):
+        full_path = os.path.join(folder, name)
+        if os.path.isfile(full_path):
+            count += 1
+    return {'path': folder, 'count': count}
+
+
 def _sort_scored_leads(leads):
     def score_value(item):
         try:
@@ -473,6 +485,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._job_leads_output()
         elif path == '/api/open-folder':
             self._open_folder()
+        elif path == '/api/resumes/count':
+            self._resume_count()
         elif path == '/oauth2callback':
             self._oauth_callback(urlparse(self.path).query)
         else:
@@ -562,6 +576,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         save_config({'job_sources': next_sources})
         self._json({'ok': True})
+
+    def _resume_count(self):
+        try:
+            payload = _count_resume_files()
+            self._json({'ok': True, **payload})
+        except Exception as exc:
+            self._json({'ok': False, 'error': str(exc), 'count': 0}, 500)
 
     def _start_jl(self, body):
         force = bool(body.get('force'))

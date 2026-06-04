@@ -1,23 +1,99 @@
-/* Gauges — 10-activity tracking dashboard */
+/* Gauges - read-only live activity counts */
 const Gauges = (() => {
-
   const GAUGE_DEFS = [
-    { id: 'apps',           label: 'Applications',    group: 'Job Search', type: 'weekly',    target: 10,  icon: '📋', validate: false },
-    { id: 'followups',      label: 'Follow-Ups',      group: 'Job Search', type: 'weekly',    target: 10,  icon: '📨', validate: false },
-    { id: 'interviews',     label: 'Interviews',      group: 'Job Search', type: 'cumulative',target: null,icon: '🎤', validate: true,
-      placeholder: 'Company and role? What stage is this interview?' },
-    { id: 'usc_eller',      label: 'USC / Eller',     displayLabel: 'USC ELLER Networking', group: 'Networking', type: 'weekly',    target: 6,   icon: '🎓', validate: true,
-      placeholder: 'Who did you reach out to? Include their name and USC/Eller connection.' },
-    { id: 'networking',     label: 'Networking',      displayLabel: 'General Networking', group: 'Networking', type: 'weekly',    target: 6,   icon: '🤝', validate: true,
-      placeholder: 'Who did you connect with and how? Be specific.' },
-    { id: 'interview_prep', label: 'Interview Prep',  group: 'Skills',     type: 'weekly',    target: 6,   icon: '🧠', validate: true,
-      placeholder: 'What did you practice? (mock Q&A, case study, STAR story, research...)' },
-    { id: 'linkedin',       label: 'LinkedIn',        displayLabel: 'Linked In', group: 'Skills',     type: 'weekly',    target: 6,   icon: '💼', validate: true,
-      placeholder: 'What did you do on LinkedIn? (post, comment, connection, DM...)' },
-    { id: 'portfolio',      label: 'Portfolio',       group: 'Content',    type: 'cap',       target: 3,   icon: '🗂️', validate: false },
-    { id: 'resume_variants',label: 'Resume Variants', group: 'Content',    type: 'cap',       target: 3,   icon: '📄', validate: false },
-    { id: 'side_hustle',    label: 'Side Hustle',     group: 'Side Hustle',type: 'dual',      icon: '💸',  validate: false,
-      incomeTarget: 250, itemsTarget: 1 },
+    {
+      id: 'resume_variants',
+      label: 'Resume Variants',
+      group: 'Content',
+      type: 'cap',
+      target: 3,
+      icon: '📄',
+      tooltip: 'Add or remove resumes on the Resumes page.',
+    },
+    {
+      id: 'apps',
+      label: 'Weekly Applications',
+      group: 'Job Search',
+      type: 'weekly',
+      target: 10,
+      icon: '📋',
+      tooltip: 'Log applications on the Job Leads page.',
+    },
+    {
+      id: 'followups',
+      label: 'Follow-Ups',
+      group: 'Job Search',
+      type: 'weekly',
+      target: 10,
+      icon: '📨',
+      tooltip: 'Make your entries on the Follow-Ups page.',
+    },
+    {
+      id: 'networking',
+      label: 'Networking',
+      displayLabel: 'General Networking',
+      group: 'Networking',
+      type: 'weekly',
+      target: 6,
+      icon: '🤝',
+      tooltip: 'Make your entries on the Networking page.',
+    },
+    {
+      id: 'interview_prep',
+      label: 'Interview Prep',
+      group: 'Skills',
+      type: 'weekly',
+      target: 6,
+      icon: '🧠',
+      tooltip: 'Make your entries on the Interview Prep page.',
+    },
+    {
+      id: 'linkedin',
+      label: 'LinkedIn',
+      displayLabel: 'LinkedIn',
+      group: 'Skills',
+      type: 'weekly',
+      target: 6,
+      icon: '💼',
+      tooltip: 'Make your entries on the LinkedIn page.',
+    },
+    {
+      id: 'side_hustle',
+      label: 'Side Hustle',
+      group: 'Side Hustle',
+      type: 'weekly',
+      target: 1,
+      icon: '💸',
+      tooltip: 'Make your entries on the Side Hustle page.',
+    },
+    {
+      id: 'portfolio',
+      label: 'Portfolio',
+      group: 'Content',
+      type: 'cap',
+      target: 3,
+      icon: '🗂️',
+      tooltip: 'Track portfolio work from the relevant project pages.',
+    },
+    {
+      id: 'usc_eller',
+      label: 'USC/Eller',
+      displayLabel: 'USC/Eller',
+      group: 'Networking',
+      type: 'weekly',
+      target: 6,
+      icon: '🎓',
+      tooltip: 'Make your entries on the USC/Eller page.',
+    },
+    {
+      id: 'interviews',
+      label: 'Interviews',
+      group: 'Job Search',
+      type: 'cumulative',
+      target: null,
+      icon: '🎤',
+      tooltip: 'Interview activity is tracked from your Applications page.',
+    },
   ];
 
   const DEFAULT_GAUGE_SETTINGS = {
@@ -33,51 +109,23 @@ const Gauges = (() => {
     side_hustle_items_target: 1,
   };
 
-  const VALIDATION_SYSTEM = `You are validating a job search activity log entry for a grad student.
-Respond with ONLY valid JSON, exactly one of these three forms:
-{"valid":true,"question":null,"reason":"..."}
-{"valid":false,"question":"follow-up question here","reason":"..."}
-{"valid":false,"question":null,"reason":"..."}
-Rules:
-- valid=true only if the activity description is specific enough to confirm it actually happened
-- question should ask for the ONE missing piece of info that would make it valid (omit if already clearly invalid)
-- reason is a single short sentence`;
-
-  const VALIDATION_HINTS = {
-    interviews:     'Needs a company name or role title. "Had an interview" alone is not sufficient.',
-    followups:      'Needs who was contacted, the date, and a short note about the follow-up. "I followed up" alone is not sufficient.',
-    usc_eller:      'Needs a specific USC or Eller-affiliated person\'s name. Generic outreach without a real name is not valid.',
-    networking:     'Needs to describe a real outreach action with a specific person or group, not just "I networked."',
-    interview_prep: 'Needs to describe a specific prep activity, not just "I studied" or "I prepared."',
-    linkedin:       'Needs to describe a specific LinkedIn action, not just "I used LinkedIn."',
+  const HISTORY_KEY_BY_GAUGE = {
+    followups: 'followup_history',
+    networking: 'networking_history',
+    usc_eller: 'usc_eller_history',
+    interview_prep: 'interview_prep_history',
+    linkedin: 'linkedin_history',
+    side_hustle: 'side_hustle_history',
   };
 
-  // Multi-turn state for Claude validation
-  let _pendingId   = null;
-  let _pendingTurn = 0;
-  let _pendingMsgs = [];
+  let _resumeFileCount = 0;
+  let _resumeCountLoaded = false;
+  let _refreshingResumeCount = false;
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  function _getMondayString(date) {
-    const d   = new Date(date);
-    const day = d.getDay();
-    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
-    return d.toISOString().slice(0, 10);
-  }
-
-  function _defaultData() {
-    return {
-      week: _getMondayString(new Date()),
-      apps: 0, followups: 0, interviews: 0,
-      usc_eller: 0, networking: 0, interview_prep: 0, linkedin: 0,
-      portfolio: 0, resume_variants: 0,
-      side_hustle: { income: 0, items: 0 },
-    };
-  }
-
-  function _getData() {
-    return Storage.get('gauges', _defaultData());
+  function init() {
+    // Legacy jsc_gauges values are intentionally left in storage for rollback,
+    // but dashboard counts are now derived from source records on each render.
+    refreshLiveCounts();
   }
 
   function _getSettings() {
@@ -93,35 +141,100 @@ Rules:
     const settings = _getSettings();
     return GAUGE_DEFS.map(def => {
       const copy = { ...def };
-      if (copy.type === 'dual') {
-        copy.incomeTarget = _positiveInt(settings.side_hustle_income_target, DEFAULT_GAUGE_SETTINGS.side_hustle_income_target);
-        copy.itemsTarget = _positiveInt(settings.side_hustle_items_target, DEFAULT_GAUGE_SETTINGS.side_hustle_items_target);
-        return copy;
-      }
-      const key = `${copy.id}_target`;
-      if (copy.target !== null && Object.prototype.hasOwnProperty.call(DEFAULT_GAUGE_SETTINGS, key)) {
+      const key = copy.id === 'side_hustle' ? 'side_hustle_items_target' : `${copy.id}_target`;
+      if (Object.prototype.hasOwnProperty.call(DEFAULT_GAUGE_SETTINGS, key)) {
         copy.target = _positiveInt(settings[key], DEFAULT_GAUGE_SETTINGS[key]);
       }
       return copy;
     });
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────
-
-  function init() {
-    const data      = _getData();
-    const thisMonday = _getMondayString(new Date());
-    if (!data.week || data.week !== thisMonday) {
-      const fresh = _defaultData();
-      // Cumulative fields survive the weekly reset
-      fresh.interviews      = data.interviews || 0;
-      fresh.portfolio       = data.portfolio || 0;
-      fresh.resume_variants = data.resume_variants || 0;
-      Storage.set('gauges', fresh);
-    }
+  function _getMondayString(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    return d.toISOString().slice(0, 10);
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  function _getSundayString(date) {
+    const monday = new Date(`${_getMondayString(date)}T12:00:00`);
+    monday.setDate(monday.getDate() + 6);
+    return monday.toISOString().slice(0, 10);
+  }
+
+  function _applicationUniqueKey(app) {
+    const leadId = String(app?.source_lead_id || app?.lead_id || '').trim().toLowerCase();
+    if (leadId) return `lead:${leadId}`;
+    const url = String(app?.url || '').trim().toLowerCase();
+    if (url) return `url:${url}`;
+    const company = String(app?.company || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const role = String(app?.role || app?.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const date = String(app?.date || '').trim();
+    return `manual:${company}|${role}|${date}`;
+  }
+
+  function countWeeklyApplications(applications = Storage.get('jobs', { applications: [] }).applications, today = new Date()) {
+    const apps = Array.isArray(applications) ? applications : [];
+    const weekStart = _getMondayString(today);
+    const weekEnd = _getSundayString(today);
+    const unique = new Set();
+
+    apps.forEach(app => {
+      if (app?.status !== 'applied') return;
+      const date = String(app.date || '').slice(0, 10);
+      if (!date || date < weekStart || date > weekEnd) return;
+      unique.add(_applicationUniqueKey(app));
+    });
+
+    return unique.size;
+  }
+
+  function countHistoryEntries(gaugeId, progress = Storage.get('progress', {})) {
+    const key = HISTORY_KEY_BY_GAUGE[gaugeId];
+    const history = key ? progress?.[key] : [];
+    return Array.isArray(history) ? history.length : 0;
+  }
+
+  function deriveCounts(options = {}) {
+    const progress = Storage.get('progress', {});
+    return {
+      resume_variants: Number.isFinite(Number(options.resumeFileCount))
+        ? Math.max(0, Number(options.resumeFileCount))
+        : _resumeFileCount,
+      apps: countWeeklyApplications(),
+      followups: countHistoryEntries('followups', progress),
+      networking: countHistoryEntries('networking', progress),
+      usc_eller: countHistoryEntries('usc_eller', progress),
+      interview_prep: countHistoryEntries('interview_prep', progress),
+      linkedin: countHistoryEntries('linkedin', progress),
+      side_hustle: countHistoryEntries('side_hustle', progress),
+      portfolio: Storage.get('gauges', {})?.portfolio || 0,
+      interviews: _countInterviewApplications(),
+    };
+  }
+
+  function _countInterviewApplications() {
+    const applications = Storage.get('jobs', { applications: [] }).applications;
+    if (!Array.isArray(applications)) return 0;
+    return applications.filter(app => ['phone', 'interview', 'offer'].includes(app?.status)).length;
+  }
+
+  async function refreshLiveCounts() {
+    if (_refreshingResumeCount) return;
+    _refreshingResumeCount = true;
+    try {
+      const response = await fetch(`/api/resumes/count?_=${Date.now()}`);
+      const payload = await response.json().catch(() => ({}));
+      _resumeFileCount = response.ok ? Math.max(0, parseInt(payload.count, 10) || 0) : 0;
+      _resumeCountLoaded = true;
+    } catch {
+      _resumeFileCount = 0;
+      _resumeCountLoaded = true;
+    } finally {
+      _refreshingResumeCount = false;
+      _reRenderBand();
+    }
+  }
 
   function _speedometerHTML({ pct, value, target, meta, complete }) {
     const safePct = Math.max(0, Math.min(100, pct || 0));
@@ -139,63 +252,33 @@ Rules:
     </div>`;
   }
 
-  function _renderCard(def) {
-    const data = _getData();
+  function _renderCard(def, counts) {
+    const val = counts[def.id] || 0;
+    const pct = def.target ? Math.min(100, Math.round((val / def.target) * 100)) : (val > 0 ? 100 : 0);
+    const atCap = def.target ? val >= def.target : false;
+    const meta = def.id === 'resume_variants'
+      ? (_resumeCountLoaded ? 'files in folder' : 'loading files')
+      : def.id === 'interviews'
+        ? 'total'
+        : 'live entries';
 
-    if (def.type === 'dual') {
-      const sh = data.side_hustle || { income: 0, items: 0 };
-      const pct = Math.min(100, Math.round((sh.income / def.incomeTarget) * 100));
-      const complete = sh.income >= def.incomeTarget && sh.items >= def.itemsTarget;
-
-      return `<div class="gauge-card${complete ? ' gauge-card-done' : ''}" onclick="Gauges.openPanel('${def.id}')">
-        <div class="gauge-card-title">${def.icon} ${def.displayLabel || def.label}</div>
-        ${_speedometerHTML({
-          pct,
-          value: `$${sh.income}`,
-          target: `/ $${def.incomeTarget}`,
-          meta: `${sh.items} / ${def.itemsTarget} portfolio`,
-          complete,
-        })}
-      </div>`;
-    }
-
-    const val    = data[def.id] || 0;
-    let pct      = 0, valueText = '', targetText = '', foot = '';
-    let atCap    = false;
-
-    if (def.type === 'weekly') {
-      pct        = Math.min(100, Math.round((val / def.target) * 100));
-      valueText  = `${val}`;
-      targetText = `/ ${def.target}`;
-      foot       = 'this week';
-      atCap      = val >= def.target;
-    } else if (def.type === 'cap') {
-      pct        = Math.min(100, Math.round((val / def.target) * 100));
-      valueText  = `${val}`;
-      targetText = `of ${def.target}`;
-      foot       = 'cumulative';
-      atCap      = val >= def.target;
-    } else {
-      pct        = val > 0 ? 100 : 0;
-      valueText  = `${val}`;
-      foot       = 'total';
-    }
-
-    return `<div class="gauge-card${atCap ? ' gauge-card-done' : ''}" onclick="Gauges.openPanel('${def.id}')">
-      <div class="gauge-card-title">${def.icon} ${def.displayLabel || def.label}</div>
+    return `<div class="gauge-card gauge-card-readonly${atCap ? ' gauge-card-done' : ''}" tabindex="0" aria-label="${_escAttr(def.displayLabel || def.label)} gauge, ${val} of ${def.target}">
+      <div class="gauge-tooltip" role="tooltip">${_esc(def.tooltip)}</div>
+      <div class="gauge-card-title">${def.icon} ${_esc(def.displayLabel || def.label)}</div>
       ${_speedometerHTML({
         pct,
-        value: valueText,
-        target: targetText,
-        meta: foot,
+        value: `${val}`,
+        target: def.target ? `/ ${def.target}` : '',
+        meta,
         complete: atCap,
       })}
     </div>`;
   }
 
-  // Returns the inner HTML for #gauge-band-container
   function renderBand() {
     const byId = Object.fromEntries(_gaugeDefs().map(def => [def.id, def]));
+    const counts = deriveCounts();
+    // Locked dashboard layout. Do not change this 3 / 3 / 4 gauge order without explicit user approval.
     const rows = [
       ['resume_variants', 'portfolio', 'side_hustle'],
       ['networking', 'usc_eller', 'linkedin'],
@@ -205,36 +288,8 @@ Rules:
     return `<img class="gauge-band-mark" src="assets/usc-trojan-logo-transparent.png" alt="">
       <div class="gauge-grid">
       ${rows.map(row => `<div class="gauge-grid-row">
-        ${row.map(id => _renderCard(byId[id])).join('')}
+        ${row.map(id => _renderCard(byId[id], counts)).join('')}
       </div>`).join('')}
-    </div>`;
-  }
-
-  function renderSideHustlePanel() {
-    const def = _gaugeDefs().find(g => g.id === 'side_hustle');
-    const sh  = (_getData().side_hustle) || { income: 0, items: 0 };
-    const incomePct = Math.min(100, Math.round((sh.income / def.incomeTarget) * 100));
-    const itemsPct  = sh.items >= def.itemsTarget ? 100 : 0;
-
-    return `<div class="card sh-panel" onclick="Gauges.openPanel('side_hustle')">
-      <div class="card-title">💸 Side Hustle</div>
-      <div class="sh-panel-body">
-        <div class="sh-panel-metric">
-          <div class="sh-panel-row">
-            <span class="sh-metric-label">Income</span>
-            <span class="sh-metric-value">$${sh.income}<span class="gauge-count-target"> / $${def.incomeTarget}</span></span>
-          </div>
-          <div class="gauge-bar-track sh-bar"><div class="gauge-bar-fill gauge-bar-income" style="width:${incomePct}%"></div></div>
-        </div>
-        <div class="sh-panel-metric">
-          <div class="sh-panel-row">
-            <span class="sh-metric-label">Portfolio Item</span>
-            <span class="sh-metric-value">${sh.items}<span class="gauge-count-target"> / ${def.itemsTarget}</span></span>
-          </div>
-          <div class="gauge-bar-track sh-bar"><div class="gauge-bar-fill gauge-bar-items" style="width:${itemsPct}%"></div></div>
-        </div>
-      </div>
-      <div class="sh-panel-hint">Click to log activity</div>
     </div>`;
   }
 
@@ -245,303 +300,59 @@ Rules:
     if (shEl) shEl.innerHTML = renderSideHustlePanel();
   }
 
-  // ── Panels ───────────────────────────────────────────────────────────────
-
-  function openPanel(gaugeId) {
-    const def = _gaugeDefs().find(g => g.id === gaugeId);
-    if (!def) return;
-
-    if (def.type === 'dual') { _openSideHustlePanel(); return; }
-
-    const val = _getData()[gaugeId] || 0;
-
-    if (def.type === 'cap' && val >= def.target) {
-      UI.notify(`You've completed all ${def.target} ${def.label.toLowerCase()}! 🎉`, 'success');
-      return;
-    }
-
-    def.validate ? _openValidatedPanel(def) : _openSimplePanel(def, val);
-  }
-
-  function _openSimplePanel(def, currentVal) {
-    const isCap  = def.type === 'cap';
-    const bodyHTML = isCap
-      ? `<p style="font-size:14px">Add one <strong>${def.label.toLowerCase()}</strong> to your total.<br>
-          <span style="color:var(--text-muted);font-size:13px">Currently at ${currentVal} of ${def.target}.</span></p>`
-      : `<div style="margin-bottom:10px;font-size:13px;color:var(--text-muted)">How many to log?</div>
-         <input type="number" id="gauge-count-input" min="1" max="50" value="1"
-           style="width:90px;text-align:center;font-size:28px;font-weight:800;padding:8px">`;
-
-    UI.showModal(`Log ${def.label} ${def.icon}`, bodyHTML, [
-      { id: 'cancel', label: 'Cancel', class: 'btn-ghost' },
-      {
-        id: 'submit', label: '+ Log It', class: 'btn-gold', close: false,
-        action: () => {
-          const amount = isCap ? 1
-            : Math.max(1, parseInt(document.getElementById('gauge-count-input')?.value || '1', 10) || 1);
-          _increment(def.id, amount);
-          UI.closeModal();
-          UI.notify(`✓ ${def.label} logged!`, 'success');
-          _reRenderBand();
-        },
-      },
-    ]);
-    if (!isCap) setTimeout(() => document.getElementById('gauge-count-input')?.select(), 50);
-  }
-
-  function _openValidatedPanel(def) {
-    _pendingId   = def.id;
-    _pendingTurn = 1;
-    _pendingMsgs = [];
-
-    UI.showModal(`Log ${def.label} ${def.icon}`, _descBodyHTML(def.placeholder), [
-      { id: 'cancel', label: 'Cancel', class: 'btn-ghost' },
-      { id: 'submit', label: 'Submit', class: 'btn-gold', close: false, action: _trySubmit },
-    ]);
-    setTimeout(() => document.getElementById('gauge-desc-input')?.focus(), 50);
-  }
-
-  function _descBodyHTML(prompt) {
-    return `<p style="color:var(--text-muted);font-size:13px;margin-bottom:10px">${prompt}</p>
-      <textarea id="gauge-desc-input" rows="3" placeholder="Describe what you did..."
-        style="width:100%;resize:vertical"></textarea>
-      <div id="gauge-validation-msg" style="margin-top:8px;font-size:13px;color:var(--danger);display:none"></div>`;
-  }
-
-  function _trySubmit() {
-    const text = document.getElementById('gauge-desc-input')?.value?.trim();
-    if (!text) { _showMsg('Please describe what you did.'); return; }
-    _pendingMsgs.push({ role: 'user', content: text });
-    _doValidate();
-  }
-
-  async function _doValidate() {
-    _setSubmitting(true);
-    const def = _gaugeDefs().find(g => g.id === _pendingId);
-
-    try {
-      const raw = await _callClaude(_pendingId, _pendingMsgs);
-      let parsed;
-      try {
-        parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
-      } catch {
-        _setSubmitting(false);
-        _showMsg('Could not validate — please try again.');
-        return;
-      }
-
-      if (parsed.valid) {
-        _increment(_pendingId);
-        UI.closeModal();
-        UI.notify(`✓ ${def.label} logged!`, 'success');
-        _reRenderBand();
-        return;
-      }
-
-      if (parsed.question && _pendingTurn === 1) {
-        _pendingTurn = 2;
-        _pendingMsgs.push({ role: 'assistant', content: parsed.question });
-        _setSubmitting(false);
-        _showFollowUpModal(def, parsed.question);
-        return;
-      }
-
-      _setSubmitting(false);
-      _showMsg(parsed.reason || 'Too vague to log. Please add more detail.');
-    } catch {
-      _setSubmitting(false);
-      _showMsg('Validation failed. Please try again.');
-    }
-  }
-
-  function _showFollowUpModal(def, question) {
-    const bodyHTML = `
-      <div style="background:rgba(157,34,53,0.12);border-left:3px solid var(--accent);
-        padding:10px 12px;border-radius:4px;margin-bottom:12px;font-size:14px">${question}</div>
-      <textarea id="gauge-desc-input" rows="3" placeholder="Your answer..."
-        style="width:100%;resize:vertical"></textarea>
-      <div id="gauge-validation-msg" style="margin-top:8px;font-size:13px;color:var(--danger);display:none"></div>`;
-
-    UI.showModal(`Log ${def.label} ${def.icon}`, bodyHTML, [
-      { id: 'cancel', label: 'Cancel', class: 'btn-ghost' },
-      { id: 'submit', label: 'Submit', class: 'btn-gold', close: false, action: _trySubmit },
-    ]);
-    setTimeout(() => document.getElementById('gauge-desc-input')?.focus(), 50);
-  }
-
-  function _openSideHustlePanel() {
+  function renderSideHustlePanel() {
     const def = _gaugeDefs().find(g => g.id === 'side_hustle');
-    const sh = _getData().side_hustle || { income: 0, items: 0 };
-
-    const bodyHTML = `
-      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Log your side hustle activity for this week.</p>
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <div>
-          <label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
-            color:var(--text-muted);display:block;margin-bottom:6px">Income earned ($)</label>
-          <input type="number" id="sh-income" min="0" max="10000" placeholder="0"
-            style="width:130px;font-size:24px;font-weight:800;text-align:center;padding:8px">
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;padding:12px;
-          background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius)">
-          <input type="checkbox" id="sh-item">
-          <label for="sh-item" style="font-size:14px;cursor:pointer">Completed a portfolio item this week</label>
+    const count = countHistoryEntries('side_hustle');
+    const pct = Math.min(100, Math.round((count / def.target) * 100));
+    return `<div class="card sh-panel sh-panel-readonly">
+      <div class="card-title">💸 Side Hustle</div>
+      <div class="sh-panel-body">
+        <div class="sh-panel-metric">
+          <div class="sh-panel-row">
+            <span class="sh-metric-label">Entries</span>
+            <span class="sh-metric-value">${count}<span class="gauge-count-target"> / ${def.target}</span></span>
+          </div>
+          <div class="gauge-bar-track sh-bar"><div class="gauge-bar-fill gauge-bar-items" style="width:${pct}%"></div></div>
         </div>
       </div>
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);
-        font-size:12px;color:var(--text-muted)">
-        This week so far: <strong style="color:var(--text)">$${sh.income} income</strong> &nbsp;·&nbsp;
-        <strong style="color:var(--text)">${sh.items} portfolio item${sh.items !== 1 ? 's' : ''}</strong>
-      </div>`;
-
-    UI.showModal('Log Side Hustle 💸', bodyHTML, [
-      { id: 'cancel', label: 'Cancel', class: 'btn-ghost' },
-      {
-        id: 'save', label: 'Save', class: 'btn-gold', close: false,
-        action: () => {
-          const income = parseInt(document.getElementById('sh-income')?.value || '0', 10) || 0;
-          const item   = document.getElementById('sh-item')?.checked ? 1 : 0;
-          if (!income && !item) { UI.notify('Nothing to log.', 'info'); UI.closeModal(); return; }
-          const data = _getData();
-          data.side_hustle = {
-            income: (data.side_hustle?.income || 0) + income,
-            items:  Math.min((data.side_hustle?.items || 0) + item, def.itemsTarget),
-          };
-          Storage.set('gauges', data);
-          UI.closeModal();
-          UI.notify('Side hustle activity logged!', 'success');
-          _reRenderBand();
-        },
-      },
-    ]);
-  }
-
-  // ── Claude validation ─────────────────────────────────────────────────────
-
-  async function _callClaude(gaugeId, messages) {
-    const hint   = VALIDATION_HINTS[gaugeId] || '';
-    const system = VALIDATION_SYSTEM + (hint ? `\n\nFor this activity: ${hint}` : '');
-
-    const r = await fetch('/api/claude', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model:      Config.claudeModel(),
-        max_tokens: 150,
-        stream:     false,
-        system,
-        messages,
-      }),
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || data.error || 'Validation unavailable.');
-    return data.content?.[0]?.text || '{"valid":false,"question":null,"reason":"No response."}';
-  }
-
-  // ── Storage ───────────────────────────────────────────────────────────────
-
-  function _increment(gaugeId, amount = 1) {
-    const data = _getData();
-    data[gaugeId] = (data[gaugeId] || 0) + amount;
-    Storage.set('gauges', data);
-  }
-
-  function increment(gaugeId, amount = 1) {
-    _increment(gaugeId, amount);
-    _reRenderBand();
-  }
-
-  // ── Modal helpers ─────────────────────────────────────────────────────────
-
-  function _setSubmitting(loading) {
-    const btn = document.getElementById('modal-btn-submit');
-    if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Validating...' : 'Submit'; }
-  }
-
-  function _showMsg(msg) {
-    const el = document.getElementById('gauge-validation-msg');
-    if (el) { el.textContent = msg; el.style.display = 'block'; }
+      <div class="sh-panel-hint">Make your entries on the Side Hustle page.</div>
+    </div>`;
   }
 
   async function logWorkflowActivity(gaugeId, payload) {
-    const def = _gaugeDefs().find(g => g.id === gaugeId);
-    if (!def) return { ok: false, reason: 'Unknown activity.' };
+    if (!GAUGE_DEFS.some(g => g.id === gaugeId)) {
+      return { ok: false, reason: 'Unknown activity.' };
+    }
 
-    if (def.type === 'dual') {
+    if (gaugeId === 'side_hustle') {
       const income = Math.max(0, parseInt(payload?.income || '0', 10) || 0);
       const item = payload?.portfolioEligible ? 1 : 0;
-      if (!income && !item) return { ok: false, reason: 'Log income, portfolio work, or both.' };
-      const data = _getData();
-      data.side_hustle = {
-        income: (data.side_hustle?.income || 0) + income,
-        items: Math.min((data.side_hustle?.items || 0) + item, def.itemsTarget),
-      };
-      Storage.set('gauges', data);
-      _reRenderBand();
+      const note = String(payload?.note || '').trim();
+      if (!income && !item && !note) return { ok: false, reason: 'Log income, portfolio work, or a short note.' };
       return { ok: true };
     }
 
     const text = String(payload?.description || '').trim();
     if (!text) return { ok: false, reason: 'Please describe what you did.' };
 
-    if (['followups', 'networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId)) {
-      const local = _localValidate(gaugeId, text);
-      if (local.valid) {
-        _increment(gaugeId);
-        _reRenderBand();
-        return { ok: true, localFallback: true };
-      }
-      return {
-        ok: false,
-        question: local.question || null,
-        reason: local.reason || 'Please add a little more detail.',
-      };
-    }
+    const local = _localValidate(gaugeId, text);
+    if (local.valid) return { ok: true, localFallback: true };
+    return {
+      ok: false,
+      question: local.question || null,
+      reason: local.reason || 'Please add a little more detail.',
+    };
+  }
 
-    const needsValidation = def.validate || payload?.requireValidation;
-    if (!needsValidation) {
-      _increment(gaugeId);
-      _reRenderBand();
-      return { ok: true };
-    }
+  function openPanel() {
+    // Gauges are read-only. The hover tooltip points to the page that owns each count.
+  }
 
-    try {
-      const raw = await _callClaude(gaugeId, [{ role: 'user', content: text }]);
-      const parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
-      if (parsed.valid) {
-        _increment(gaugeId);
-        _reRenderBand();
-        return { ok: true };
-      }
-      return {
-        ok: false,
-        question: parsed.question || null,
-        reason: parsed.reason || 'Please add more specific detail.',
-      };
-    } catch {
-      const local = _localValidate(gaugeId, text);
-      if (local.valid) {
-        _increment(gaugeId);
-        _reRenderBand();
-        return { ok: true, localFallback: true };
-      }
-      return {
-        ok: false,
-        question: local.question || null,
-        reason: local.reason || 'Validation is unavailable. Please add more specific detail and try again.',
-      };
-    }
+  function increment() {
+    _reRenderBand();
   }
 
   function _localValidate(gaugeId, text) {
-    const words = text.split(/\s+/).filter(Boolean);
-    const hasName = /\b(Mr\.?|Ms\.?|Mrs\.?|Dr\.?)\s+[A-Z][a-z]+|\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/.test(text);
-    const hasCompanyOrRole = /\b(role|position|job|company|manager|recruiter|analyst|data|engineer|designer|consultant|developer|coordinator)\b/i.test(text);
-    const hasTiming = /\b(today|yesterday|week|month|day|applied|sent|emailed|messaged|called|followed up)\b/i.test(text) || /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/.test(text);
-
-    if (!['followups', 'networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId) && words.length < 8) {
-      return { valid: false, question: 'Can you add who, what role or company, and when this happened?', reason: 'The entry is too short to confirm the activity.' };
-    }
     if (gaugeId === 'followups') {
       const parsed = _parseFollowupLog(text);
       if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
@@ -551,12 +362,6 @@ Rules:
       const parsed = _parseSimpleActivityLog(text);
       if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
       return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'This activity needs company, name, and a short comment.' };
-    }
-    if (gaugeId === 'usc_eller' && (!hasName || !/\b(USC|Eller|Arizona|Marshall|alumni|alum)\b/i.test(text))) {
-      return { valid: false, question: 'What is the person’s name, and are they connected to USC or Eller?', reason: 'USC/Eller networking needs a named alumni contact.' };
-    }
-    if (['networking', 'linkedin', 'interview_prep', 'interviews'].includes(gaugeId)) {
-      return { valid: hasName || hasCompanyOrRole || hasTiming };
     }
     return { valid: true };
   }
@@ -610,5 +415,24 @@ Rules:
       || /\b[a-z][a-z'-]*\s+[a-z][a-z'-]*\b/i.test(text);
   }
 
-  return { init, renderBand, renderSideHustlePanel, openPanel, logWorkflowActivity, increment };
+  function _esc(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _escAttr(str) {
+    return _esc(str).replace(/'/g, '&#39;');
+  }
+
+  return {
+    init,
+    renderBand,
+    renderSideHustlePanel,
+    refreshLiveCounts,
+    openPanel,
+    logWorkflowActivity,
+    increment,
+    deriveCounts,
+    countWeeklyApplications,
+    countHistoryEntries,
+  };
 })();

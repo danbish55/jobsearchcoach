@@ -2961,12 +2961,14 @@ body.light .mission-complete-card { box-shadow: 0 0 60px rgba(184,146,10,0.2); }
   gap: 12px;
   position: relative;
   z-index: 1;
+  overflow: visible;
 }
 .gauge-grid-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   justify-items: stretch;
+  overflow: visible;
 }
 .gauge-band-row {
   display: flex;
@@ -2998,19 +3000,21 @@ body.light .mission-complete-card { box-shadow: 0 0 60px rgba(184,146,10,0.2); }
   border-radius: var(--radius);
   padding: 10px 10px 12px;
   box-shadow: 0 8px 18px rgba(0,0,0,0.07);
-  cursor: pointer;
+  cursor: default;
   transition: background var(--ease), border-color var(--ease), transform 0.1s, box-shadow var(--ease);
   display: flex;
   flex-direction: column;
   gap: 2px;
   align-items: stretch;
   min-height: 132px;
+  position: relative;
 }
 .gauge-card:hover {
   background: var(--card-hover);
   border-color: var(--gold-border);
   transform: translateY(-1px);
   box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+  z-index: 40;
 }
 body.light .gauge-card { box-shadow: 0 8px 18px rgba(30,30,35,0.08); }
 body.light .gauge-card:hover { box-shadow: 0 12px 24px rgba(30,30,35,0.11); }
@@ -3019,6 +3023,52 @@ body.light .gauge-card:hover { box-shadow: 0 12px 24px rgba(30,30,35,0.11); }
 }
 .gauge-card.gauge-card-done:hover {
   border-color: rgba(46,204,113,0.6);
+}
+.gauge-card-readonly {
+  cursor: help;
+  overflow: visible;
+}
+.gauge-tooltip {
+  position: absolute;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: min(260px, 76vw);
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  padding: 8px 10px;
+  border: 1px solid var(--gold-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.24);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: 0;
+  text-align: center;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.gauge-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -4px) rotate(45deg);
+  border-right: 1px solid var(--gold-border);
+  border-bottom: 1px solid var(--gold-border);
+  background: var(--card-bg);
+}
+.gauge-card:hover .gauge-tooltip,
+.gauge-card:focus .gauge-tooltip,
+.gauge-card:focus-within .gauge-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 .gauge-card-featured {
   flex: 2;

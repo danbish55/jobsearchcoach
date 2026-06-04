@@ -7,7 +7,6 @@ const SampleData = (() => {
 
     _seedProfile();
     _seedJobs();
-    _seedGauges();
     _seedResume();
     _seedDeepDive();
     _seedJobTargetTracker();
@@ -62,23 +61,8 @@ const SampleData = (() => {
     });
   }
 
-  function _seedGauges() {
-    const current = Storage.get('gauges', {});
-    if (!_isEmptyObject(current)) return;
-    Storage.set('gauges', {
-      week: _getMondayString(new Date()),
-      apps: 10,
-      followups: 4,
-      interviews: 1,
-      usc_eller: 3,
-      networking: 5,
-      interview_prep: 2,
-      linkedin: 4,
-      portfolio: 1,
-      resume_variants: 2,
-      side_hustle: { income: 175, items: 1 },
-    });
-  }
+  // Legacy jsc_gauges sample counters are intentionally not seeded anymore.
+  // Gauge counts are derived from application rows, workflow history, and the resume folder.
 
   function _seedResume() {
     const current = Storage.get('resume', {});
@@ -241,13 +225,6 @@ Customer Segmentation Dashboard
 
 SKILLS
 SQL, Python, Tableau, Excel, statistics, data visualization, stakeholder communication`;
-  }
-
-  function _getMondayString(date) {
-    const d = new Date(date);
-    const day = d.getDay();
-    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
-    return d.toISOString().slice(0, 10);
   }
 
   return { seedIfEmpty, disableAfterReset };

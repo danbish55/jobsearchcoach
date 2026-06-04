@@ -158,7 +158,6 @@ const Jobs = (() => {
     const data = Storage.get('jobs', _defaultData());
     const app = editIndex !== null ? data.applications[editIndex] : {};
     const isEdit = editIndex !== null;
-    const originalStatus = app.status || '';
 
     const body = `
       <div class="form-row">
@@ -213,7 +212,6 @@ const Jobs = (() => {
             stored.applications.push(entry);
           }
           Storage.set('jobs', stored);
-          _syncApplicationsGauge(originalStatus, entry.status);
           _checkMilestones(stored.applications);
           UI.closeModal();
           render();
@@ -227,10 +225,8 @@ const Jobs = (() => {
 
   function updateStatus(i, status) {
     const data = Storage.get('jobs', _defaultData());
-    const previousStatus = data.applications[i]?.status || '';
     data.applications[i].status = status;
     Storage.set('jobs', data);
-    _syncApplicationsGauge(previousStatus, status);
     _checkMilestones(data.applications);
     UI.updateSidebar();
     render();
@@ -238,19 +234,44 @@ const Jobs = (() => {
 
   function addApplication(entry) {
     const stored = Storage.get('jobs', _defaultData());
-    stored.applications.push(entry);
+    const existingIndex = _findExistingApplicationIndex(stored.applications, entry);
+    if (existingIndex >= 0) {
+      stored.applications[existingIndex] = {
+        ...stored.applications[existingIndex],
+        ...entry,
+        status: entry.status || stored.applications[existingIndex].status,
+      };
+    } else {
+      stored.applications.push(entry);
+    }
     Storage.set('jobs', stored);
-    _syncApplicationsGauge('', entry.status);
     _checkMilestones(stored.applications);
     UI.updateSidebar();
     if (document.getElementById('view-jobs')?.classList.contains('active')) render();
     return entry;
   }
 
-  function _syncApplicationsGauge(previousStatus, nextStatus) {
-    if (previousStatus !== 'applied' && nextStatus === 'applied') {
-      Gauges.increment('apps');
+  function _findExistingApplicationIndex(applications, entry) {
+    const incomingLeadId = String(entry?.source_lead_id || entry?.lead_id || '').trim().toLowerCase();
+    if (incomingLeadId) {
+      const byLeadId = applications.findIndex(app => String(app?.source_lead_id || app?.lead_id || '').trim().toLowerCase() === incomingLeadId);
+      if (byLeadId >= 0) return byLeadId;
     }
+
+    const incomingUrl = String(entry?.url || '').trim().toLowerCase();
+    if (incomingUrl) {
+      const byUrl = applications.findIndex(app => String(app?.url || '').trim().toLowerCase() === incomingUrl);
+      if (byUrl >= 0) return byUrl;
+    }
+
+    const company = _normalizeKey(entry?.company);
+    const role = _normalizeKey(entry?.role || entry?.title);
+    if (!company || !role) return -1;
+    return applications.findIndex(app => _normalizeKey(app?.company) === company && _normalizeKey(app?.role || app?.title) === role);
+  }
+
+  function _normalizeKey(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
   function remove(i) {
@@ -298,5 +319,5 @@ const Jobs = (() => {
       .replace(/"/g, '&quot;');
   }
 
-  return { render, sortBy, setSearch, showAddModal, showEditModal, showNotesModal, updateStatus, addApplication, remove };
+  return { render, sortBy, setSearch, showAddModal, showEditModal, showNotesModal, updateStatus, addApplication, remove, _findExistingApplicationIndex };
 })();

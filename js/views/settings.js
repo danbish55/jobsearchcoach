@@ -130,7 +130,8 @@ const Settings = (() => {
 
         <!-- Profile -->
         <div class="settings-section">
-          <div class="settings-section-title">Your Profile</div>
+          ${_sectionHeaderHTML('your-profile', 'Your Profile')}
+          <div id="your-profile-panel" style="display:none">
 
           <div class="setting-row">
             <span class="setting-label">Name</span>
@@ -183,11 +184,13 @@ const Settings = (() => {
           <div style="margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="Settings.saveProfile()">Save Profile</button>
           </div>
+          </div>
         </div>
 
         <!-- Success Gauge Goals -->
         <div class="settings-section">
-          <div class="settings-section-title">Success Gauge Goals</div>
+          ${_sectionHeaderHTML('success-gauge-goals', 'Success Gauge Goals')}
+          <div id="success-gauge-goals-panel" style="display:none">
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
             Adjust the targets used by the dashboard success gauges. Values must be whole numbers greater than zero.
           </div>
@@ -196,16 +199,13 @@ const Settings = (() => {
             <button class="btn btn-primary btn-sm" onclick="Settings.saveGaugeGoals()">Save Gauge Goals</button>
             <span id="gauge-goals-error" style="font-size:12px;color:var(--danger)"></span>
           </div>
+          </div>
         </div>
 
         <!-- Job Search Profile -->
         <div class="settings-section">
-          <button type="button" onclick="Settings.toggleSection('job-search-profile')"
-            style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:none;border:0;border-bottom:1px solid var(--border);padding:0 0 8px;margin-bottom:12px;color:var(--text);cursor:pointer;text-align:left">
-            <span class="settings-section-title" style="border:0;padding:0;margin:0">Job Search Profile</span>
-            <span id="job-search-profile-chevron" style="color:var(--gold);font-size:18px;line-height:1;transition:transform 0.2s ease">v</span>
-          </button>
-          <div id="job-search-profile-panel" style="display:block">
+          ${_sectionHeaderHTML('job-search-profile', 'Job Search Profile')}
+          <div id="job-search-profile-panel" style="display:none">
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
               These tags shape the Job Leads matching profile. Type a value and press Enter.
             </div>
@@ -240,7 +240,8 @@ const Settings = (() => {
 
         <!-- Report Emails -->
         <div class="settings-section">
-          <div class="settings-section-title">Progress Report Recipients</div>
+          ${_sectionHeaderHTML('progress-report-recipients', 'Progress Report Recipients')}
+          <div id="progress-report-recipients-panel" style="display:none">
           <div class="setting-row">
             <span class="setting-label">Recipient 1 Name</span>
             <div class="setting-control">
@@ -268,11 +269,13 @@ const Settings = (() => {
           <div style="margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="Settings.saveParentEmails()">Save Emails</button>
           </div>
+          </div>
         </div>
 
         <!-- API Key -->
         <div class="settings-section">
-          <div class="settings-section-title">Coach Access Key</div>
+          ${_sectionHeaderHTML('coach-access-key', 'Coach Access Key')}
+          <div id="coach-access-key-panel" style="display:none">
           <div class="setting-row">
             <span class="setting-label">Access Key</span>
             <div class="api-key-display">
@@ -300,11 +303,13 @@ const Settings = (() => {
           <div style="margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="Settings.saveApiKey()">Update API Key</button>
           </div>
+          </div>
         </div>
 
         <!-- Google Drive -->
         <div class="settings-section">
-          <div class="settings-section-title">Google Drive Sync</div>
+          ${_sectionHeaderHTML('google-drive-sync', 'Google Drive Sync')}
+          <div id="google-drive-sync-panel" style="display:none">
           <div class="setting-row">
             <span class="setting-label">Status</span>
             <div class="drive-status-badge ${status.has_drive ? 'connected' : 'disconnected'}">
@@ -338,11 +343,13 @@ const Settings = (() => {
           <div style="margin-top:4px">
             <button class="btn btn-ghost btn-sm" onclick="Settings.disconnectDrive()">Disconnect Drive</button>
           </div>`}
+          </div>
         </div>
 
         <!-- Data -->
         <div class="settings-section">
-          <div class="settings-section-title">Data</div>
+          ${_sectionHeaderHTML('settings-data', 'Data')}
+          <div id="settings-data-panel" style="display:none">
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="Settings.exportData()">Export All Data</button>
             <button class="btn btn-ghost btn-sm" onclick="Settings.chooseBackupFile()">Reload from Backup</button>
@@ -353,9 +360,19 @@ const Settings = (() => {
           <div style="font-size:12px;color:var(--text-muted);margin-top:8px">
             Export saves a JSON file of all your data. Reset clears localStorage — your config.json on disk is preserved.
           </div>
+          </div>
         </div>
       </div>`;
     _loadJobSearchSettings();
+  }
+
+  function _sectionHeaderHTML(sectionId, title) {
+    return `
+      <button type="button" onclick="Settings.toggleSection('${sectionId}')"
+        style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:none;border:0;border-bottom:1px solid var(--border);padding:0 0 8px;margin-bottom:12px;color:var(--text);cursor:pointer;text-align:left">
+        <span class="settings-section-title" style="border:0;padding:0;margin:0">${_esc(title)}</span>
+        <span id="${sectionId}-chevron" style="color:var(--gold);font-size:18px;line-height:1;transition:transform 0.2s ease;transform:rotate(-90deg)">v</span>
+      </button>`;
   }
 
   function saveProfile() {
@@ -403,6 +420,7 @@ const Settings = (() => {
     Storage.set('gauge_settings', settings);
     const bandEl = document.getElementById('gauge-band-container');
     if (bandEl) bandEl.innerHTML = Gauges.renderBand();
+    Gauges.refreshLiveCounts();
     UI.notify('Gauge goals saved', 'success');
   }
 
