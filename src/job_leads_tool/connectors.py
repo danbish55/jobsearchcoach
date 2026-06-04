@@ -26,6 +26,14 @@ def _parse_pub_date(raw: str | None) -> str:
     return str(raw).strip()
 
 
+def _findtext_any_namespace(item: ElementTree.Element, local_name: str) -> str:
+    for child in item:
+        tag = str(child.tag)
+        if tag == local_name or tag.endswith(f"}}{local_name}"):
+            return (child.text or "").strip()
+    return ""
+
+
 def _safe_xml(s: str) -> str:
     # Handle unescaped ampersands that often appear in RSS titles/fields.
     # Only repair obviously broken entities to avoid touching legitimate sequences.
@@ -46,7 +54,7 @@ def _parse_rss_items(source: str, text: str) -> list[dict[str, str]]:
         posted = (
             item.findtext("pubDate")
             or item.findtext("published")
-            or item.findtext("dc:date")
+            or _findtext_any_namespace(item, "date")
             or ""
         )
 
