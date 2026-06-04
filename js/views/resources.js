@@ -67,8 +67,8 @@ const Resources = (() => {
     return `<div class="resources-loading-overlay">
       <div class="resources-loading-panel">
         <div class="resources-loading-title">${_esc(title)}</div>
-        <div class="resources-loading-text">Scanning intelligence feeds...</div>
-        <div class="resources-loading-bar"><span></span></div>
+        <div class="resources-loading-spinner" aria-hidden="true"></div>
+        <div class="resources-loading-text">Running JobLeadsTool cycle... Please be patient - this takes a while.</div>
       </div>
     </div>`;
   }

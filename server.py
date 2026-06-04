@@ -290,7 +290,7 @@ def _start_job_leads_tool(force=False):
     os.makedirs(outputs['outputs'], exist_ok=True)
 
     cmd = [
-        'python3',
+        sys.executable,
         '-m',
         'job_leads_tool.cli',
         'run-cycle',
@@ -406,6 +406,10 @@ def _job_leads_db_path(repo_dir):
     return Path(repo_dir) / 'data' / 'leads.db'
 
 
+def _job_leads_deleted_ids_path(repo_dir):
+    return Path(repo_dir) / 'data' / 'deleted_leads.json'
+
+
 def _default_resumes_folder():
     return os.path.join('~', 'Documents', 'Resumes')
 
@@ -501,6 +505,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._jl_transition(body, 'rejected')
         elif path == '/api/jl/apply':
             self._jl_apply(body)
+        elif path == '/api/jl/delete':
+            self._jl_delete(body)
         elif path == '/api/jl/add-manual':
             self._jl_add_manual(body)
         elif path == '/api/jl/save-profile':
@@ -781,13 +787,16 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             source_health.setdefault('sources', []).extend(notes)
             source_health['total'] = len(source_health.get('sources') or [])
         current_lead_ids = self._current_jl_source_ids(repo_dir, source_health)
+        current_lead_ids.update(self._existing_jl_scored_output_ids(scored_path))
         health = self._public_jl_health(source_health)
         write_source_health(health_path, health)
 
         scored = _score_from_db(profile_path, db_path)
+        deleted_ids = self._load_jl_deleted_ids(repo_dir)
         scored = [
             item for item in scored
             if str((item.get('lead') or item).get('id') or item.get('lead_id') or item.get('id') or '') in current_lead_ids
+            and str((item.get('lead') or item).get('id') or item.get('lead_id') or item.get('id') or '') not in deleted_ids
         ]
         scored = [
             item for item in scored
@@ -830,9 +839,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             jobs = payload.get('jobs') if isinstance(payload, dict) else []
             if not isinstance(jobs, list):
                 continue
-                for job in jobs:
-                    if isinstance(job, dict) and job.get('id'):
-                        ids.add(str(job.get('id')))
+            for job in jobs:
+                if isinstance(job, dict) and job.get('id'):
+                    ids.add(str(job.get('id')))
         ids.update(self._manual_jl_lead_ids(repo_dir))
         return ids
 
@@ -2102,12 +2111,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
     def _jl_apply(self, body):
         lead_id = (body.get('lead_id') or '').strip()
+        override_duplicate = body.get('override_duplicate') is True
         if not lead_id:
             self._json({'error': 'lead_id is required'}, 400)
             return
 
         try:
-            updated = self._apply_jl_lead(lead_id)
+            updated = self._apply_jl_lead(lead_id, override_duplicate=override_duplicate)
         except FileNotFoundError as exc:
             self._json({'error': str(exc)}, 404)
             return
@@ -2180,8 +2190,16 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if url:
                     existing = conn.execute('SELECT id FROM leads WHERE url = ? LIMIT 1', (url,)).fetchone()
                     if existing is not None:
-                        self._json({'success': False, 'error': 'This job is already in your leads list.'}, 409)
-                        return
+                        existing_id = str(existing['id'] or '')
+                        deleted_ids = self._load_jl_deleted_ids(repo_dir)
+                        scored_ids = self._existing_jl_scored_output_ids(Path(repo_dir) / 'outputs' / 'scored_leads.json')
+                        if existing_id in deleted_ids or existing_id not in scored_ids:
+                            conn.execute('DELETE FROM leads WHERE id = ?', (existing_id,))
+                            conn.commit()
+                            self._remove_jl_scored_output_lead(existing_id)
+                        else:
+                            self._json({'success': False, 'error': 'This job is already in your leads list.'}, 409)
+                            return
 
                 profile = load_profile(Path(repo_dir) / 'config' / 'candidate_profile.yaml')
                 scored = build_manual_scored_lead(
@@ -2215,7 +2233,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             finally:
                 conn.close()
 
-            lead_id = scored.get('lead_id') or (scored.get('lead') or {}).get('id')
+            lead_id = str(scored.get('lead_id') or (scored.get('lead') or {}).get('id') or '')
+            deleted_ids = self._load_jl_deleted_ids(repo_dir)
+            if lead_id in deleted_ids:
+                deleted_ids.remove(lead_id)
+                self._save_jl_deleted_ids(repo_dir, deleted_ids)
             refreshed_match = self._append_jl_manual_scored_output(repo_dir, scored)
         except Exception as exc:
             self._json({'success': False, 'error': f'Could not add manual job: {exc}'}, 500)
@@ -2288,7 +2310,24 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         self._json(updated)
 
-    def _apply_jl_lead(self, lead_id):
+    def _jl_delete(self, body):
+        lead_id = (body.get('lead_id') or '').strip()
+        if not lead_id:
+            self._json({'error': 'lead_id is required'}, 400)
+            return
+
+        try:
+            result = self._delete_jl_lead(lead_id)
+        except FileNotFoundError as exc:
+            self._json({'error': str(exc)}, 404)
+            return
+        except Exception as exc:
+            self._json({'error': f'Could not delete lead: {exc}'}, 500)
+            return
+
+        self._json(result)
+
+    def _apply_jl_lead(self, lead_id, override_duplicate=False):
         repo_dir = _job_leads_tool_dir_required()
         drive_updated = self._try_apply_jl_drive_lead(repo_dir, lead_id)
         if drive_updated is not None:
@@ -2320,16 +2359,17 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
             company_norm = normalize_company(lead.get('company'))
             role_track = normalize_role_track(lead.get('title'))
-            for row in list_leads(conn, state='applied'):
-                if (
-                    row.get('id') != lead_id
-                    and normalize_company(row.get('company')) == company_norm
-                    and normalize_role_track(row.get('title')) == role_track
-                ):
-                    raise ValueError(f'duplicate-company-role apply blocked. existing_lead_id: {row.get("id")}')
+            if not override_duplicate:
+                for row in list_leads(conn, state='applied'):
+                    if (
+                        row.get('id') != lead_id
+                        and normalize_company(row.get('company')) == company_norm
+                        and normalize_role_track(row.get('title')) == role_track
+                    ):
+                        raise ValueError(f'duplicate-company-role apply blocked. existing_lead_id: {row.get("id")}')
 
-            if has_company_role_application(conn, company_norm, role_track):
-                raise ValueError('duplicate-company-role apply blocked.')
+                if has_company_role_application(conn, company_norm, role_track):
+                    raise ValueError('duplicate-company-role apply blocked.')
 
             transition_state(conn, lead_id, 'applied')
             updated = get_lead(conn, lead_id)
@@ -2367,6 +2407,44 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         self._sync_jl_scored_output_state(lead_id, new_state)
         return self._updated_jl_lead_payload(lead_id, updated or {'id': lead_id, 'approval_state': new_state})
+
+    def _delete_jl_lead(self, lead_id):
+        repo_dir = _job_leads_tool_dir_required()
+        db_path = _job_leads_db_path(repo_dir)
+
+        src_dir = os.path.join(repo_dir, 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+
+        deleted_ids = self._load_jl_deleted_ids(repo_dir)
+        deleted_ids.add(lead_id)
+        self._save_jl_deleted_ids(repo_dir, deleted_ids)
+
+        lead_url = self._jl_scored_output_lead_url(lead_id)
+        db_deleted = False
+        if os.path.exists(db_path):
+            from job_leads_tool.sqlite_store import connect
+            conn = connect(db_path)
+            try:
+                if lead_url:
+                    existing = conn.execute("SELECT id FROM leads WHERE url = ?", (lead_url,)).fetchall()
+                    deleted_ids.update(str(row['id']) for row in existing if row['id'])
+                    self._save_jl_deleted_ids(repo_dir, deleted_ids)
+                    cur = conn.execute("DELETE FROM leads WHERE id = ? OR url = ?", (lead_id, lead_url))
+                else:
+                    cur = conn.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
+                conn.commit()
+                db_deleted = cur.rowcount > 0
+            finally:
+                conn.close()
+
+        scored_deleted = self._remove_jl_scored_output_lead(lead_id)
+        return {
+            'ok': True,
+            'lead_id': lead_id,
+            'db_deleted': db_deleted,
+            'scored_deleted': scored_deleted,
+        }
 
     def _try_transition_jl_drive_lead(self, repo_dir, lead_id, new_state):
         src_dir = os.path.join(repo_dir, 'src')
@@ -2416,6 +2494,69 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if changed:
             with open(path, 'w', encoding='utf-8') as output_file:
                 json.dump(scored, output_file, indent=2)
+
+    def _load_jl_deleted_ids(self, repo_dir):
+        path = _job_leads_deleted_ids_path(repo_dir)
+        if not path.exists():
+            return set()
+        try:
+            payload = json.loads(path.read_text(encoding='utf-8'))
+        except Exception:
+            return set()
+        if isinstance(payload, list):
+            return {str(item) for item in payload if item}
+        if isinstance(payload, dict) and isinstance(payload.get('ids'), list):
+            return {str(item) for item in payload.get('ids') if item}
+        return set()
+
+    def _save_jl_deleted_ids(self, repo_dir, deleted_ids):
+        path = _job_leads_deleted_ids_path(repo_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(sorted(deleted_ids), indent=2), encoding='utf-8')
+
+    def _jl_scored_output_lead_url(self, lead_id):
+        path = _job_leads_output_path('scored')
+        if not path or not os.path.exists(path):
+            return ''
+        try:
+            with open(path, 'r', encoding='utf-8') as output_file:
+                scored = json.load(output_file)
+        except Exception:
+            return ''
+        if not isinstance(scored, list):
+            return ''
+        for item in scored:
+            if not isinstance(item, dict):
+                continue
+            lead = item.get('lead') if isinstance(item.get('lead'), dict) else item
+            item_id = str(lead.get('id') or item.get('lead_id') or item.get('id') or '')
+            if item_id == lead_id:
+                return str(lead.get('url') or '')
+        return ''
+
+    def _remove_jl_scored_output_lead(self, lead_id):
+        path = _job_leads_output_path('scored')
+        if not path or not os.path.exists(path):
+            return False
+        with open(path, 'r', encoding='utf-8') as output_file:
+            scored = json.load(output_file)
+        if not isinstance(scored, list):
+            return False
+
+        kept = []
+        for item in scored:
+            if not isinstance(item, dict):
+                kept.append(item)
+                continue
+            lead = item.get('lead') if isinstance(item.get('lead'), dict) else item
+            item_id = str(lead.get('id') or item.get('lead_id') or item.get('id') or '')
+            if item_id != lead_id:
+                kept.append(item)
+        if len(kept) == len(scored):
+            return False
+        with open(path, 'w', encoding='utf-8') as output_file:
+            json.dump(kept, output_file, indent=2)
+        return True
 
     def _updated_jl_lead_payload(self, lead_id, db_lead):
         scored = self._load_jl_scored_leads()
@@ -2509,12 +2650,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         scored_path = Path(repo_dir) / 'outputs' / 'scored_leads.json'
         self._jl_source_filter_profile = self._load_jl_local_profile(repo_dir)
         scored = _score_from_db(profile_path, db_path)
+        deleted_ids = self._load_jl_deleted_ids(repo_dir)
         current_ids = self._current_jl_source_ids(repo_dir)
         current_ids.update(self._existing_jl_scored_output_ids(scored_path))
         if current_ids:
             scored = [
                 item for item in scored
                 if str((item.get('lead') or item).get('id') or item.get('lead_id') or item.get('id') or '') in current_ids
+                and str((item.get('lead') or item).get('id') or item.get('lead_id') or item.get('id') or '') not in deleted_ids
             ]
         scored = [
             item for item in scored
@@ -2826,7 +2969,7 @@ def main():
     else:
         print(f'\n  Preferred port {preferred_port} is available.\n')
 
-    with socketserver.ThreadingTCPServer(('', selected_port), AppHandler) as httpd:
+    with socketserver.ThreadingTCPServer(('127.0.0.1', selected_port), AppHandler) as httpd:
         print(f'\n  JobSearchCoach running at http://localhost:{selected_port}\n')
         print('  Press Ctrl+C to stop.\n')
         threading.Timer(1.2, lambda: webbrowser.open(f'http://localhost:{selected_port}')).start()

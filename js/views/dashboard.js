@@ -151,6 +151,11 @@ Never use bullet points. Never use headers within the briefing itself — it sho
 
   function _buildBriefingPayload() {
     const gauges = Storage.get('gauges', {});
+    const gaugeSettings = Storage.get('gauge_settings', {});
+    const gaugeTarget = (key, fallback) => {
+      const value = parseInt(gaugeSettings[key], 10);
+      return Number.isFinite(value) && value > 0 ? value : fallback;
+    };
     const sessions = Storage.get('sessions', { sessions: [], compressed: [] });
     const fullSessions = sessions.sessions || [];
     const lastSession = fullSessions[fullSessions.length - 1];
@@ -161,25 +166,26 @@ Never use bullet points. Never use headers within the briefing itself — it sho
       .map(m => m.title);
 
     const uscCount = gauges.usc_eller || 0;
+    const uscTarget = gaugeTarget('usc_eller_target', 6);
 
     return {
       today_date: _todayISODate(),
       days_since_start: _daysSince(startDate),
       current_session: fullSessions.length,
       weekly_gauges: {
-        applications_sent: gauges.apps || 0,
-        follow_ups: gauges.followups || 0,
-        networking_general: gauges.networking || 0,
-        usc_eller_networking: `${uscCount}${uscCount < 3 ? ' — below target, call out directly' : ''}`,
-        interview_prep_sessions: gauges.interview_prep || 0,
+        applications_sent: `${gauges.apps || 0} of ${gaugeTarget('apps_target', 10)}`,
+        follow_ups: `${gauges.followups || 0} of ${gaugeTarget('followups_target', 10)}`,
+        networking_general: `${gauges.networking || 0} of ${gaugeTarget('networking_target', 6)}`,
+        usc_eller_networking: `${uscCount} of ${uscTarget}${uscCount < Math.ceil(uscTarget / 2) ? ' — below target, call out directly' : ''}`,
+        interview_prep_sessions: `${gauges.interview_prep || 0} of ${gaugeTarget('interview_prep_target', 6)}`,
         attempts: gauges.interviews || 0,
-        linkedin_activity: gauges.linkedin || 0,
-        side_hustle_income: gauges.side_hustle?.income || 0,
-        side_hustle_portfolio_eligible: gauges.side_hustle?.items || 0,
+        linkedin_activity: `${gauges.linkedin || 0} of ${gaugeTarget('linkedin_target', 6)}`,
+        side_hustle_income: `$${gauges.side_hustle?.income || 0} of $${gaugeTarget('side_hustle_income_target', 250)}`,
+        side_hustle_portfolio_eligible: `${gauges.side_hustle?.items || 0} of ${gaugeTarget('side_hustle_items_target', 1)}`,
       },
       cumulative_gauges: {
-        portfolio_projects_published: `${gauges.portfolio || 0} of 3`,
-        resume_variants_complete: `${gauges.resume_variants || 0} of 3`,
+        portfolio_projects_published: `${gauges.portfolio || 0} of ${gaugeTarget('portfolio_target', 3)}`,
+        resume_variants_complete: `${gauges.resume_variants || 0} of ${gaugeTarget('resume_variants_target', 3)}`,
       },
       last_session_summary: _lastSessionSummary(lastMessages),
       days_since_usc_eller_touch: uscCount > 0 ? 0 : null,

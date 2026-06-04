@@ -1113,6 +1113,13 @@ body.light .resume-loading-overlay {
   box-shadow: var(--shadow);
   padding: 16px;
 }
+.resources-loading-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
 .resources-loading-title,
 .resume-loading-title {
   color: var(--gold);
@@ -1127,7 +1134,17 @@ body.light .resume-loading-overlay {
   line-height: 1.35;
   margin-top: 6px;
 }
-.resources-loading-bar,
+.resources-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--gold);
+  animation: resourcesLoadingSpin 0.8s linear infinite;
+}
+@keyframes resourcesLoadingSpin {
+  to { transform: rotate(360deg); }
+}
 .resume-loading-bar {
   position: relative;
   overflow: hidden;
@@ -1136,11 +1153,9 @@ body.light .resume-loading-overlay {
   border-radius: 999px;
   background: rgba(255,255,255,0.08);
 }
-body.light .resources-loading-bar,
 body.light .resume-loading-bar {
   background: rgba(0,0,0,0.08);
 }
-.resources-loading-bar span,
 .resume-loading-bar span {
   position: absolute;
   inset: 0 auto 0 0;

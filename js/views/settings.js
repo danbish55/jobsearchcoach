@@ -20,6 +20,7 @@ const Settings = (() => {
     'sessions',
     'coach_current_session',
     'gauges',
+    'gauge_settings',
     'job_target_tracker',
     'mission_discussion_dossier',
     'mission_discussion_network',
@@ -103,6 +104,19 @@ const Settings = (() => {
     },
   ];
 
+  const GAUGE_GOAL_FIELDS = [
+    { key: 'apps_target', label: 'Weekly applications goal', defaultValue: 10 },
+    { key: 'followups_target', label: 'Weekly follow-ups goal', defaultValue: 10 },
+    { key: 'usc_eller_target', label: 'Weekly USC / Eller networking goal', defaultValue: 6 },
+    { key: 'networking_target', label: 'Weekly general networking goal', defaultValue: 6 },
+    { key: 'interview_prep_target', label: 'Weekly interview prep goal', defaultValue: 6 },
+    { key: 'linkedin_target', label: 'Weekly LinkedIn activity goal', defaultValue: 6 },
+    { key: 'portfolio_target', label: 'Portfolio project goal', defaultValue: 3 },
+    { key: 'resume_variants_target', label: 'Resume variants goal', defaultValue: 3 },
+    { key: 'side_hustle_income_target', label: 'Weekly side hustle income goal ($)', defaultValue: 250 },
+    { key: 'side_hustle_items_target', label: 'Weekly side hustle portfolio item goal', defaultValue: 1 },
+  ];
+
   let candidateProfileDraft = null;
 
   function render() {
@@ -168,6 +182,19 @@ const Settings = (() => {
           </div>
           <div style="margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="Settings.saveProfile()">Save Profile</button>
+          </div>
+        </div>
+
+        <!-- Success Gauge Goals -->
+        <div class="settings-section">
+          <div class="settings-section-title">Success Gauge Goals</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+            Adjust the targets used by the dashboard success gauges. Values must be whole numbers greater than zero.
+          </div>
+          ${GAUGE_GOAL_FIELDS.map(_gaugeGoalFieldHTML).join('')}
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="Settings.saveGaugeGoals()">Save Gauge Goals</button>
+            <span id="gauge-goals-error" style="font-size:12px;color:var(--danger)"></span>
           </div>
         </div>
 
@@ -357,6 +384,28 @@ const Settings = (() => {
     UI.notify('Report emails saved', 'success');
   }
 
+  function saveGaugeGoals() {
+    const errorEl = document.getElementById('gauge-goals-error');
+    if (errorEl) errorEl.textContent = '';
+
+    const settings = {};
+    for (const field of GAUGE_GOAL_FIELDS) {
+      const raw = document.getElementById(`gauge-goal-${field.key}`)?.value;
+      const value = parseInt(raw, 10);
+      if (!Number.isFinite(value) || value < 1) {
+        if (errorEl) errorEl.textContent = `${field.label} must be at least 1.`;
+        UI.notify('Gauge goals must be positive whole numbers', 'error');
+        return;
+      }
+      settings[field.key] = value;
+    }
+
+    Storage.set('gauge_settings', settings);
+    const bandEl = document.getElementById('gauge-band-container');
+    if (bandEl) bandEl.innerHTML = Gauges.renderBand();
+    UI.notify('Gauge goals saved', 'success');
+  }
+
   async function saveApiKey() {
     const key = document.getElementById('s-apikey')?.value.trim();
     if (!key) { UI.notify('Enter the new access key first', 'error'); return; }
@@ -419,6 +468,7 @@ const Settings = (() => {
       resume:     Storage.get('resume', {}),
       deep_dive:  Storage.get('deep_dive', {}),
       gauges:     Storage.get('gauges', {}),
+      gauge_settings: Storage.get('gauge_settings', {}),
       job_target_tracker: Storage.get('job_target_tracker', {}),
       mission_discussions: {
         dossier:    Storage.get('mission_discussion_dossier', []),
@@ -463,6 +513,7 @@ const Settings = (() => {
       _restoreKey('resume', data.resume);
       _restoreKey('deep_dive', data.deep_dive);
       _restoreKey('gauges', data.gauges);
+      _restoreKey('gauge_settings', data.gauge_settings);
       _restoreKey('job_target_tracker', data.job_target_tracker);
       _restoreKey('sessions', data.sessions);
       const discussions = data.mission_discussions || {};
@@ -734,6 +785,19 @@ const Settings = (() => {
       </div>`;
   }
 
+  function _gaugeGoalFieldHTML(field) {
+    const saved = Storage.get('gauge_settings', {});
+    const savedValue = parseInt(saved[field.key], 10);
+    const value = Number.isFinite(savedValue) && savedValue > 0 ? savedValue : field.defaultValue;
+    return `
+      <div class="setting-row">
+        <span class="setting-label">${field.label}</span>
+        <div class="setting-control" style="max-width:140px">
+          <input id="gauge-goal-${field.key}" type="number" min="1" step="1" value="${_esc(value)}">
+        </div>
+      </div>`;
+  }
+
   function _jobSourceFieldHTML(source) {
     const keyField = source.requiresKey ? `
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
@@ -821,6 +885,7 @@ const Settings = (() => {
     render,
     saveProfile,
     saveParentEmails,
+    saveGaugeGoals,
     saveApiKey,
     connectDrive,
     disconnectDrive,

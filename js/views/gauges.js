@@ -20,6 +20,19 @@ const Gauges = (() => {
       incomeTarget: 250, itemsTarget: 1 },
   ];
 
+  const DEFAULT_GAUGE_SETTINGS = {
+    apps_target: 10,
+    followups_target: 10,
+    usc_eller_target: 6,
+    networking_target: 6,
+    interview_prep_target: 6,
+    linkedin_target: 6,
+    portfolio_target: 3,
+    resume_variants_target: 3,
+    side_hustle_income_target: 250,
+    side_hustle_items_target: 1,
+  };
+
   const VALIDATION_SYSTEM = `You are validating a job search activity log entry for a grad student.
 Respond with ONLY valid JSON, exactly one of these three forms:
 {"valid":true,"question":null,"reason":"..."}
@@ -65,6 +78,32 @@ Rules:
 
   function _getData() {
     return Storage.get('gauges', _defaultData());
+  }
+
+  function _getSettings() {
+    return Storage.get('gauge_settings', DEFAULT_GAUGE_SETTINGS);
+  }
+
+  function _positiveInt(value, fallback) {
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  function _gaugeDefs() {
+    const settings = _getSettings();
+    return GAUGE_DEFS.map(def => {
+      const copy = { ...def };
+      if (copy.type === 'dual') {
+        copy.incomeTarget = _positiveInt(settings.side_hustle_income_target, DEFAULT_GAUGE_SETTINGS.side_hustle_income_target);
+        copy.itemsTarget = _positiveInt(settings.side_hustle_items_target, DEFAULT_GAUGE_SETTINGS.side_hustle_items_target);
+        return copy;
+      }
+      const key = `${copy.id}_target`;
+      if (copy.target !== null && Object.prototype.hasOwnProperty.call(DEFAULT_GAUGE_SETTINGS, key)) {
+        copy.target = _positiveInt(settings[key], DEFAULT_GAUGE_SETTINGS[key]);
+      }
+      return copy;
+    });
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────
@@ -156,7 +195,7 @@ Rules:
 
   // Returns the inner HTML for #gauge-band-container
   function renderBand() {
-    const byId = Object.fromEntries(GAUGE_DEFS.map(def => [def.id, def]));
+    const byId = Object.fromEntries(_gaugeDefs().map(def => [def.id, def]));
     const rows = [
       ['resume_variants', 'portfolio', 'side_hustle'],
       ['networking', 'usc_eller', 'linkedin'],
@@ -172,7 +211,7 @@ Rules:
   }
 
   function renderSideHustlePanel() {
-    const def = GAUGE_DEFS.find(g => g.id === 'side_hustle');
+    const def = _gaugeDefs().find(g => g.id === 'side_hustle');
     const sh  = (_getData().side_hustle) || { income: 0, items: 0 };
     const incomePct = Math.min(100, Math.round((sh.income / def.incomeTarget) * 100));
     const itemsPct  = sh.items >= def.itemsTarget ? 100 : 0;
@@ -209,7 +248,7 @@ Rules:
   // ── Panels ───────────────────────────────────────────────────────────────
 
   function openPanel(gaugeId) {
-    const def = GAUGE_DEFS.find(g => g.id === gaugeId);
+    const def = _gaugeDefs().find(g => g.id === gaugeId);
     if (!def) return;
 
     if (def.type === 'dual') { _openSideHustlePanel(); return; }
@@ -278,7 +317,7 @@ Rules:
 
   async function _doValidate() {
     _setSubmitting(true);
-    const def = GAUGE_DEFS.find(g => g.id === _pendingId);
+    const def = _gaugeDefs().find(g => g.id === _pendingId);
 
     try {
       const raw = await _callClaude(_pendingId, _pendingMsgs);
@@ -331,6 +370,7 @@ Rules:
   }
 
   function _openSideHustlePanel() {
+    const def = _gaugeDefs().find(g => g.id === 'side_hustle');
     const sh = _getData().side_hustle || { income: 0, items: 0 };
 
     const bodyHTML = `
@@ -365,7 +405,7 @@ Rules:
           const data = _getData();
           data.side_hustle = {
             income: (data.side_hustle?.income || 0) + income,
-            items:  Math.min((data.side_hustle?.items || 0) + item, 1),
+            items:  Math.min((data.side_hustle?.items || 0) + item, def.itemsTarget),
           };
           Storage.set('gauges', data);
           UI.closeModal();
@@ -424,7 +464,7 @@ Rules:
   }
 
   async function logWorkflowActivity(gaugeId, payload) {
-    const def = GAUGE_DEFS.find(g => g.id === gaugeId);
+    const def = _gaugeDefs().find(g => g.id === gaugeId);
     if (!def) return { ok: false, reason: 'Unknown activity.' };
 
     if (def.type === 'dual') {
@@ -434,7 +474,7 @@ Rules:
       const data = _getData();
       data.side_hustle = {
         income: (data.side_hustle?.income || 0) + income,
-        items: Math.min((data.side_hustle?.items || 0) + item, 1),
+        items: Math.min((data.side_hustle?.items || 0) + item, def.itemsTarget),
       };
       Storage.set('gauges', data);
       _reRenderBand();

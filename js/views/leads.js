@@ -50,6 +50,7 @@ const JobLeads = (() => {
   let _tierFilter = 'all';
   let _stateFilter = 'all';
   let _sourceFilter = 'all';
+  let _searchQuery = '';
   let _sortKey = 'score';
   let _sortDirection = 'desc';
   let _lastLoadedAt = '';
@@ -105,6 +106,17 @@ const JobLeads = (() => {
             <select id="job-leads-source-filter" onchange="JobLeads.setSourceFilter(this.value)">
               ${_sourceFilterOptionsHTML()}
             </select>
+          </label>
+          <label class="job-leads-search-label">
+            Search
+            <input
+              id="job-leads-search"
+              type="search"
+              placeholder="Search company, role, location..."
+              value="${_escAttr(_searchQuery)}"
+              oninput="JobLeads.setSearchQuery(this.value)"
+              onkeydown="JobLeads.handleSearchKeydown(event, this.value)"
+            >
           </label>
           <div class="job-leads-count">${_filteredLeads().length} of ${_leads.length} leads</div>
         </div>
@@ -179,6 +191,18 @@ const JobLeads = (() => {
     _sourceFilter = value || 'all';
     _renderBodyOnly();
     _updateCount();
+  }
+
+  function setSearchQuery(value) {
+    _searchQuery = String(value || '');
+    _renderBodyOnly();
+    _updateCount();
+  }
+
+  function handleSearchKeydown(event, value) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    setSearchQuery(value);
   }
 
   function setSort(key) {
@@ -303,6 +327,38 @@ const JobLeads = (() => {
     await _transitionLead(leadId, 'rejected');
   }
 
+  async function deleteLead(leadId) {
+    const index = _leads.findIndex(item => _leadId(item) === leadId);
+    if (index < 0 || _transitioning.has(leadId)) return;
+
+    const lead = _leads[index].lead || _leads[index];
+    const label = `${lead.title || lead.role || 'this role'} at ${lead.company || 'this company'}`;
+    if (!confirm(`Delete ${label} from Job Leads? This hides it from future JL refreshes too.`)) return;
+
+    const previousItem = _leads[index];
+    delete _actionErrors[leadId];
+    _transitioning.add(leadId);
+    _leads.splice(index, 1);
+    _renderBodyOnly();
+    _updateCount();
+
+    try {
+      await _fetchJSON('/api/jl/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      UI.notify('Job lead deleted.', 'success');
+    } catch (err) {
+      _leads.splice(index, 0, previousItem);
+      _actionErrors[leadId] = err.message || 'Could not delete this lead.';
+    } finally {
+      _transitioning.delete(leadId);
+      _renderBodyOnly();
+      _updateCount();
+    }
+  }
+
   function _bodyHTML() {
     if (_loading || _running) {
       return `<div class="card job-leads-loading">
@@ -378,6 +434,7 @@ const JobLeads = (() => {
             <button class="btn btn-primary btn-sm" onclick="JobLeads.openJob('${_escAttr(lead.url || '')}')" ${lead.url ? '' : 'disabled'}>Open Job</button>
             ${_reviewActionsHTML(item)}
             <button class="btn btn-sm job-lead-source-btn" type="button" aria-label="Source: ${_escAttr(source)}">${_esc(source)}</button>
+            <button class="btn btn-sm job-lead-delete-btn" onclick="JobLeads.deleteLead('${_escAttr(leadId)}')" ${_transitioning.has(leadId) ? 'disabled' : ''}>Delete</button>
           </div>
           ${_actionErrors[leadId] ? `<div class="job-lead-inline-error">${_esc(_actionErrors[leadId])}</div>` : ''}
         </div>
@@ -518,8 +575,30 @@ const JobLeads = (() => {
       .filter(item => {
         if (_sourceFilter === 'all') return true;
         return _sourceFilterKey(item) === _sourceFilter;
+      })
+      .filter(item => {
+        const query = _searchQuery.trim().toLowerCase();
+        if (!query) return true;
+        return _searchText(item).includes(query);
       });
     return _sortLeads(filtered);
+  }
+
+  function _searchText(item) {
+    const lead = item.lead || item;
+    return [
+      lead.company,
+      lead.title || lead.role,
+      lead.location,
+      lead.source || item.source,
+      lead.salary,
+      lead.description,
+      item.tier || _tierFromScore(_score(item)),
+      _leadState(item),
+      _displaySource(lead.source || item.source || 'JL'),
+    ]
+      .map(value => String(value || '').toLowerCase())
+      .join(' ');
   }
 
   function _sourceFilterOptionsHTML() {
@@ -739,7 +818,9 @@ Candidate profile:
 
 Write a professional, specific, and concise cover letter for the following job.
 Do not use generic filler phrases. Reference the specific company and role.
-Length: 3 paragraphs. Tone: confident, data-driven, direct.`;
+Avoid AI-sounding polish, generic enthusiasm, and formulaic phrasing where possible.
+Do not use em dashes or long dashes. Use commas, periods, or parentheses instead.
+Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and direct.`;
 
     const user = `Job details:
 Company: ${lead.company || ''}
@@ -774,15 +855,15 @@ Description: ${lead.description || ''}`;
     return letter;
   }
 
-  async function confirmApplied() {
+  async function confirmApplied(overrideDuplicate = false) {
     if (!_activeApplyLeadId) return;
-    _setApplyStatus('Recording application...');
+    _setApplyStatus(overrideDuplicate ? 'Recording duplicate override...' : 'Recording application...');
     try {
       const activeLeadId = _activeApplyLeadId;
       const updated = await _fetchJSON('/api/jl/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: activeLeadId }),
+        body: JSON.stringify({ lead_id: activeLeadId, override_duplicate: overrideDuplicate }),
       });
       const index = _leads.findIndex(item => _leadId(item) === activeLeadId);
       let appliedLead = updated;
@@ -800,7 +881,7 @@ Description: ${lead.description || ''}`;
       UI.closeModal();
       _activeApplyLeadId = '';
     } catch (err) {
-      if (String(err.message || '').toLowerCase().includes('duplicate application')) {
+      if (!overrideDuplicate && String(err.message || '').toLowerCase().includes('duplicate application')) {
         _showDuplicateApplyMessage();
         return;
       }
@@ -919,8 +1000,8 @@ Description: ${lead.description || ''}`;
       </div>`;
   }
 
-  function acknowledgeDuplicateApply() {
-    _setApplyStatus('Duplicate override will be connected in the final apply sync step.', true);
+  async function acknowledgeDuplicateApply() {
+    await confirmApplied(true);
   }
 
   function cancelDuplicateApply() {
@@ -1139,6 +1220,8 @@ Description: ${lead.description || ''}`;
       .job-leads-filter-row { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
       .job-leads-filter-row label { display:flex; flex-direction:column; gap:4px; color:var(--text-muted); font-size:14px; font-weight:700; }
       .job-leads-filter-row select { min-width:130px; }
+      .job-leads-search-label { flex:1 1 260px; max-width:420px; }
+      .job-leads-search-label input { width:100%; min-width:220px; }
       .job-leads-count { margin-left:auto; color:var(--text-muted); font-size:15px; padding-bottom:8px; }
       .job-leads-pending-apply-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; border:1px solid rgba(184,137,29,0.5); border-radius:8px; background:rgba(184,137,29,0.12); color:var(--text); }
       .job-leads-pending-apply-banner strong { display:block; margin-bottom:3px; }
@@ -1198,6 +1281,8 @@ Description: ${lead.description || ''}`;
       .job-lead-approve-btn { background:var(--success); border-color:var(--success); color:#fff; }
       .job-lead-reject-btn { background:var(--danger); border-color:var(--danger); color:#fff; }
       .job-lead-apply-btn { background:var(--gold); border-color:var(--gold); color:#111827; }
+      .job-lead-delete-btn { background:transparent; border-color:var(--danger); color:var(--danger); }
+      .job-lead-delete-btn:hover { background:rgba(239,68,68,0.12); border-color:var(--danger); color:var(--danger); }
       .job-lead-source-btn { background:#d97706; border-color:#d97706; color:#fff; cursor:default; max-width:116px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .job-lead-source-btn:hover { background:#d97706; border-color:#d97706; color:#fff; }
       .job-lead-inline-error { color:var(--danger); font-size:14px; line-height:1.35; margin-top:8px; text-align:right; }
@@ -1236,10 +1321,10 @@ Description: ${lead.description || ''}`;
       .job-leads-error { flex-direction:column; color:var(--text); }
       .job-leads-spinner { width:24px; height:24px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--gold); animation:jobLeadsSpin 0.8s linear infinite; }
       @keyframes jobLeadsSpin { to { transform:rotate(360deg); } }
-      @media (max-width:1180px) {
+      @media (max-width:1420px) {
         .job-leads-row-head { display:none; }
         .job-lead-card.job-leads-row {
-          grid-template-columns:70px minmax(130px,0.9fr) minmax(250px,1.5fr) minmax(205px,1fr);
+          grid-template-columns:70px minmax(120px,0.85fr) minmax(220px,1.45fr) minmax(140px,180px);
           grid-template-areas:
             "score company role actions"
             "score city role actions"
@@ -1261,7 +1346,7 @@ Description: ${lead.description || ''}`;
         .job-lead-salary::before { content:"Salary: "; color:var(--text-muted); font-weight:800; }
         .job-lead-posted::before { content:"Posted: "; color:var(--text-muted); font-weight:800; }
         .job-lead-actions { justify-content:flex-end; align-items:flex-end; flex-direction:column; }
-        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:116px; }
+        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:132px; }
         .job-lead-review-actions { flex-direction:column; align-items:flex-end; }
       }
       @media (max-width:980px) {
@@ -1318,6 +1403,8 @@ Description: ${lead.description || ''}`;
     setTierFilter,
     setStateFilter,
     setSourceFilter,
+    setSearchQuery,
+    handleSearchKeydown,
     setSort,
     openJob,
     openManualJobModal,
@@ -1335,5 +1422,6 @@ Description: ${lead.description || ''}`;
     cancelDuplicateApply,
     approveLead,
     rejectLead,
+    deleteLead,
   };
 })();

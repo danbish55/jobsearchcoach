@@ -13,6 +13,7 @@ const Storage = (() => {
     'deep_dive',
     'cover_letters',
     'gauges',
+    'gauge_settings',
     'job_target_tracker',
     'mission_discussion_dossier',
     'mission_discussion_network',

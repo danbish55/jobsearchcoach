@@ -87,12 +87,16 @@ const JobLeadsTool = (() => {
         : `JobLeadsTool started${pidText}.`;
 
       statusEl.textContent = `Status: ${message}`;
-      detailEl.textContent = `JL cycle complete. Review the leads above inside JobSearchCoach.`;
+      detailEl.textContent = status === 'completed'
+        ? 'JL cycle complete. Review the leads above inside JobSearchCoach.'
+        : 'JL is running. Use Load JL Output after the cycle finishes to refresh results.';
 
       if (openBtn) {
         openBtn.disabled = false;
       }
-      loadOutput();
+      if (status === 'completed') {
+        loadOutput();
+      }
     } catch (err) {
       statusEl.textContent = 'Status: Failed to start';
       detailEl.textContent = String(err.message || err);
