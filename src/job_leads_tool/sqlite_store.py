@@ -97,13 +97,26 @@ def has_company_role_application(conn: sqlite3.Connection, company_norm: str, ro
     return False
 
 
+def _prefetch_leads(conn: sqlite3.Connection, lead_ids: list[str]) -> dict[str, dict[str, Any]]:
+    if not lead_ids:
+        return {}
+    unique_ids = list(dict.fromkeys(lead_ids))
+    placeholders = ",".join("?" for _ in unique_ids)
+    cur = conn.execute(
+        f"SELECT * FROM leads WHERE id IN ({placeholders})",
+        unique_ids,
+    )
+    return {str(row["id"]): dict(row) for row in cur.fetchall()}
+
+
 def upsert_leads(conn: sqlite3.Connection, leads: list[JobLead]) -> tuple[int, int]:
     added = 0
     duplicates = 0
     now = _utc_now()
+    existing_by_id = _prefetch_leads(conn, [lead.id for lead in leads])
 
     for lead in leads:
-        existing = get_lead(conn, lead.id)
+        existing = existing_by_id.get(lead.id)
         if existing is not None:
             if existing.get("content_hash") == lead.content_hash:
                 if (
