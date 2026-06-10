@@ -174,7 +174,7 @@ const Drive = (() => {
 
     if (fileId) {
       // Update existing file
-      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${_accessToken}`,
@@ -182,6 +182,7 @@ const Drive = (() => {
         },
         body: content,
       });
+      if (!r.ok) throw new Error(`Drive update failed (${r.status})`);
     } else {
       // Create new file in appDataFolder
       const meta = JSON.stringify({ name: filename, parents: [FOLDER] });
@@ -198,8 +199,10 @@ const Drive = (() => {
           body,
         }
       );
+      if (!r.ok) throw new Error(`Drive create failed (${r.status})`);
       const created = await r.json();
-      if (created.id) _fileCache[filename] = created.id;
+      if (!created.id) throw new Error('Drive create did not return a file ID');
+      _fileCache[filename] = created.id;
     }
   }
 

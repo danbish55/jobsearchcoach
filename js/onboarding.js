@@ -250,6 +250,8 @@ const Onboarding = (() => {
             await Config.load();
             const connected = await Drive.init();
             if (!connected) throw new Error('Google Drive connection could not be verified.');
+            const storageState = await SampleData.prepareStorage(true, { preserveLocal: true });
+            if (!storageState.ready) throw new Error('Google Drive cleanup could not be completed.');
             await Storage.syncAllToDrive();
             statusEl.textContent = '✓ Google Drive connected';
             statusEl.style.color = 'var(--success)';
@@ -268,6 +270,7 @@ const Onboarding = (() => {
             profile_complete: true,
             completed_install_id: installId,
           });
+          await SampleData.markInitialized();
           document.getElementById('onboarding-overlay').classList.add('hidden');
           App.launch();
         });

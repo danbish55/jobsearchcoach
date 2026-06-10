@@ -12,6 +12,7 @@ const Settings = (() => {
   const DATA_KEYS = [
     'installation',
     'profile',
+    'candidate_profile',
     'progress',
     'milestones',
     'jobs',
@@ -450,6 +451,8 @@ const Settings = (() => {
       await Config.load();
       const connected = await Drive.init();
       if (!connected) throw new Error('Google Drive connection could not be verified.');
+      const storageState = await SampleData.prepareStorage(true, { preserveLocal: true });
+      if (!storageState.ready) throw new Error('Google Drive cleanup could not be completed.');
       await Storage.syncAllToDrive();
       UI.notify('Google Drive connected!', 'success');
       render();
@@ -563,12 +566,25 @@ const Settings = (() => {
     if (!confirm("I'll do a backup and then clear all data except your setup information.")) return;
     _downloadBackup();
     SampleData.disableAfterReset();
-    await Promise.all(DATA_KEYS.map(k => Storage.remove(k)));
-    await Storage.set('installation', {
-      seeded: true,
-      seeded_at: new Date().toISOString(),
-      intentionally_empty: true,
-    });
+    try {
+      const profileResponse = await fetch('/api/jl/reset-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!profileResponse.ok) {
+        const profileResult = await profileResponse.json().catch(() => ({}));
+        throw new Error(profileResult.error || 'Job Search Profile reset failed');
+      }
+    } catch (err) {
+      UI.notify(`Reset stopped: ${err.message}`, 'error');
+      return;
+    }
+    const result = await SampleData.resetToEmpty();
+    if (!result.ok) {
+      UI.notify(`Local data cleared, but Drive cleanup must retry: ${result.failedKeys.join(', ')}`, 'error');
+      return;
+    }
     UI.notify('Backup created. Data cleared. Reloading...', 'info');
     setTimeout(() => location.reload(), 1500);
   }

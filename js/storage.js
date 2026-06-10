@@ -4,6 +4,7 @@ const Storage = (() => {
   const DRIVE_KEYS = [
     'installation',
     'profile',
+    'candidate_profile',
     'progress',
     'sessions',
     'coach_current_session',
@@ -80,5 +81,17 @@ const Storage = (() => {
     }
   }
 
-  return { get, set, remove, merge, syncFromDrive, syncAllToDrive };
+  async function clearUserData({ preserveLocal = false } = {}) {
+    const keys = DRIVE_KEYS.filter(key => key !== 'installation');
+    const results = await Promise.allSettled(keys.map(key => {
+      if (preserveLocal && Drive.isConnected()) return Drive.syncKey(key, null);
+      return remove(key);
+    }));
+    return results
+      .map((result, index) => ({ result, key: keys[index] }))
+      .filter(item => item.result.status === 'rejected')
+      .map(item => item.key);
+  }
+
+  return { get, set, remove, merge, syncFromDrive, syncAllToDrive, clearUserData };
 })();

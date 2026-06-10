@@ -1,18 +1,92 @@
 /* SampleData - starter examples for first-launch demos */
 const SampleData = (() => {
   const DISABLED_KEY = 'jsc_sample_data_disabled';
+  const DATA_POLICY = 'no_samples_v1';
 
-  async function seedIfEmpty() {
-    const installation = Storage.get('installation', {});
-    if (installation.seeded === true) return;
-
-    // Sample records are intentionally disabled. This Drive-backed marker keeps
-    // fresh installs and resets empty until the user enters real data.
-    await Storage.set('installation', {
+  function _marker(overrides = {}) {
+    return {
       seeded: true,
       seeded_at: new Date().toISOString(),
       intentionally_empty: true,
-    });
+      data_policy: DATA_POLICY,
+      ...overrides,
+    };
+  }
+
+  async function _saveMarker(marker) {
+    try {
+      await Storage.set('installation', marker);
+      return true;
+    } catch (err) {
+      localStorage.setItem('jsc_installation', JSON.stringify({
+        seeded: false,
+        cleanup_pending: true,
+        cleanup_error: err.message || 'Drive marker sync failed',
+      }));
+      console.warn('JobSearchCoach installation marker could not sync:', err);
+      return false;
+    }
+  }
+
+  async function prepareStorage(driveConnected, { preserveLocal = false } = {}) {
+    const localMarker = Storage.get('installation', {});
+    let driveMarker = null;
+    if (driveConnected) {
+      try {
+        driveMarker = await Drive.readKey('installation');
+      } catch (err) {
+        console.warn('JobSearchCoach could not read its Drive installation marker:', err);
+      }
+    }
+
+    const policyCurrent =
+      localMarker.data_policy === DATA_POLICY ||
+      driveMarker?.data_policy === DATA_POLICY;
+    if (policyCurrent && !localMarker.cleanup_pending && !driveMarker?.cleanup_pending) {
+      return { ready: true, migrated: false };
+    }
+
+    const failedKeys = await Storage.clearUserData({ preserveLocal });
+    if (failedKeys.length > 0) {
+      localStorage.setItem('jsc_installation', JSON.stringify({
+        seeded: false,
+        cleanup_pending: true,
+        failed_keys: failedKeys,
+      }));
+      console.warn('JobSearchCoach data cleanup remains pending for:', failedKeys);
+      return { ready: false, migrated: false };
+    }
+
+    const markerSaved = await _saveMarker(_marker());
+    return { ready: markerSaved, migrated: markerSaved };
+  }
+
+  async function seedIfEmpty() {
+    const installation = Storage.get('installation', {});
+    if (installation.cleanup_pending || installation.data_policy === DATA_POLICY) return;
+
+    // Sample records are intentionally disabled. This Drive-backed marker keeps
+    // fresh installs and resets empty until the user enters real data.
+    await _saveMarker(_marker());
+  }
+
+  async function resetToEmpty() {
+    const failedKeys = await Storage.clearUserData();
+    if (failedKeys.length > 0) {
+      localStorage.setItem('jsc_installation', JSON.stringify({
+        seeded: false,
+        cleanup_pending: true,
+        failed_keys: failedKeys,
+      }));
+      return { ok: false, failedKeys };
+    }
+    const markerSaved = await _saveMarker(_marker({ reset_at: new Date().toISOString() }));
+    return { ok: markerSaved, failedKeys: markerSaved ? [] : ['installation'] };
+  }
+
+  async function markInitialized() {
+    if (Storage.get('installation', {}).data_policy === DATA_POLICY) return true;
+    return _saveMarker(_marker({ initialized_at: new Date().toISOString() }));
   }
 
   function disableAfterReset() {
@@ -226,5 +300,5 @@ SKILLS
 SQL, Python, Tableau, Excel, statistics, data visualization, stakeholder communication`;
   }
 
-  return { seedIfEmpty, disableAfterReset };
+  return { prepareStorage, seedIfEmpty, resetToEmpty, markInitialized, disableAfterReset };
 })();

@@ -21,6 +21,7 @@ import socket
 import signal
 import re
 import sys
+import ast
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -525,6 +526,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._jl_add_manual(body)
         elif path == '/api/jl/save-profile':
             self._jl_save_profile(body)
+        elif path == '/api/jl/reset-profile':
+            self._jl_reset_profile()
         elif path == '/api/extract-resume':
             self._extract_resume(body)
         elif path == '/api/claude':
@@ -662,6 +665,30 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         self._json({'ok': True, 'saved_to': 'local', 'path': profile_path})
 
+    def _jl_reset_profile(self):
+        try:
+            repo_dir = _job_leads_tool_dir_required()
+            result = subprocess.run(
+                ['git', '-C', repo_dir, 'show', 'HEAD:config/candidate_profile.yaml'],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            profile_path = os.path.join(repo_dir, 'config', 'candidate_profile.yaml')
+            os.makedirs(os.path.dirname(profile_path), exist_ok=True)
+            with open(profile_path, 'w', encoding='utf-8') as profile_file:
+                profile_file.write(result.stdout)
+            profile = self._load_jl_local_profile(repo_dir)
+            self._try_save_jl_drive_profile(repo_dir, profile)
+            self._json({'ok': True, 'profile': profile, 'source': 'committed-default'})
+        except FileNotFoundError as exc:
+            self._json({'ok': False, 'error': str(exc)}, 404)
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or '').strip() or 'Could not read the committed Job Leads profile.'
+            self._json({'ok': False, 'error': detail}, 500)
+        except Exception as exc:
+            self._json({'ok': False, 'error': f'Could not reset JobLeadsTool profile: {exc}'}, 500)
+
     def _try_save_jl_drive_profile(self, repo_dir, profile):
         src_dir = os.path.join(repo_dir, 'src')
         if src_dir not in sys.path:
@@ -692,15 +719,56 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         profile_path = os.path.join(repo_dir, 'config', 'candidate_profile.yaml')
         if not os.path.exists(profile_path):
             raise FileNotFoundError('candidate_profile.yaml not found in JobLeadsTool/config.')
+        with open(profile_path, 'r', encoding='utf-8') as profile_file:
+            raw = profile_file.read()
         try:
             import yaml
-        except Exception as exc:
-            raise RuntimeError(f'PyYAML is required to read candidate_profile.yaml: {exc}')
-        with open(profile_path, 'r', encoding='utf-8') as profile_file:
-            data = yaml.safe_load(profile_file) or {}
+            data = yaml.safe_load(raw) or {}
+        except ImportError:
+            data = self._parse_simple_yaml(raw)
         if not isinstance(data, dict):
             raise ValueError('candidate_profile.yaml must contain an object.')
         return data
+
+    def _parse_simple_yaml(self, raw):
+        data = {}
+        list_key = None
+        for raw_line in raw.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if line.startswith('- ') and list_key:
+                data[list_key].append(self._parse_simple_yaml_value(line[2:].strip()))
+                continue
+            if raw_line[:1].isspace() or ':' not in line:
+                continue
+            key, value = line.split(':', 1)
+            key = key.strip()
+            value = value.strip()
+            if not value:
+                data[key] = []
+                list_key = key
+            else:
+                data[key] = self._parse_simple_yaml_value(value)
+                list_key = None
+        return data
+
+    def _parse_simple_yaml_value(self, value):
+        if value[:1] in ('"', "'"):
+            try:
+                return ast.literal_eval(value)
+            except (SyntaxError, ValueError):
+                return value.strip('"\'')
+        lowered = value.lower()
+        if lowered in ('true', 'false'):
+            return lowered == 'true'
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                return value
 
     def _save_jl_local_profile(self, repo_dir, profile):
         config_dir = os.path.join(repo_dir, 'config')

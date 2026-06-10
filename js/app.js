@@ -45,10 +45,18 @@ const App = (() => {
     await Claude.loadContext();
 
     // Initialize Drive if connected
+    let driveConnected = false;
     if (Config.hasDrive()) {
       _setStartupPreloader('Checking Google Drive sync...');
-      const connected = await Drive.init();
-      if (connected) await _syncFromDrive();
+      driveConnected = await Drive.init();
+    }
+
+    const storageState = await SampleData.prepareStorage(driveConnected);
+    if (storageState.migrated) {
+      await _resetJobSearchProfile();
+    }
+    if (driveConnected && storageState.ready) {
+      await _syncFromDrive();
     }
 
     await SampleData.seedIfEmpty();
@@ -152,6 +160,22 @@ const App = (() => {
       const progress = await Drive.readKey('progress');
       if (progress !== null) Storage.set('progress', progress);
     } catch {}
+  }
+
+  async function _resetJobSearchProfile() {
+    try {
+      const response = await fetch('/api/jl/reset-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Job Search Profile reset failed');
+      }
+    } catch (err) {
+      console.warn('JobSearchCoach could not restore the current Job Search Profile:', err);
+    }
   }
 
   function _afterRender(viewId) {
