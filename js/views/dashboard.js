@@ -67,7 +67,6 @@ Never use bullet points. Never use headers within the briefing itself — it sho
     // Gauge band
     const bandEl = document.getElementById('gauge-band-container');
     if (bandEl) bandEl.innerHTML = Gauges.renderBand();
-    Gauges.refreshLiveCounts();
 
     // Current mission banner
     const current = Milestones.getCurrentMission();

@@ -51,6 +51,9 @@ const JobLeads = (() => {
   let _stateFilter = 'all';
   let _sourceFilter = 'all';
   let _searchQuery = '';
+  let _searchDebounceTimer = null;
+  let _filteredLeadsCache = null;
+  let _filteredLeadsCacheKey = '';
   let _sortKey = 'score';
   let _sortDirection = 'desc';
   let _lastLoadedAt = '';
@@ -141,6 +144,7 @@ const JobLeads = (() => {
         _fetchJSON('/api/jl-output?view=health').catch(() => null),
       ]);
       _leads = _normalizeLeads(leads);
+      _invalidateLeadFilters();
       _health = health;
       _lastLoadedAt = new Date().toISOString();
     } catch (err) {
@@ -175,34 +179,62 @@ const JobLeads = (() => {
     render();
   }
 
+  function _invalidateLeadFilters() {
+    _filteredLeadsCache = null;
+    _filteredLeadsCacheKey = '';
+  }
+
+  function _filterCacheKey() {
+    return [
+      _tierFilter,
+      _stateFilter,
+      _sourceFilter,
+      _searchQuery,
+      _sortKey,
+      _sortDirection,
+      _leads.length,
+    ].join('|');
+  }
+
   function setTierFilter(value) {
     _tierFilter = value || 'all';
+    _invalidateLeadFilters();
     _renderBodyOnly();
     _updateCount();
   }
 
   function setStateFilter(value) {
     _stateFilter = value || 'all';
+    _invalidateLeadFilters();
     _renderBodyOnly();
     _updateCount();
   }
 
   function setSourceFilter(value) {
     _sourceFilter = value || 'all';
+    _invalidateLeadFilters();
     _renderBodyOnly();
     _updateCount();
   }
 
   function setSearchQuery(value) {
     _searchQuery = String(value || '');
-    _renderBodyOnly();
-    _updateCount();
+    clearTimeout(_searchDebounceTimer);
+    _searchDebounceTimer = setTimeout(() => {
+      _invalidateLeadFilters();
+      _renderBodyOnly();
+      _updateCount();
+    }, 200);
   }
 
   function handleSearchKeydown(event, value) {
     if (event.key !== 'Enter') return;
     event.preventDefault();
-    setSearchQuery(value);
+    clearTimeout(_searchDebounceTimer);
+    _searchQuery = String(value || '');
+    _invalidateLeadFilters();
+    _renderBodyOnly();
+    _updateCount();
   }
 
   function setSort(key) {
@@ -212,6 +244,7 @@ const JobLeads = (() => {
       _sortKey = key;
       _sortDirection = key === 'score' || key === 'posted' ? 'desc' : 'asc';
     }
+    _invalidateLeadFilters();
     _renderBodyOnly();
   }
 
@@ -566,6 +599,10 @@ const JobLeads = (() => {
   }
 
   function _filteredLeads() {
+    const cacheKey = _filterCacheKey();
+    if (_filteredLeadsCache && _filteredLeadsCacheKey === cacheKey) {
+      return _filteredLeadsCache;
+    }
     const filtered = _leads
       .filter(item => _tierFilter === 'all' || (item.tier || _tierFromScore(_score(item))) === _tierFilter)
       .filter(item => {
@@ -581,7 +618,10 @@ const JobLeads = (() => {
         if (!query) return true;
         return _searchText(item).includes(query);
       });
-    return _sortLeads(filtered);
+    const sorted = _sortLeads(filtered);
+    _filteredLeadsCache = sorted;
+    _filteredLeadsCacheKey = cacheKey;
+    return sorted;
   }
 
   function _searchText(item) {

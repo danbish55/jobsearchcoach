@@ -22,6 +22,7 @@ import signal
 import re
 import sys
 import ast
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -37,6 +38,10 @@ USER_CONFIG_DIR = (
 )
 CONFIG_FILE = os.path.join(USER_CONFIG_DIR, 'config.json')
 CONFIG_LOCK = threading.Lock()
+_CONFIG_CACHE = None
+_CONFIG_CACHE_KEY = None
+_JL_TOOL_DIR_CACHE = None
+_RESUMES_FOLDER_CACHE = None
 JL_PROCESS = None
 JL_LOCK = threading.Lock()
 ADZUNA_APP_ID = 'd785bcf0'
@@ -184,6 +189,7 @@ def load_config():
 
 
 def save_config(updates):
+    global _CONFIG_CACHE, _CONFIG_CACHE_KEY, _RESUMES_FOLDER_CACHE
     with CONFIG_LOCK:
         cfg = _load_config_unlocked()
         cfg.update(updates)
@@ -197,9 +203,28 @@ def save_config(updates):
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+        _CONFIG_CACHE = None
+        _CONFIG_CACHE_KEY = None
+        if 'resumes_folder' in updates:
+            _RESUMES_FOLDER_CACHE = None
+
+
+def _config_cache_key():
+    parts = []
+    for path in (BUNDLED_CONFIG_FILE, CONFIG_FILE):
+        try:
+            stat = os.stat(path)
+            parts.append((path, stat.st_mtime_ns, stat.st_size))
+        except FileNotFoundError:
+            parts.append((path, None, None))
+    return tuple(parts)
 
 
 def _load_config_unlocked():
+    global _CONFIG_CACHE, _CONFIG_CACHE_KEY
+    cache_key = _config_cache_key()
+    if _CONFIG_CACHE is not None and _CONFIG_CACHE_KEY == cache_key:
+        return dict(_CONFIG_CACHE)
     bundled = _read_config_file(BUNDLED_CONFIG_FILE)
     user = _read_config_file(CONFIG_FILE)
     cfg = {}
@@ -208,7 +233,9 @@ def _load_config_unlocked():
     for key in ('google_client_id', 'google_client_secret'):
         if bundled.get(key):
             cfg[key] = bundled[key]
-    return cfg
+    _CONFIG_CACHE = dict(cfg)
+    _CONFIG_CACHE_KEY = cache_key
+    return dict(cfg)
 
 
 def _read_config_file(path):
@@ -241,11 +268,15 @@ def _status_payload(bundled, user, cfg, server_port=None):
 
 
 def _find_job_leads_tool_dir():
+    global _JL_TOOL_DIR_CACHE
+    if _JL_TOOL_DIR_CACHE is not None:
+        return _JL_TOOL_DIR_CACHE
     configured = (load_config().get('jl_path') or '').strip()
     if configured:
         configured = os.path.expanduser(configured)
         cli_path = os.path.join(configured, 'src', 'job_leads_tool', 'cli.py')
         if os.path.exists(cli_path):
+            _JL_TOOL_DIR_CACHE = configured
             return configured
 
     candidates = [
@@ -259,7 +290,9 @@ def _find_job_leads_tool_dir():
         candidate = os.path.expanduser(candidate)
         cli_path = os.path.join(candidate, 'src', 'job_leads_tool', 'cli.py')
         if os.path.exists(cli_path):
+            _JL_TOOL_DIR_CACHE = candidate
             return candidate
+    _JL_TOOL_DIR_CACHE = None
     return None
 
 
@@ -416,12 +449,19 @@ def _default_resumes_folder():
 
 
 def _resolve_resumes_folder():
+    global _RESUMES_FOLDER_CACHE
+    if _RESUMES_FOLDER_CACHE:
+        return _RESUMES_FOLDER_CACHE
     cfg = load_config()
     configured = (cfg.get('resumes_folder') or '').strip()
     if not configured:
         configured = _default_resumes_folder()
         save_config({'resumes_folder': configured})
-    return os.path.abspath(os.path.expanduser(configured))
+    _RESUMES_FOLDER_CACHE = os.path.abspath(os.path.expanduser(configured))
+    return _RESUMES_FOLDER_CACHE
+
+
+_RESUME_FILE_EXTENSIONS = {'.pdf', '.doc', '.docx', '.txt', '.rtf', '.md', '.pages'}
 
 
 def _count_resume_files():
@@ -430,8 +470,13 @@ def _count_resume_files():
         return {'path': folder, 'count': 0}
     count = 0
     for name in os.listdir(folder):
+        if name.startswith('.'):
+            continue
         full_path = os.path.join(folder, name)
-        if os.path.isfile(full_path):
+        if not os.path.isfile(full_path):
+            continue
+        _, ext = os.path.splitext(name.lower())
+        if ext in _RESUME_FILE_EXTENSIONS:
             count += 1
     return {'path': folder, 'count': count}
 
@@ -977,53 +1022,21 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         any_enabled = any(isinstance(source, dict) and source.get('enabled') for source in cfg_sources.values())
         sources = []
+        fetch_tasks = []
 
         greenhouse = cfg_sources.get('greenhouse') if isinstance(cfg_sources.get('greenhouse'), dict) else {}
         if greenhouse.get('enabled') or not any_enabled:
-            greenhouse_path = self._write_greenhouse_source(repo_dir)
-            sources.append(SourceDefinition(
-                source_id='greenhouse',
-                label='Greenhouse',
-                source=str(greenhouse_path),
-                source_type='json',
-                enabled=True,
-                source_name='greenhouse',
-            ))
+            fetch_tasks.append(('greenhouse', lambda: self._write_greenhouse_source(repo_dir)))
 
         lever = cfg_sources.get('lever') if isinstance(cfg_sources.get('lever'), dict) else {}
         if lever.get('enabled') or not any_enabled:
-            lever_path = self._write_lever_source(repo_dir)
-            sources.append(SourceDefinition(
-                source_id='lever',
-                label='Lever',
-                source=str(lever_path),
-                source_type='json',
-                enabled=True,
-                source_name='lever',
-            ))
+            fetch_tasks.append(('lever', lambda: self._write_lever_source(repo_dir)))
 
         usajobs = cfg_sources.get('usajobs') if isinstance(cfg_sources.get('usajobs'), dict) else {}
         usajobs_key = str(usajobs.get('api_key') or '').strip()
         usajobs_enabled = bool(usajobs.get('enabled')) or bool(usajobs_key)
         if usajobs_enabled and usajobs_key:
-            try:
-                usajobs_path = self._write_usajobs_source(repo_dir, usajobs_key)
-                sources.append(SourceDefinition(
-                    source_id='usajobs',
-                    label='USAJOBS',
-                    source=str(usajobs_path),
-                    source_type='json',
-                    enabled=True,
-                    source_name='usajobs',
-                ))
-            except Exception as exc:
-                self._jl_source_notes.append({
-                    'source_id': 'usajobs',
-                    'label': 'USAJOBS',
-                    'status': 'error',
-                    'error': str(exc),
-                    'incoming': 0,
-                })
+            fetch_tasks.append(('usajobs', lambda: self._write_usajobs_source(repo_dir, usajobs_key)))
         elif usajobs_enabled:
             self._jl_source_notes.append({
                 'source_id': 'usajobs',
@@ -1035,63 +1048,21 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         the_muse = cfg_sources.get('the_muse') if isinstance(cfg_sources.get('the_muse'), dict) else {}
         if the_muse.get('enabled') or not any_enabled:
-            muse_path = self._write_themuse_source(repo_dir)
-            sources.append(SourceDefinition(
-                source_id='the_muse',
-                label='The Muse',
-                source=str(muse_path),
-                source_type='json',
-                enabled=True,
-                source_name='the_muse',
-            ))
+            fetch_tasks.append(('the_muse', lambda: self._write_themuse_source(repo_dir)))
 
         indeed = cfg_sources.get('indeed_rss') if isinstance(cfg_sources.get('indeed_rss'), dict) else {}
         if indeed.get('enabled'):
-            indeed_path = self._write_indeed_source(repo_dir)
-            if indeed_path:
-                sources.append(SourceDefinition(
-                    source_id='indeed_rss',
-                    label='Indeed RSS',
-                    source=str(indeed_path),
-                    source_type='json',
-                    enabled=True,
-                    source_name='indeed_rss',
-                ))
+            fetch_tasks.append(('indeed_rss', lambda: self._write_indeed_source(repo_dir)))
 
         built_in = cfg_sources.get('built_in_la') if isinstance(cfg_sources.get('built_in_la'), dict) else {}
         if built_in.get('enabled') or not any_enabled:
-            built_in_path = self._write_builtin_la_source(repo_dir)
-            sources.append(SourceDefinition(
-                source_id='built_in_la',
-                label='Built In LA',
-                source=str(built_in_path),
-                source_type='json',
-                enabled=True,
-                source_name='built_in_la',
-            ))
+            fetch_tasks.append(('built_in_la', lambda: self._write_builtin_la_source(repo_dir)))
 
         adzuna = cfg_sources.get('adzuna') if isinstance(cfg_sources.get('adzuna'), dict) else {}
         adzuna_key = str(adzuna.get('api_key') or '').strip()
         adzuna_enabled = bool(adzuna.get('enabled')) or bool(adzuna_key)
         if adzuna_enabled and adzuna_key:
-            try:
-                adzuna_path = self._write_adzuna_source(repo_dir, adzuna_key)
-                sources.append(SourceDefinition(
-                    source_id='adzuna',
-                    label='Adzuna',
-                    source=str(adzuna_path),
-                    source_type='json',
-                    enabled=True,
-                    source_name='adzuna',
-                ))
-            except Exception as exc:
-                self._jl_source_notes.append({
-                    'source_id': 'adzuna',
-                    'label': 'Adzuna',
-                    'status': 'error',
-                    'error': str(exc),
-                    'incoming': 0,
-                })
+            fetch_tasks.append(('adzuna', lambda: self._write_adzuna_source(repo_dir, adzuna_key)))
         elif adzuna_enabled:
             self._jl_source_notes.append({
                 'source_id': 'adzuna',
@@ -1100,6 +1071,68 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'error': 'Adzuna credentials required. Use app_id:app_key in Settings.',
                 'incoming': 0,
             })
+
+        fetched = {}
+        fetch_errors = {}
+        if fetch_tasks:
+            max_workers = min(8, len(fetch_tasks))
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                future_map = {pool.submit(task): source_id for source_id, task in fetch_tasks}
+                for future in as_completed(future_map):
+                    source_id = future_map[future]
+                    try:
+                        fetched[source_id] = future.result()
+                    except Exception as exc:
+                        fetch_errors[source_id] = exc
+
+        source_specs = {
+            'greenhouse': ('Greenhouse', 'greenhouse'),
+            'lever': ('Lever', 'lever'),
+            'usajobs': ('USAJOBS', 'usajobs'),
+            'the_muse': ('The Muse', 'the_muse'),
+            'built_in_la': ('Built In LA', 'built_in_la'),
+            'adzuna': ('Adzuna', 'adzuna'),
+        }
+        for source_id, (label, source_name) in source_specs.items():
+            if source_id in fetch_errors:
+                self._jl_source_notes.append({
+                    'source_id': source_id,
+                    'label': label,
+                    'status': 'error',
+                    'error': str(fetch_errors[source_id]),
+                    'incoming': 0,
+                })
+                continue
+            path = fetched.get(source_id)
+            if not path:
+                continue
+            sources.append(SourceDefinition(
+                source_id=source_id,
+                label=label,
+                source=str(path),
+                source_type='json',
+                enabled=True,
+                source_name=source_name,
+            ))
+
+        indeed_path = fetched.get('indeed_rss')
+        if 'indeed_rss' in fetch_errors:
+            self._jl_source_notes.append({
+                'source_id': 'indeed_rss',
+                'label': 'Indeed RSS',
+                'status': 'error',
+                'error': str(fetch_errors['indeed_rss']),
+                'incoming': 0,
+            })
+        elif indeed_path:
+            sources.append(SourceDefinition(
+                source_id='indeed_rss',
+                label='Indeed RSS',
+                source=str(indeed_path),
+                source_type='json',
+                enabled=True,
+                source_name='indeed_rss',
+            ))
 
         return sources
 

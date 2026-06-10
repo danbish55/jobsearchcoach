@@ -121,6 +121,8 @@ const Gauges = (() => {
   let _resumeFileCount = 0;
   let _resumeCountLoaded = false;
   let _refreshingResumeCount = false;
+  let _resumeCountFetchedAt = 0;
+  const RESUME_COUNT_TTL_MS = 30000;
 
   function init() {
     // Legacy jsc_gauges values are intentionally left in storage for rollback,
@@ -219,17 +221,27 @@ const Gauges = (() => {
     return applications.filter(app => ['phone', 'interview', 'offer'].includes(app?.status)).length;
   }
 
-  async function refreshLiveCounts() {
+  async function refreshLiveCounts(options = {}) {
+    const force = options.force === true;
+    if (
+      !force
+      && _resumeCountLoaded
+      && Date.now() - _resumeCountFetchedAt < RESUME_COUNT_TTL_MS
+    ) {
+      return;
+    }
     if (_refreshingResumeCount) return;
     _refreshingResumeCount = true;
     try {
-      const response = await fetch(`/api/resumes/count?_=${Date.now()}`);
+      const response = await fetch('/api/resumes/count');
       const payload = await response.json().catch(() => ({}));
       _resumeFileCount = response.ok ? Math.max(0, parseInt(payload.count, 10) || 0) : 0;
       _resumeCountLoaded = true;
+      _resumeCountFetchedAt = Date.now();
     } catch {
       _resumeFileCount = 0;
       _resumeCountLoaded = true;
+      _resumeCountFetchedAt = Date.now();
     } finally {
       _refreshingResumeCount = false;
       _reRenderBand();

@@ -169,15 +169,6 @@ const App = (() => {
   async function _syncFromDrive() {
     try {
       await Storage.syncFromDrive();
-      await _syncProgressFromDrive();
-    } catch {}
-  }
-
-  async function _syncProgressFromDrive() {
-    if (!Drive.isConnected()) return;
-    try {
-      const progress = await Drive.readKey('progress');
-      if (progress !== null) Storage.set('progress', progress);
     } catch {}
   }
 

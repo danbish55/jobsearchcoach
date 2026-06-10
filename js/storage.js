@@ -35,20 +35,49 @@ const Storage = (() => {
     }
   }
 
-  function set(key, value) {
-    localStorage.setItem(PREFIX + key, JSON.stringify(value));
-    if (Drive.isConnected()) {
-      return Drive.syncKey(key, value);
-    }
-    return Promise.resolve();
+  const DRIVE_DEBOUNCE_MS = 2500;
+  const _drivePending = new Map();
+  let _driveFlushTimer = null;
+  let _driveFlushPromise = Promise.resolve();
+
+  function _scheduleDriveFlush() {
+    if (_driveFlushTimer) return _driveFlushPromise;
+    _driveFlushPromise = new Promise(resolve => {
+      _driveFlushTimer = setTimeout(async () => {
+        _driveFlushTimer = null;
+        const batch = [..._drivePending.entries()];
+        _drivePending.clear();
+        for (const [pendingKey, pendingValue] of batch) {
+          try {
+            await Drive.syncKey(pendingKey, pendingValue);
+          } catch {}
+        }
+        resolve();
+      }, DRIVE_DEBOUNCE_MS);
+    });
+    return _driveFlushPromise;
   }
 
-  function remove(key) {
+  function set(key, value, options = {}) {
+    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+    if (!Drive.isConnected()) return Promise.resolve();
+    if (options.immediate) {
+      _drivePending.delete(key);
+      return Drive.syncKey(key, value);
+    }
+    _drivePending.set(key, value);
+    return _scheduleDriveFlush();
+  }
+
+  function remove(key, options = {}) {
     localStorage.removeItem(PREFIX + key);
-    if (Drive.isConnected()) {
+    if (!Drive.isConnected()) return Promise.resolve();
+    if (options.immediate) {
+      _drivePending.delete(key);
       return Drive.syncKey(key, null);
     }
-    return Promise.resolve();
+    _drivePending.set(key, null);
+    return _scheduleDriveFlush();
   }
 
   // Merge an object into an existing stored object
@@ -62,11 +91,26 @@ const Storage = (() => {
   // Called on startup to pull Drive data into localStorage
   async function syncFromDrive() {
     if (!Drive.isConnected()) return;
-    for (const key of DRIVE_KEYS) {
+    await Promise.all(DRIVE_KEYS.map(async key => {
       const driveData = await Drive.readKey(key);
       if (driveData !== null) {
         localStorage.setItem(PREFIX + key, JSON.stringify(driveData));
       }
+    }));
+  }
+
+  async function flushDriveSync() {
+    if (_driveFlushTimer) {
+      clearTimeout(_driveFlushTimer);
+      _driveFlushTimer = null;
+    }
+    const batch = [..._drivePending.entries()];
+    _drivePending.clear();
+    if (!Drive.isConnected() || !batch.length) return;
+    for (const [pendingKey, pendingValue] of batch) {
+      try {
+        await Drive.syncKey(pendingKey, pendingValue);
+      } catch {}
     }
   }
 
@@ -94,5 +138,5 @@ const Storage = (() => {
       .map(item => item.key);
   }
 
-  return { get, set, remove, merge, syncFromDrive, syncAllToDrive, clearUserData };
+  return { get, set, remove, merge, syncFromDrive, syncAllToDrive, flushDriveSync, clearUserData };
 })();
