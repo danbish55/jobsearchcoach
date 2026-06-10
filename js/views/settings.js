@@ -484,6 +484,7 @@ const Settings = (() => {
       theme: localStorage.getItem('jsc_theme') || 'light',
       last_view: sessionStorage.getItem('jsc_last_view') || 'dashboard',
       profile:    Storage.get('profile', {}),
+      candidate_profile: Storage.get('candidate_profile', {}),
       progress:   Storage.get('progress', {}),
       milestones: Storage.get('milestones', {}),
       jobs:       Storage.get('jobs', {}),
@@ -502,6 +503,7 @@ const Settings = (() => {
         extraction: Storage.get('mission_discussion_extraction', []),
       },
       sessions:   Storage.get('sessions', {}),
+      coach_current_session: Storage.get('coach_current_session', []),
     };
   }
 
@@ -529,6 +531,7 @@ const Settings = (() => {
       const data = backup.data || backup;
       if (!data || typeof data !== 'object') throw new Error('Backup file is empty.');
       _restoreKey('profile', data.profile);
+      _restoreKey('candidate_profile', data.candidate_profile);
       _restoreKey('progress', data.progress);
       _restoreKey('milestones', data.milestones);
       _restoreKey('jobs', data.jobs);
@@ -539,6 +542,7 @@ const Settings = (() => {
       _restoreKey('gauge_settings', data.gauge_settings);
       _restoreKey('job_target_tracker', data.job_target_tracker);
       _restoreKey('sessions', data.sessions);
+      _restoreKey('coach_current_session', data.coach_current_session);
       const discussions = data.mission_discussions || {};
       _restoreKey('mission_discussion_dossier', discussions.dossier);
       _restoreKey('mission_discussion_network', discussions.network);
@@ -690,7 +694,10 @@ const Settings = (() => {
       fetch('/api/config/sources').then(r => r.json().then(data => ({ ok: r.ok, data }))),
     ]);
 
-    if (profileResult.status === 'fulfilled' && profileResult.value.ok && profileResult.value.data?.ok !== false) {
+    const syncedProfile = Storage.get('candidate_profile', {});
+    if (_hasCandidateProfileData(syncedProfile)) {
+      _applyCandidateProfile(syncedProfile);
+    } else if (profileResult.status === 'fulfilled' && profileResult.value.ok && profileResult.value.data?.ok !== false) {
       _applyCandidateProfile(profileResult.value.data.profile || {});
     }
     if (sourcesResult.status === 'fulfilled' && sourcesResult.value.ok && sourcesResult.value.data?.ok !== false) {
@@ -760,6 +767,16 @@ const Settings = (() => {
   function _loadCandidateProfileDraft(profile) {
     const saved = Storage.get('candidate_profile', {});
     return _candidateProfileDraftFrom(saved, profile);
+  }
+
+  function _hasCandidateProfileData(profile) {
+    if (!profile || typeof profile !== 'object') return false;
+    return PROFILE_TAG_FIELDS.some(field => {
+      const key = field.key === 'target_roles' && !Array.isArray(profile.target_roles)
+        ? 'target_titles'
+        : field.key;
+      return Array.isArray(profile[key]) && profile[key].length > 0;
+    }) || !!profile.scoring_weights;
   }
 
   function _candidateProfileDraftFrom(saved, profile) {
@@ -941,5 +958,7 @@ const Settings = (() => {
     saveJobSearchProfile,
     saveJobSources,
     toggleSourceKeyVisibility,
+    __testHasCandidateProfileData: _hasCandidateProfileData,
+    __testCollectData: _collectData,
   };
 })();
