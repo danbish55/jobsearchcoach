@@ -2,18 +2,17 @@
 const SampleData = (() => {
   const DISABLED_KEY = 'jsc_sample_data_disabled';
 
-  function seedIfEmpty() {
-    if (localStorage.getItem(DISABLED_KEY) === 'true') return;
+  async function seedIfEmpty() {
+    const installation = Storage.get('installation', {});
+    if (installation.seeded === true) return;
 
-    _seedProfile();
-    _seedJobs();
-    _seedResume();
-    _seedDeepDive();
-    _seedJobTargetTracker();
-    _seedSessions();
-    _seedUSC();
-    _seedMilestones();
-    _seedMissionDiscussions();
+    // Sample records are intentionally disabled. This Drive-backed marker keeps
+    // fresh installs and resets empty until the user enters real data.
+    await Storage.set('installation', {
+      seeded: true,
+      seeded_at: new Date().toISOString(),
+      intentionally_empty: true,
+    });
   }
 
   function disableAfterReset() {

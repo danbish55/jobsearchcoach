@@ -48,10 +48,10 @@ const App = (() => {
     if (Config.hasDrive()) {
       _setStartupPreloader('Checking Google Drive sync...');
       const connected = await Drive.init();
-      if (connected) _syncFromDriveInBackground();
+      if (connected) await _syncFromDrive();
     }
 
-    SampleData.seedIfEmpty();
+    await SampleData.seedIfEmpty();
 
     // Initialize milestone data
     Milestones.init();
@@ -139,12 +139,10 @@ const App = (() => {
     document.getElementById('startup-preloader')?.classList.add('hidden');
   }
 
-  async function _syncFromDriveInBackground() {
+  async function _syncFromDrive() {
     try {
       await Storage.syncFromDrive();
       await _syncProgressFromDrive();
-      const view = getCurrentView();
-      if (view && view !== 'coach') navigate(view);
     } catch {}
   }
 

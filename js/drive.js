@@ -158,6 +158,18 @@ const Drive = (() => {
     if (!_accessToken) return;
     const filename = `jsc_${key}.json`;
     const fileId = await _findFile(filename);
+
+    if (value === null) {
+      if (!fileId) return;
+      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${_accessToken}` },
+      });
+      if (!r.ok && r.status !== 404) throw new Error(`Drive delete failed (${r.status})`);
+      delete _fileCache[filename];
+      return;
+    }
+
     const content = JSON.stringify(value);
 
     if (fileId) {

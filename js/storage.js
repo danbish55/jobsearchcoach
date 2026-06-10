@@ -2,6 +2,7 @@
 const Storage = (() => {
   const PREFIX = 'jsc_';
   const DRIVE_KEYS = [
+    'installation',
     'profile',
     'progress',
     'sessions',
@@ -35,15 +36,17 @@ const Storage = (() => {
   function set(key, value) {
     localStorage.setItem(PREFIX + key, JSON.stringify(value));
     if (Drive.isConnected()) {
-      Drive.syncKey(key, value); // fire-and-forget Drive sync
+      return Drive.syncKey(key, value);
     }
+    return Promise.resolve();
   }
 
   function remove(key) {
     localStorage.removeItem(PREFIX + key);
     if (Drive.isConnected()) {
-      Drive.syncKey(key, null);
+      return Drive.syncKey(key, null);
     }
+    return Promise.resolve();
   }
 
   // Merge an object into an existing stored object

@@ -10,6 +10,7 @@ const Settings = (() => {
   };
 
   const DATA_KEYS = [
+    'installation',
     'profile',
     'progress',
     'milestones',
@@ -17,6 +18,7 @@ const Settings = (() => {
     'usc',
     'resume',
     'deep_dive',
+    'cover_letters',
     'sessions',
     'coach_current_session',
     'gauges',
@@ -557,11 +559,16 @@ const Settings = (() => {
     if (value !== undefined) Storage.set(key, value);
   }
 
-  function resetAll() {
+  async function resetAll() {
     if (!confirm("I'll do a backup and then clear all data except your setup information.")) return;
     _downloadBackup();
     SampleData.disableAfterReset();
-    DATA_KEYS.forEach(k => Storage.remove(k));
+    await Promise.all(DATA_KEYS.map(k => Storage.remove(k)));
+    await Storage.set('installation', {
+      seeded: true,
+      seeded_at: new Date().toISOString(),
+      intentionally_empty: true,
+    });
     UI.notify('Backup created. Data cleared. Reloading...', 'info');
     setTimeout(() => location.reload(), 1500);
   }
