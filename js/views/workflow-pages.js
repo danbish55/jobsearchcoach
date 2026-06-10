@@ -220,7 +220,7 @@ const WorkflowPages = (() => {
   function _descriptionLogHTML(viewId, page) {
     return `
       <label class="workflow-log-label">${page.prompt}</label>
-      <textarea id="${viewId}-log-description" rows="4" placeholder="Describe what you did..."></textarea>
+      <textarea id="${viewId}-log-description" rows="4" placeholder="A brief note about what you did is all that's needed. Company and name are optional."></textarea>
       <button class="btn btn-gold" onclick="WorkflowPages.submitLog('${viewId}')">Submit</button>`;
   }
 
@@ -711,7 +711,7 @@ const WorkflowPages = (() => {
     }
     return `
       <textarea id="activity-history-edit" rows="6" style="resize:vertical;width:100%"
-        placeholder="Describe what you did...">${_esc(entry.description || '')}</textarea>`;
+        placeholder="A brief note is all that's needed. Company and name are optional.">${_esc(entry.description || '')}</textarea>`;
   }
 
   function _activityHistoryDisplay(page, entry) {
@@ -720,7 +720,8 @@ const WorkflowPages = (() => {
       const eligible = entry.portfolioEligible ? 'Portfolio eligible' : 'Not portfolio eligible';
       return `${amount} - ${eligible} - ${_normalizeNoteText(entry.note || 'No note')}`;
     }
-    return _historyDescription(page, entry.description || '');
+    const raw = String(entry.description || '').trim();
+    return _historyDescription(page, raw) || raw;
   }
 
   function _historyDescription(page, value) {
@@ -970,5 +971,7 @@ const WorkflowPages = (() => {
     handleActivityHistoryKey,
     showActivityEditModal,
     removeActivityHistory,
+    __testHistoryEntryFromPayload: _historyEntryFromPayload,
+    __testActivityHistoryDisplay: _activityHistoryDisplay,
   };
 })();

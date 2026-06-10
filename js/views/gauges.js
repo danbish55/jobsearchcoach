@@ -353,15 +353,9 @@ const Gauges = (() => {
   }
 
   function _localValidate(gaugeId, text) {
-    if (gaugeId === 'followups') {
-      const parsed = _parseFollowupLog(text);
-      if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
-      return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'Follow-ups need company, name, and a short comment.' };
-    }
-    if (['networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId)) {
-      const parsed = _parseSimpleActivityLog(text);
-      if (parsed && parsed.company && parsed.name && parsed.note.length >= 10) return { valid: true };
-      return { valid: false, question: "All that's needed here is a company, a name, and a short comment.", reason: 'This activity needs company, name, and a short comment.' };
+    if (['followups', 'networking', 'usc_eller', 'interview_prep', 'linkedin'].includes(gaugeId)) {
+      if (String(text || '').trim().length >= 3) return { valid: true };
+      return { valid: false, reason: 'Please enter a brief note of at least 3 characters.' };
     }
     return { valid: true };
   }
@@ -434,5 +428,6 @@ const Gauges = (() => {
     deriveCounts,
     countWeeklyApplications,
     countHistoryEntries,
+    __testLocalValidate: _localValidate,
   };
 })();
