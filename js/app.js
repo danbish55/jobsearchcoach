@@ -2,6 +2,18 @@
 const App = (() => {
   let _currentView = 'dashboard';
   let _chatEnhancementObserver = null;
+  const CHAT_VIEWS = new Set([
+    'coach',
+    'resume-deep-dive',
+    'job-target-tracker',
+    'mission-discussion',
+    'workflow-followups',
+    'workflow-networking',
+    'workflow-usc-eller',
+    'workflow-interview-prep',
+    'workflow-linkedin',
+    'workflow-side-hustle',
+  ]);
   const WELCOME_COPY = [
     "This isn't a search engine or a chatbot.",
     "It knows your education, your goals, your target companies, and your situation. Every coaching conversation you have here is remembered and used to give you better guidance over time.",
@@ -102,6 +114,11 @@ const App = (() => {
   }
 
   function navigate(viewId) {
+    const previousView = _currentView;
+    if (previousView !== viewId && CHAT_VIEWS.has(previousView)) {
+      ChatMemory.unmount({ consolidate: true });
+    }
+
     _currentView = viewId;
     sessionStorage.setItem('jsc_last_view', viewId);
     UI.showView(viewId);
@@ -133,6 +150,7 @@ const App = (() => {
     }
 
     _afterRender(viewId);
+    if (CHAT_VIEWS.has(viewId)) ChatMemory.mount(viewId);
   }
 
   function getCurrentView() { return _currentView; }

@@ -104,6 +104,7 @@ What would you like to focus on? I can help you with:
 
     // Add user message to session and UI
     _session.push({ role: 'user', content: text });
+    ChatMemory.appendMessage('user', text, 'coach');
     _saveCurrentSession();
     _appendMessage('user', text);
 
@@ -143,6 +144,7 @@ What would you like to focus on? I can help you with:
             const bubble = document.querySelector(`#${streamMsgId} .msg-bubble`);
             if (bubble) bubble.innerHTML = _formatContent(fullText);
             _session.push({ role: 'assistant', content: fullText });
+            ChatMemory.appendMessage('assistant', fullText, 'coach');
             _saveCurrentSession();
           }
         }

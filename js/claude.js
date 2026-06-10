@@ -15,16 +15,23 @@ const Claude = (() => {
     }
   }
 
-  // Build the system prompt — coaching context file is primary; live stats appended
+  // Build the system prompt — coaching context, shared memory, then live stats
   function buildSystemPrompt() {
     const profile = Storage.get('profile', {});
     const jobs    = Storage.get('jobs', { applications: [] });
     const usc     = Storage.get('usc', {});
     const milestoneContext = Milestones.buildContextSummary();
+    const memorySummary = typeof ChatMemory !== 'undefined' ? ChatMemory.getSummary() : '';
 
     const appCount       = jobs.applications.length;
     const interviewCount = jobs.applications.filter(a => ['interview','offer'].includes(a.status)).length;
     const offerCount     = jobs.applications.filter(a => a.status === 'offer').length;
+
+    const memoryContext = memorySummary ? `
+---
+## Shared Coaching Memory
+${memorySummary}
+` : '';
 
     const liveStats = `
 ---
@@ -38,13 +45,13 @@ const Claude = (() => {
 - Mission progress: ${milestoneContext}`;
 
     if (_coachingContext) {
-      return _coachingContext + liveStats;
+      return _coachingContext + memoryContext + liveStats;
     }
 
     // Fallback if context file not loaded
     return `You are JobSearchCoach — the personal AI career coach for ${profile.name || 'Corinne'}.
 You are warm, direct, and results-oriented. Help with resume, applications, interviews, networking, and negotiation.
-Never break character. You are always the coach, never an AI assistant.` + liveStats;
+Never break character. You are always the coach, never an AI assistant.` + memoryContext + liveStats;
   }
 
   // Build the full messages array for the API call

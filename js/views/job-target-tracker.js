@@ -183,6 +183,7 @@ const JobTargetTracker = (() => {
 
     input.value = '';
     _chat.push({ role: 'user', content: text });
+    ChatMemory.appendMessage('user', text, 'job-target-tracker');
     _renderChat(true);
     if (btn) btn.disabled = true;
 
@@ -195,15 +196,20 @@ const JobTargetTracker = (() => {
           model: Config.claudeModel(),
           max_tokens: 400,
           stream: false,
-          system: 'You are a focused job search coach. The user is on the Job Target Tracker page. Answer specifically and briefly about company targeting, compensation, role search strategy, referrals, and next actions.',
+          system: `${Claude.buildSystemPrompt()}
+
+The user is on the Job Target Tracker page. Answer specifically and briefly about company targeting, compensation, role search strategy, referrals, and next actions.`,
           messages: _chat.slice(-8),
         }),
       });
       if (!r.ok) throw new Error('coach unavailable');
       const data = await r.json();
-      _chat.push({ role: 'assistant', content: data.content?.[0]?.text || fallback });
+      const reply = data.content?.[0]?.text || fallback;
+      _chat.push({ role: 'assistant', content: reply });
+      ChatMemory.appendMessage('assistant', reply, 'job-target-tracker');
     } catch {
       _chat.push({ role: 'assistant', content: fallback });
+      ChatMemory.appendMessage('assistant', fallback, 'job-target-tracker');
     }
 
     if (btn) btn.disabled = false;

@@ -901,6 +901,7 @@ const WorkflowPages = (() => {
 
     input.value = '';
     _chatByView[viewId].push({ role: 'user', content: text });
+    ChatMemory.appendMessage('user', text, viewId);
     _renderChat(viewId, true);
 
     const title = _plainTitle(page);
@@ -913,15 +914,20 @@ const WorkflowPages = (() => {
           model: Config.claudeModel(),
           max_tokens: 350,
           stream: false,
-          system: `You are a helpful job search coach. The user is on the ${title} page of their job search coaching app. Answer their question specifically and briefly.`,
+          system: `${Claude.buildSystemPrompt()}
+
+The user is on the ${title} page of their job search coaching app. Answer their question specifically and briefly.`,
           messages: [{ role: 'user', content: text }],
         }),
       });
       if (!r.ok) throw new Error('help unavailable');
       const data = await r.json();
-      _chatByView[viewId].push({ role: 'assistant', content: data.content?.[0]?.text || fallback });
+      const reply = data.content?.[0]?.text || fallback;
+      _chatByView[viewId].push({ role: 'assistant', content: reply });
+      ChatMemory.appendMessage('assistant', reply, viewId);
     } catch {
       _chatByView[viewId].push({ role: 'assistant', content: fallback });
+      ChatMemory.appendMessage('assistant', fallback, viewId);
     }
     _renderChat(viewId);
   }

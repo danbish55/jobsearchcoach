@@ -145,6 +145,7 @@ Be conversational, not generic. Do not include URLs, markdown links, or resource
 
     const text = await _askClaude(prompt, _fallbackStarter(mission));
     _messages.push({ role: 'assistant', content: text });
+    ChatMemory.appendMessage('assistant', text, `mission-discussion:${_missionId}`);
     _save();
     _setLoading(false);
     _renderMessages();
@@ -159,6 +160,7 @@ Be conversational, not generic. Do not include URLs, markdown links, or resource
     input.value = '';
     autoResize(input);
     _messages.push({ role: 'user', content: text });
+    ChatMemory.appendMessage('user', text, `mission-discussion:${_missionId}`);
     _renderMessages();
     _save();
 
@@ -172,6 +174,7 @@ Respond like a thoughtful career coach. Acknowledge what she said, offer practic
     const fallback = _fallbackReply(mission, text);
     const reply = await _askClaude(prompt, fallback);
     _messages.push({ role: 'assistant', content: reply });
+    ChatMemory.appendMessage('assistant', reply, `mission-discussion:${_missionId}`);
     _save();
     _setLoading(false);
     _renderMessages();

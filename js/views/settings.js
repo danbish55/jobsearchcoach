@@ -25,6 +25,7 @@ const Settings = (() => {
     'gauges',
     'gauge_settings',
     'job_target_tracker',
+    'chat_memory',
     'mission_discussion_dossier',
     'mission_discussion_network',
     'mission_discussion_deploy',
@@ -504,6 +505,7 @@ const Settings = (() => {
       },
       sessions:   Storage.get('sessions', {}),
       coach_current_session: Storage.get('coach_current_session', []),
+      chat_memory: Storage.get('chat_memory', { summary: '', pending: [], updated_at: '' }),
     };
   }
 
@@ -543,6 +545,7 @@ const Settings = (() => {
       _restoreKey('job_target_tracker', data.job_target_tracker);
       _restoreKey('sessions', data.sessions);
       _restoreKey('coach_current_session', data.coach_current_session);
+      _restoreKey('chat_memory', data.chat_memory);
       const discussions = data.mission_discussions || {};
       _restoreKey('mission_discussion_dossier', discussions.dossier);
       _restoreKey('mission_discussion_network', discussions.network);

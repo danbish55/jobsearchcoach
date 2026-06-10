@@ -17,6 +17,7 @@ const Storage = (() => {
     'gauges',
     'gauge_settings',
     'job_target_tracker',
+    'chat_memory',
     'mission_discussion_dossier',
     'mission_discussion_network',
     'mission_discussion_deploy',

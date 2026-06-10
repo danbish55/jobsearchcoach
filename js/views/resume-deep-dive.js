@@ -155,6 +155,7 @@ Begin by reading her resume carefully and opening with a specific observation ab
       const reply = await _callClaude([]);
       const fresh = getData();
       fresh.deep_dive_conversation = [{ role: 'assistant', content: reply }];
+      ChatMemory.appendMessage('assistant', reply, 'resume-deep-dive');
       _appendParsedRewrites(fresh, reply);
       _save(fresh);
     } catch (err) {
@@ -193,6 +194,7 @@ Begin by reading her resume carefully and opening with a specific observation ab
 
     const data = getData();
     data.deep_dive_conversation.push({ role: 'user', content: text });
+    ChatMemory.appendMessage('user', text, 'resume-deep-dive');
     data.deep_dive_conversation.push({ role: 'assistant', content: 'Thinking...' });
     _save(data);
     input.value = '';
@@ -203,6 +205,7 @@ Begin by reading her resume carefully and opening with a specific observation ab
       const reply = await _callClaude(conversationForApi);
       const fresh = getData();
       fresh.deep_dive_conversation[fresh.deep_dive_conversation.length - 1] = { role: 'assistant', content: reply };
+      ChatMemory.appendMessage('assistant', reply, 'resume-deep-dive');
       _appendParsedRewrites(fresh, reply);
       _save(fresh);
     } catch (err) {
@@ -211,6 +214,11 @@ Begin by reading her resume carefully and opening with a specific observation ab
         role: 'assistant',
         content: `I hit a snag sending that: ${err.message || 'please try again.'}`,
       };
+      ChatMemory.appendMessage(
+        'assistant',
+        fresh.deep_dive_conversation[fresh.deep_dive_conversation.length - 1].content,
+        'resume-deep-dive'
+      );
       _save(fresh);
     }
     _rerenderAll();
