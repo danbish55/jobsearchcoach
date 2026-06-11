@@ -183,6 +183,48 @@ def backup_target(target: Path, backup_dir: Path) -> None:
         shutil.copy2(item, dest)
 
 
+def migrate_legacy_jl_data(target: Path, existing_config: dict) -> None:
+    """Copy data/outputs from an old separate JobLeadsTool folder into the
+    bundled JobLeadsTool/ inside the install, without overwriting anything."""
+    sources = []
+    configured = str(existing_config.get("jl_path") or "").strip()
+    if configured:
+        sources.append(Path(configured).expanduser())
+    sources.append(target.parent / "JobLeadsTool")
+
+    legacy = None
+    for source in sources:
+        try:
+            resolved = source.resolve()
+        except OSError:
+            continue
+        if resolved == (target / "JobLeadsTool").resolve():
+            continue
+        if (resolved / "src" / "job_leads_tool" / "cli.py").is_file():
+            legacy = resolved
+            break
+    if legacy is None:
+        return
+
+    copied = 0
+    for sub in ("data", "outputs"):
+        src_dir = legacy / sub
+        if not src_dir.is_dir():
+            continue
+        for src in src_dir.rglob("*"):
+            if src.is_dir():
+                continue
+            dest = target / "JobLeadsTool" / sub / src.relative_to(src_dir)
+            if dest.exists():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            copied += 1
+    if copied:
+        print(f"Copied {copied} Job Leads data file(s) from your old JobLeadsTool folder.")
+        print(f"(The old folder at {legacy} was left untouched.)")
+
+
 def apply_update(package_dir: Path, target: Path) -> None:
     if package_dir.resolve() == target.resolve():
         raise SystemExit("The update folder cannot be the same as the install folder.")
@@ -223,6 +265,8 @@ def apply_update(package_dir: Path, target: Path) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
         copied += 1
+
+    migrate_legacy_jl_data(target, existing_config)
 
     merged = merge_config(existing_config, template_config)
     target_config_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
