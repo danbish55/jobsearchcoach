@@ -1,0 +1,29 @@
+[
+  {
+    "id": "job-001",
+    "title": "Data Analyst",
+    "company": "Acme Health",
+    "location": "Los Angeles, CA",
+    "description": "Build SQL dashboards in Tableau, communicate insights to stakeholders, and support forecasting.",
+    "source": "sample",
+    "url": "https://example.com/jobs/1"
+  },
+  {
+    "id": "job-002",
+    "title": "Sales Representative",
+    "company": "FastGrowth Co",
+    "location": "Los Angeles, CA",
+    "description": "Commission only role, door-to-door prospecting, no analytics tools required.",
+    "source": "sample",
+    "url": "https://example.com/jobs/2"
+  },
+  {
+    "id": "job-003",
+    "title": "Business Intelligence Analyst",
+    "company": "Nimbus Finance",
+    "location": "Remote - US",
+    "description": "Use SQL, Excel, and Power BI to deliver KPI reporting and executive dashboards.",
+    "source": "sample",
+    "url": "https://example.com/jobs/3"
+  }
+]
