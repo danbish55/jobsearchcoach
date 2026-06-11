@@ -12,3 +12,11 @@ Thumbs.db
 # Editor
 .vscode/
 *.swp
+
+# JobLeadsTool runtime data (machine-local)
+JobLeadsTool/data/*_live.json
+JobLeadsTool/data/leads.db
+JobLeadsTool/data/deleted_leads.json
+JobLeadsTool/outputs/
+JobLeadsTool/.venv*/
+*.tmp.log

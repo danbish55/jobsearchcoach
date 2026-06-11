@@ -280,6 +280,7 @@ def _find_job_leads_tool_dir():
             return configured
 
     candidates = [
+        os.path.join(BASE_DIR, 'JobLeadsTool'),
         os.path.normpath(os.path.join(BASE_DIR, '..', 'JobLeadsTool')),
         '/mnt/c/code/corinne/jobleadstool',
         '/mnt/c/code/Corinne/JobLeadsTool',
