@@ -81,8 +81,8 @@ def _is_jsc_or_jl_command(pid, command):
 
     if 'server.py' in normalized:
         return (
-            'corinnejobcoach' in normalized
-            or 'corinnejobcoach' in normalized_cwd
+            'jobsearchcoach' in normalized
+            or 'jobsearchcoach' in normalized_cwd
             or 'jsc' in normalized_cwd
         )
 

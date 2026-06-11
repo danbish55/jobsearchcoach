@@ -31,7 +31,7 @@ import zipfile
 from datetime import datetime
 
 APP_DIR = Path.cwd()
-URL = "https://github.com/danbish55/corinnejobcoach/archive/refs/heads/codex/dashboard-mission-refresh.zip"
+URL = "https://github.com/danbish55/jobsearchcoach/archive/refs/heads/main.zip"
 KEEP = {"config.json"}
 SKIP_DIRS = {".git", "dist", "backups", "__pycache__"}
 
