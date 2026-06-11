@@ -271,6 +271,13 @@ def _find_job_leads_tool_dir():
     global _JL_TOOL_DIR_CACHE
     if _JL_TOOL_DIR_CACHE is not None:
         return _JL_TOOL_DIR_CACHE
+    # JobLeadsTool ships inside the app folder; that copy always wins over a
+    # configured jl_path left behind by an old two-repo install.
+    bundled = os.path.join(BASE_DIR, 'JobLeadsTool')
+    if os.path.exists(os.path.join(bundled, 'src', 'job_leads_tool', 'cli.py')):
+        _JL_TOOL_DIR_CACHE = bundled
+        return bundled
+
     configured = (load_config().get('jl_path') or '').strip()
     if configured:
         configured = os.path.expanduser(configured)
@@ -280,7 +287,6 @@ def _find_job_leads_tool_dir():
             return configured
 
     candidates = [
-        os.path.join(BASE_DIR, 'JobLeadsTool'),
         os.path.normpath(os.path.join(BASE_DIR, '..', 'JobLeadsTool')),
         '/mnt/c/code/corinne/jobleadstool',
         '/mnt/c/code/Corinne/JobLeadsTool',
