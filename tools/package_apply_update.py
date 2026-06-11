@@ -201,7 +201,11 @@ def apply_update(package_dir: Path, target: Path) -> None:
         try:
             existing_config = json.loads(target_config_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
-            existing_config = {}
+            raise SystemExit(
+                f"The config.json in {target} is damaged and could not be read.\n"
+                "Update cancelled so your settings are not lost. "
+                "Ask Dan for help before running the update again."
+            )
 
     backup_dir = next_backup_dir(target)
     backup_target(target, backup_dir)
