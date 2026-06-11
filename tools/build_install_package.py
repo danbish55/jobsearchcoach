@@ -27,6 +27,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 
+# Tracked files that are for Dan's machine only — never shipped.
+PRUNE = [
+    "tools",
+    ".gitignore",
+    "launcher.bat",
+    "README_DAN_PACKAGE.txt",
+    "JobSearchCoach_handoff_2026-05-30.md",
+]
+
 MAC_START = """#!/bin/bash
 cd "$(dirname "$0")" || exit 1
 INSTALL_ROOT="$(pwd)"
@@ -188,6 +197,18 @@ def write_config(target: Path, build_id: str, include_google_creds: bool) -> Non
             for key in ("google_client_id", "google_client_secret"):
                 if existing.get(key):
                     config[key] = existing[key]
+        client_id = config["google_client_id"]
+        client_secret = config["google_client_secret"]
+        if not client_id.endswith(".apps.googleusercontent.com"):
+            raise SystemExit(
+                "google_client_id in the local config.json does not look like a "
+                "Google OAuth client id (expected *.apps.googleusercontent.com)."
+            )
+        if not client_secret.startswith("GOCSPX-"):
+            raise SystemExit(
+                "google_client_secret in the local config.json does not look like "
+                "a Google OAuth client secret (expected GOCSPX-...)."
+            )
     (target / "config.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
@@ -213,6 +234,12 @@ def main() -> None:
 
     print(f"Exporting JobSearchCoach {commit} ...")
     git_archive_extract(commit, target)
+    for rel in PRUNE:
+        path = target / rel
+        if path.is_dir():
+            shutil.rmtree(path)
+        elif path.is_file():
+            path.unlink()
     for sub in ("JobLeadsTool/data", "JobLeadsTool/outputs"):
         (target / sub).mkdir(parents=True, exist_ok=True)
 
