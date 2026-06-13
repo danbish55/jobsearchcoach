@@ -124,7 +124,7 @@ const WorkflowPages = (() => {
       resources: {
         label: 'Resources',
         links: [
-          { icon: '🔗', label: 'Profile Optimization', url: 'https://www.linkedin.com/help/linkedin/answer/a554288' },
+          { icon: '🔗', label: 'Profile Optimization', url: 'https://www.linkedin.com/help/linkedin/answer/a554351?hcppcid=search' },
           { icon: '▶️', label: 'LinkedIn Tips — YouTube', url: 'https://www.youtube.com/results?search_query=linkedin+profile+optimization+data+analyst+2026' },
           { icon: '🔗', label: 'LA Data Analyst Jobs', url: 'https://www.linkedin.com/jobs/search/?keywords=data%20analyst&location=Los%20Angeles%2C%20CA' },
         ],

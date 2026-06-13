@@ -141,8 +141,9 @@ const UI = (() => {
   }
 
   // Generic modal
-  function showModal(title, bodyHTML, buttons = []) {
+  function showModal(title, bodyHTML, buttons = [], options = {}) {
     const container = document.getElementById('modal-container');
+    const closeOnBackdrop = options.closeOnBackdrop !== false;
     container.innerHTML = `
       <div class="modal-backdrop" id="active-modal">
         <div class="modal">
@@ -162,9 +163,11 @@ const UI = (() => {
     });
 
     // Click backdrop to close
-    document.getElementById('active-modal')?.addEventListener('click', e => {
-      if (e.target.id === 'active-modal') closeModal();
-    });
+    if (closeOnBackdrop) {
+      document.getElementById('active-modal')?.addEventListener('click', e => {
+        if (e.target.id === 'active-modal') closeModal();
+      });
+    }
   }
 
   function closeModal() {

@@ -765,7 +765,8 @@ const JobLeads = (() => {
       [
         { id: 'applied', label: 'Yes, I Applied', class: 'btn-primary', close: false, action: () => confirmApplied() },
         { id: 'close', label: 'Not Yet - Close', class: 'btn-ghost', action: () => closeApplyModal(true) },
-      ]
+      ],
+      { closeOnBackdrop: false }
     );
     document.querySelector('#active-modal .modal')?.classList.add('job-lead-apply-shell');
   }
@@ -841,6 +842,7 @@ const JobLeads = (() => {
     if (!item) throw new Error('No active lead selected.');
     const lead = item.lead || item;
     const profile = Storage.get('profile', {});
+    const contact = _candidateContactDetails(profile);
     const skills = Array.isArray(profile.skills)
       ? profile.skills.join(', ')
       : (profile.skills || profile.target_skills || '');
@@ -851,12 +853,20 @@ const JobLeads = (() => {
     const system = `You are helping Corinne, a recent USC Marshall School of Business MSBA graduate, write a tailored cover letter.
 
 Candidate profile:
-- Name: ${profile.name || 'Corinne'}
+- Full name: ${contact.name}
+- Last name: ${contact.lastName}
+- Email: ${contact.email || 'not available'}
+- Phone: ${contact.phone || 'not available'}
+- LinkedIn: ${contact.linkedin || 'not available'}
 - Degree: MSBA, USC Marshall School of Business
 - Skills: ${skills || 'data analytics, SQL, dashboards, business intelligence'}
 - Target roles: ${targetRoles || 'Data Analyst, Business Intelligence Analyst, Product Analyst'}
 
 Write a professional, specific, and concise cover letter for the following job.
+Start with a simple contact header using the available exact candidate details above.
+If email, phone, or LinkedIn is not available, omit that missing field entirely.
+Sign the letter with the candidate's full name.
+Never use placeholders such as [Last Name], [Email], [Phone], [LinkedIn], or "your phone number".
 Do not use generic filler phrases. Reference the specific company and role.
 Avoid AI-sounding polish, generic enthusiasm, and formulaic phrasing where possible.
 Do not use em dashes or long dashes. Use commas, periods, or parentheses instead.
@@ -892,7 +902,73 @@ Description: ${lead.description || ''}`;
       .join('\n')
       .trim();
     if (!letter) throw new Error('Claude returned an empty cover letter.');
-    return letter;
+    return _fillCoverLetterPlaceholders(letter, contact);
+  }
+
+  function _candidateContactDetails(profile = {}) {
+    const resume = Storage.get('resume', {});
+    const resumeText = String(resume.resume_text || '');
+    const name = _firstFilled(profile.name, _extractResumeName(resumeText), 'Corinne Bish');
+    const nameParts = name.trim().split(/\s+/).filter(Boolean);
+    const lastName = _firstFilled(profile.last_name, profile.lastName, nameParts.length > 1 ? nameParts[nameParts.length - 1] : '');
+    const email = _firstFilled(profile.email, profile.student_email, _extractEmail(resumeText));
+    const phone = _firstFilled(profile.phone, profile.mobile, profile.cell, _extractPhone(resumeText));
+    const linkedin = _normalizeLinkedIn(_firstFilled(profile.linkedin, profile.linkedin_url, profile.linkedIn, _extractLinkedIn(resumeText)));
+    return { name, lastName, email, phone, linkedin };
+  }
+
+  function _firstFilled(...values) {
+    for (const value of values) {
+      const text = String(value || '').trim();
+      if (text) return text;
+    }
+    return '';
+  }
+
+  function _extractResumeName(text) {
+    return String(text || '').split(/\r?\n/).map(line => line.trim()).find(Boolean) || '';
+  }
+
+  function _extractEmail(text) {
+    return String(text || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '';
+  }
+
+  function _extractPhone(text) {
+    return String(text || '').match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/)?.[0] || '';
+  }
+
+  function _extractLinkedIn(text) {
+    return String(text || '').match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[A-Za-z0-9._%-]+\/?/i)?.[0] || '';
+  }
+
+  function _normalizeLinkedIn(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    if (/^https?:\/\//i.test(text)) return text;
+    if (/^(?:www\.)?linkedin\.com\//i.test(text)) return `https://${text.replace(/^www\./i, 'www.')}`;
+    return text;
+  }
+
+  function _fillCoverLetterPlaceholders(letter, contact) {
+    const replacements = {
+      'Full Name': contact.name,
+      Name: contact.name,
+      'First Last': contact.name,
+      'Last Name': contact.lastName,
+      Email: contact.email,
+      'Email Address': contact.email,
+      Phone: contact.phone,
+      'Phone Number': contact.phone,
+      LinkedIn: contact.linkedin,
+      'LinkedIn URL': contact.linkedin,
+    };
+    let filled = letter;
+    Object.entries(replacements).forEach(([label, value]) => {
+      if (!value) return;
+      const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filled = filled.replace(new RegExp(`\\[${escaped}\\]`, 'gi'), value);
+    });
+    return filled;
   }
 
   async function confirmApplied(overrideDuplicate = false) {
@@ -1075,11 +1151,13 @@ Description: ${lead.description || ''}`;
 
   function _profileClipboardText() {
     const profile = Storage.get('profile', {});
+    const contact = _candidateContactDetails(profile);
     return [
-      `Name: ${profile.name || 'Corinne'}`,
-      `Email: ${profile.email || profile.student_email || ''}`,
-      `Phone: ${profile.phone || ''}`,
-      `LinkedIn: ${profile.linkedin || ''}`,
+      `Name: ${contact.name}`,
+      `Last Name: ${contact.lastName}`,
+      `Email: ${contact.email}`,
+      `Phone: ${contact.phone}`,
+      `LinkedIn: ${contact.linkedin}`,
     ].join('\n');
   }
 
