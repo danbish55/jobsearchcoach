@@ -94,10 +94,10 @@ cd "$(dirname "$0")"
 CMD
 chmod +x "$APP_DIR/Contents/Resources/app/Start JobSearchCoach.command"
 
-# 2) Build package payload rooted at /Applications
+# 2) Build package payload installed directly into /Applications
 PKG_ROOT="$BUILD_DIR/pkgroot"
-mkdir -p "$PKG_ROOT/Applications"
-cp -R "$APP_DIR" "$PKG_ROOT/Applications/$APP_NAME.app"
+mkdir -p "$PKG_ROOT"
+ditto "$APP_DIR" "$PKG_ROOT/$APP_NAME.app"
 
 SCRIPTS_DIR="$BUILD_DIR/scripts"
 mkdir -p "$SCRIPTS_DIR"
@@ -108,7 +108,7 @@ pkgbuild \
   --root "$PKG_ROOT" \
   --identifier "com.jobsearchcoach.installer" \
   --version "1.0" \
-  --install-location "/" \
+  --install-location "/Applications" \
   --scripts "$SCRIPTS_DIR" \
   "$PKG_PATH"
 
