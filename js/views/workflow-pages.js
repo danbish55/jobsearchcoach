@@ -209,7 +209,7 @@ const WorkflowPages = (() => {
           <div class="workflow-chat-messages" id="${viewId}-chat-messages"></div>
           <div class="workflow-chat-input-row">
             <textarea id="${viewId}-chat-input" rows="2" placeholder="Ask about ${_plainTitle(page).toLowerCase()}..."></textarea>
-            <button class="btn btn-primary" onclick="WorkflowPages.ask('${viewId}')">Ask</button>
+            <button class="btn btn-primary workflow-ask-btn" style="color:#fff" onclick="WorkflowPages.ask('${viewId}')">Ask</button>
           </div>
         </div>
       </div>`;

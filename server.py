@@ -879,7 +879,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     open(placeholder, 'ab').close()
 
             if os.name == 'nt':
-                os.startfile(folder_path)
+                try:
+                    subprocess.Popen(['explorer.exe', folder_path], shell=False)
+                except Exception:
+                    os.startfile(folder_path)
             elif sys.platform == 'darwin':
                 subprocess.run(['open', folder_path], check=False)
             else:

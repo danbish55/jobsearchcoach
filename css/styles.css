@@ -538,8 +538,12 @@ body.sidebar-collapsed .sidebar-mission-pages {
   font-size: 14px;
   border-radius: var(--radius);
 }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: #b52840; color: #fff; }
+.btn-primary { background: var(--accent); color: #fff !important; }
+.btn-primary:hover { background: #b52840; color: #fff !important; }
+.btn-primary *,
+.btn-primary:hover * {
+  color: #fff !important;
+}
 .btn-gold { background: var(--gold); color: #111; }
 .btn-gold:hover { background: #e6b800; }
 .btn-ghost {
@@ -551,6 +555,32 @@ body.sidebar-collapsed .sidebar-mission-pages {
 .btn-sm { padding: 6px 12px; font-size: 13px; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover { background: #c0392b; }
+
+/* Keep every maroon action readable, including page-injected buttons and link chips. */
+.btn-primary,
+.btn-primary:hover,
+.mission-resource-link,
+.mission-resource-link:hover,
+.resource-card,
+.resource-card:hover,
+.send-btn,
+.send-btn:hover,
+.workflow-ask-btn,
+.workflow-ask-btn:hover {
+  color: #fff !important;
+}
+.btn-primary *,
+.btn-primary:hover *,
+.mission-resource-link *,
+.mission-resource-link:hover *,
+.resource-card *,
+.resource-card:hover *,
+.send-btn *,
+.send-btn:hover *,
+.workflow-ask-btn *,
+.workflow-ask-btn:hover * {
+  color: #fff !important;
+}
 
 /* === Dashboard === */
 .daily-briefing-card {
@@ -1434,6 +1464,10 @@ body.light .startup-preloader-bar {
   background: var(--accent);
   color: #fff;
   border-color: transparent;
+}
+.workflow-chat-msg.user .workflow-chat-bubble,
+.workflow-chat-msg.user .workflow-chat-bubble * {
+  color: #fff !important;
 }
 .workflow-chat-input-row {
   display: grid;

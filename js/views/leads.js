@@ -985,7 +985,9 @@ Description: ${lead.description || ''}`;
       let appliedLead = updated;
       if (index >= 0) {
         _leads[index] = _mergeUpdatedLead(_leads[index], updated);
+        _setLeadState(_leads[index], 'applied');
         appliedLead = _leads[index];
+        _invalidateLeadFilters();
         _renderBodyOnly();
         _updateCount();
       }
@@ -1034,6 +1036,8 @@ Description: ${lead.description || ''}`;
       const appliedLead = index >= 0 ? _mergeUpdatedLead(_leads[index], updated) : updated;
       if (index >= 0) {
         _leads[index] = appliedLead;
+        _setLeadState(_leads[index], 'applied');
+        _invalidateLeadFilters();
       }
       _recordJscApplication(appliedLead || item || updated);
       _clearPendingApply(pending.lead_id);
