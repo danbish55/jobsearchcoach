@@ -1,0 +1,3 @@
+/* Minimal global styles — the main app CSS lives in /public/css/styles.css */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }

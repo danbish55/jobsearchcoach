@@ -1,3 +1,16 @@
+# Next.js
+.next/
+out/
+node_modules/
+
+# Env files
+.env
+.env.local
+.env.production.local
+
+# Vercel
+.vercel
+
 # Never commit secrets
 config.json
 dist/

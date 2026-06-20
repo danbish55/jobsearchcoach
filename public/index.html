@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobSearchCoach</title>
+  <link rel="icon" type="image/png" href="assets/usc-trojan-logo-transparent.png">
+  <link rel="shortcut icon" type="image/png" href="assets/usc-trojan-logo-transparent.png">
+  <link rel="stylesheet" href="css/styles.css?v=55">
+</head>
+<body>
+<script>
+  try {
+    if ((localStorage.getItem('jsc_theme') || 'light') === 'light') {
+      document.body.classList.add('light');
+    }
+  } catch {}
+</script>
+
+<!-- Startup preloader — visible while the install/startup handshake finishes -->
+<div id="startup-preloader" class="startup-preloader">
+  <div class="startup-preloader-card">
+    <div class="startup-preloader-mark">007</div>
+    <div class="startup-preloader-title">Preparing JobSearchCoach</div>
+    <div class="startup-preloader-text" id="startup-preloader-text">Checking installation files and secure settings...</div>
+    <div class="startup-preloader-bar"><span></span></div>
+  </div>
+</div>
+
+<!-- Onboarding overlay — shown until setup is complete -->
+<div id="onboarding-overlay" class="hidden">
+  <div class="onboarding-card" id="onboarding-card">
+    <!-- Rendered by onboarding.js -->
+  </div>
+</div>
+
+<!-- Mission Complete overlay — shown on milestone unlock -->
+<div id="mission-complete-overlay" class="hidden">
+  <div class="mission-complete-card">
+    <div class="mission-complete-007">007</div>
+    <div class="mission-complete-title" id="mc-title">Mission Complete</div>
+    <div class="mission-complete-sub" id="mc-sub"></div>
+    <div class="mission-complete-next" id="mc-next"></div>
+    <button class="btn btn-gold mission-break-btn" onclick="UI.closeMissionComplete()">Start the Debrief Break</button>
+  </div>
+</div>
+
+<!-- Modal container -->
+<div id="modal-container"></div>
+
+<!-- Notifications -->
+<div id="notifications"></div>
+
+<!-- Main App -->
+<div id="app" class="hidden">
+
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-row">
+        <div>
+          <div class="sidebar-logo-title">JobSearchCoach</div>
+          <div class="sidebar-logo-sub" id="sidebar-user-name">Loading...</div>
+        </div>
+        <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="UI.toggleSidebarCollapsed()" aria-label="Collapse navigation" title="Collapse navigation">
+          <span id="sidebar-collapse-icon">‹</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-view="dashboard">
+        <span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
+      </div>
+      <div class="nav-item" data-view="coach">
+        <span class="nav-icon">🧢</span><span class="nav-label">Coach</span>
+      </div>
+
+      <div class="nav-section-label">Job Search</div>
+      <div class="nav-item" data-view="resume">
+        <span class="nav-icon">✍️</span><span class="nav-label">Resume</span>
+      </div>
+      <div class="nav-item" data-view="resume-deep-dive">
+        <span class="nav-icon">🔍</span><span class="nav-label">Resume Deep Dive</span>
+      </div>
+      <div class="nav-item" data-view="jobs">
+        <span class="nav-icon">📋</span><span class="nav-label">Applications</span>
+      </div>
+      <div class="nav-item" data-view="workflow-followups">
+        <span class="nav-icon">📞</span><span class="nav-label">Follow Ups</span>
+      </div>
+      <div class="nav-item" data-view="workflow-networking">
+        <span class="nav-icon">🤝</span><span class="nav-label">Networking &mdash; General</span>
+      </div>
+      <div class="nav-item" data-view="workflow-usc-eller">
+        <span class="nav-icon">🎓</span><span class="nav-label">USC/Eller Networking</span>
+      </div>
+      <div class="nav-item" data-view="workflow-interview-prep">
+        <span class="nav-icon">🎤</span><span class="nav-label">Interview Prep</span>
+      </div>
+      <div class="nav-item" data-view="workflow-linkedin">
+        <span class="nav-icon linkedin-nav-icon">in</span><span class="nav-label">LinkedIn Activity</span>
+      </div>
+      <div class="nav-item" data-view="workflow-side-hustle">
+        <span class="nav-icon">💵</span><span class="nav-label">Side Hustle</span>
+      </div>
+      <div class="nav-item" data-view="job-target-tracker">
+        <span class="nav-icon">🎯</span><span class="nav-label">Job Target Tracker</span>
+      </div>
+
+      <div class="nav-section-label">Intelligence</div>
+      <div class="nav-item" data-view="resources">
+        <span class="nav-icon">🏆</span><span class="nav-label">Resources</span>
+      </div>
+      <div class="nav-item" data-view="leads">
+        <span class="nav-icon">🧭</span><span class="nav-label">Job Leads</span>
+      </div>
+
+      <div class="nav-section-label">Reports</div>
+      <div class="nav-item" data-view="report">
+        <span class="nav-icon">⏱️</span><span class="nav-label">Progress Report</span>
+      </div>
+      <div class="nav-section-label">Other</div>
+      <div class="sidebar-utility-actions">
+        <button class="sidebar-utility-btn" data-view="settings" aria-label="Settings" title="Settings">
+          <span class="nav-icon">⚙️</span><span class="sidebar-utility-label">Settings</span>
+        </button>
+        <button class="sidebar-utility-btn theme-toggle" onclick="UI.toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+          <span class="nav-icon theme-toggle-icon" id="theme-icon">🌙</span><span class="sidebar-utility-label" id="theme-label">Dark mode</span>
+        </button>
+      </div>
+      <div class="sidebar-mission-pages hidden" id="sidebar-mission-pages">
+        <div class="nav-section-label">Mission Pages</div>
+        <div id="sidebar-mission-page-buttons"></div>
+      </div>
+    </div>
+
+  </nav>
+
+  <!-- Main content -->
+  <main id="main-content">
+
+    <!-- DASHBOARD -->
+    <div id="view-dashboard" class="view active">
+      <div class="dashboard-top">
+        <div class="view-header">
+          <div class="view-title" id="dash-welcome">Welcome back!</div>
+          <div class="view-subtitle" id="dash-date"></div>
+        </div>
+
+        <div class="welcome-banner">
+          <div class="welcome-text">
+            <h2 id="dash-banner-greeting">Ready for your next mission?</h2>
+            <p>Your coaching session is standing by. What would you like to work on today?</p>
+          </div>
+          <div>
+            <div class="welcome-badge" id="dash-mission-badge">MISSION: DOSSIER</div>
+          </div>
+        </div>
+      </div>
+      <div id="gauge-band-container"></div>
+
+      <div class="dashboard-mission-row">
+        <div id="dash-mission-card"></div>
+        <div class="card all-missions-card">
+          <div class="card-title">All Missions</div>
+          <div id="dash-missions-list"></div>
+        </div>
+      </div>
+
+      <div class="dashboard-actions-row">
+        <div class="card quick-actions-card">
+          <div class="card-title">Quick Actions</div>
+          <div class="quick-actions-buttons">
+            <button class="btn btn-primary" onclick="App.navigate('coach')">💬 Talk to Your Coach</button>
+            <button class="btn btn-ghost" onclick="App.navigate('resume')">📄 Review My Resume</button>
+            <button class="btn btn-ghost" onclick="App.navigate('jobs')">➕ Log a New Application</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MISSION DISCUSSION -->
+    <div id="view-mission-discussion" class="view">
+      <div id="mission-discussion-root"></div>
+    </div>
+
+    <!-- GUIDED WORKFLOW PAGES -->
+    <div id="view-workflow-followups" class="view workflow-view">
+      <div id="workflow-followups-content"></div>
+    </div>
+    <div id="view-workflow-networking" class="view workflow-view">
+      <div id="workflow-networking-content"></div>
+    </div>
+    <div id="view-workflow-usc-eller" class="view workflow-view">
+      <div id="workflow-usc-eller-content"></div>
+    </div>
+    <div id="view-workflow-interview-prep" class="view workflow-view">
+      <div id="workflow-interview-prep-content"></div>
+    </div>
+    <div id="view-workflow-linkedin" class="view workflow-view">
+      <div id="workflow-linkedin-content"></div>
+    </div>
+    <div id="view-workflow-side-hustle" class="view workflow-view">
+      <div id="workflow-side-hustle-content"></div>
+    </div>
+    <div id="view-job-target-tracker" class="view">
+      <div id="job-target-tracker-content"></div>
+    </div>
+
+    <!-- COACH -->
+    <div id="view-coach" class="view">
+      <div class="coach-container">
+        <div class="coach-header">
+          <div class="coach-persona">
+            <div class="coach-avatar">🎯</div>
+            <div>
+              <div class="coach-name">Your Career Coach</div>
+              <div class="coach-status" id="coach-status-label">● Ready</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="Coach.compressAndNewSession()">New Session</button>
+            <button class="btn btn-ghost btn-sm" onclick="Coach.showSessionHistory()">History</button>
+          </div>
+        </div>
+
+        <div class="messages-area" id="messages-area">
+          <!-- Messages rendered here -->
+        </div>
+
+        <div class="coach-input-area">
+          <div class="input-row">
+            <textarea
+              id="coach-input"
+              placeholder="Ask your coach anything — resume, interviews, networking, salary..."
+              rows="1"
+              onkeydown="Coach.handleKeyDown(event)"
+              oninput="Coach.autoResize(this)"
+            ></textarea>
+            <button class="send-btn" id="send-btn" onclick="Coach.send()">➤</button>
+          </div>
+          <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESUME -->
+    <div id="view-resume" class="view">
+      <div class="view-header">
+        <div class="view-title">My Resume</div>
+        <div class="view-subtitle">Track your resume completeness and get coaching feedback</div>
+      </div>
+      <div id="resume-content"></div>
+    </div>
+
+    <!-- RESUME DEEP DIVE -->
+    <div id="view-resume-deep-dive" class="view">
+      <div id="resume-deep-dive-content"></div>
+    </div>
+
+    <!-- JOBS -->
+    <div id="view-jobs" class="view">
+      <div class="view-header">
+        <div class="view-title">Applications</div>
+        <div class="view-subtitle">Track every company, role, and status</div>
+      </div>
+      <div id="jobs-content"></div>
+    </div>
+
+    <!-- RESOURCES -->
+    <div id="view-resources" class="view">
+      <div id="resources-content"></div>
+    </div>
+
+    <!-- JOB LEADS -->
+    <div id="view-leads" class="view">
+      <div id="leads-content"></div>
+    </div>
+
+    <!-- JOB LEADS TOOL -->
+    <div id="view-job-leads-tool" class="view">
+      <div id="job-leads-tool-content"></div>
+    </div>
+
+    <!-- REPORT -->
+    <div id="view-report" class="view">
+      <div class="view-header">
+        <div class="view-title">Progress Report</div>
+        <div class="view-subtitle">Send a status update to your parents</div>
+      </div>
+      <div id="report-content"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="view-settings" class="view">
+      <div class="view-header">
+        <div class="view-title">Settings</div>
+        <div class="view-subtitle">API keys, Google Drive, and your profile</div>
+      </div>
+      <div id="settings-content"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Third-party parsers for Resume file reading (require internet) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+
+<!-- Scripts — order matters -->
+<script src="js/config.js?v=13"></script>
+<script src="js/storage.js?v=22"></script>
+<script src="js/drive.js?v=17"></script>
+<script src="js/sample-data.js?v=4"></script>
+<script src="js/milestones.js?v=14"></script>
+<script src="js/ui.js?v=17"></script>
+<script src="js/claude.js?v=13"></script>
+<script src="js/chat-memory.js?v=1"></script>
+<script src="js/onboarding.js?v=20"></script>
+<script src="js/views/gauges.js?v=32"></script>
+<script src="js/views/dashboard.js?v=23"></script>
+<script src="js/views/mission-discussion.js?v=10"></script>
+<script src="js/views/workflow-pages.js?v=22"></script>
+<script src="js/views/job-target-tracker.js?v=5"></script>
+<script src="js/views/coach.js?v=14"></script>
+<script src="js/views/resume.js?v=18"></script>
+<script src="js/views/resume-deep-dive.js?v=7"></script>
+<script src="js/views/jobs.js?v=16"></script>
+<script src="js/views/resources.js?v=3"></script>
+<script src="js/views/leads.js?v=8"></script>
+<script src="js/views/job-leads-tool.js?v=2"></script>
+<script src="js/views/report.js?v=15"></script>
+<script src="js/views/settings.js?v=30"></script>
+<script src="js/app.js?v=28"></script>
+
+</body>
+</html>
