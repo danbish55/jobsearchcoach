@@ -9,6 +9,40 @@ function db() {
   return neon(url);
 }
 
+const REMOTE_PATTERNS = [
+  /\b100\s*%\s*remote\b/,
+  /\bfully\s+remote\b/,
+  /\bremote\s+position\b/,
+  /\bremote\s+work\b/,
+  /\bremote\s+opportunity\b/,
+  /\bremote\s+role\b/,
+  /\bwork\s+from\s+home\b/,
+  /\bwork\s+remotely\b/,
+  /\bwfh\b/,
+  /\btelework\b/,
+  /this\s+job\s+(could\s+be|is|may\s+be)\s+(100\s*%\s*)?remote/,
+  /eligible\s+for\s+remote/,
+  /remote\s+eligible/,
+  /\bvirtual\s+position\b/,
+  /\banywhere\s+in\s+the\s+u\.?s\.?\b/,
+];
+
+const HYBRID_PATTERNS = [
+  /\bhybrid\b/,
+  /\bpartially\s+remote\b/,
+  /\bsome\s+remote\b/,
+  /\bflexible\s+(work|schedule|location)\b/,
+];
+
+function detectWorkType(location: string, description: string): string {
+  const locL = location.toLowerCase();
+  const descL = description.toLowerCase();
+  if (/remote|telework/.test(locL)) return 'Remote';
+  if (REMOTE_PATTERNS.some(p => p.test(descL))) return 'Remote';
+  if (HYBRID_PATTERNS.some(p => p.test(descL))) return 'Hybrid';
+  return 'On-site';
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -19,30 +53,34 @@ export async function GET(req: Request) {
     }
 
     const sql = db();
+    // Include description so we can detect work_type for legacy rows that have none
     const rows = await sql`
       SELECT id, source, company, role, url, location, score, tier, approval_state, fetched_at,
-             salary, date_posted, work_type
+             salary, date_posted, work_type, description
       FROM job_leads
       ORDER BY score DESC, fetched_at DESC
       LIMIT 200
     `;
-    const leads = rows.map(r => ({
-      id: r.id,
-      lead: {
-        company: r.company,
-        role: r.role,
-        url: r.url,
-        location: r.location,
+    const leads = rows.map(r => {
+      const wt = String(r.work_type || '') || detectWorkType(String(r.location || ''), String(r.description || ''));
+      return {
+        id: r.id,
+        lead: {
+          company: r.company,
+          role: r.role,
+          url: r.url,
+          location: r.location,
+          approval_state: r.approval_state,
+          salary: r.salary || '',
+          posted_at: r.date_posted || '',
+          work_type: wt,
+        },
+        score: r.score,
+        tier: r.tier,
         approval_state: r.approval_state,
-        salary: r.salary || '',
-        posted_at: r.date_posted || '',
-        work_type: r.work_type || '',
-      },
-      score: r.score,
-      tier: r.tier,
-      approval_state: r.approval_state,
-      source: r.source,
-    }));
+        source: r.source,
+      };
+    });
     return NextResponse.json(leads);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
