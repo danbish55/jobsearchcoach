@@ -6,6 +6,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -56,24 +57,44 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Password"
-            autoFocus
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              background: '#111',
-              border: `1px solid ${error ? '#c0392b' : '#333'}`,
-              borderRadius: '8px',
-              color: '#e8e8e8',
-              fontSize: '14px',
-              outline: 'none',
-              marginBottom: '16px',
-            }}
-          />
+          <div style={{ position: 'relative', marginBottom: '16px' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Password"
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '12px 40px 12px 16px',
+                background: '#111',
+                border: `1px solid ${error ? '#c0392b' : '#333'}`,
+                borderRadius: '8px',
+                color: '#e8e8e8',
+                fontSize: '14px',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: '#666',
+                cursor: 'pointer',
+                fontSize: '12px',
+                padding: 0,
+              }}
+            >
+              {showPassword ? 'HIDE' : 'SHOW'}
+            </button>
+          </div>
 
           {error && (
             <div style={{ color: '#e74c3c', fontSize: '13px', marginBottom: '16px' }}>

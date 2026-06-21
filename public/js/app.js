@@ -176,38 +176,11 @@ const App = (() => {
   }
 
   async function _resetJobSearchProfile() {
-    try {
-      const response = await fetch('/api/jl/reset-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}',
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Job Search Profile reset failed');
-      }
-    } catch (err) {
-      console.warn('JobSearchCoach could not restore the current Job Search Profile:', err);
-    }
+    // Job Leads Tool not available in cloud mode — no-op
   }
 
   async function _syncCandidateProfileToServer() {
-    const profile = Storage.get('candidate_profile', {});
-    const hasProfile = profile && typeof profile === 'object' && Object.keys(profile).length > 0;
-    if (!hasProfile) return;
-    try {
-      const response = await fetch('/api/jl/save-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Job Search Profile sync failed');
-      }
-    } catch (err) {
-      console.warn('JobSearchCoach could not sync the Job Search Profile to Job Leads:', err);
-    }
+    // Job Leads Tool not available in cloud mode — no-op
   }
 
   function _afterRender(viewId) {

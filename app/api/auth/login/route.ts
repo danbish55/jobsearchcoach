@@ -5,7 +5,7 @@ export async function POST(req: Request) {
   const { password } = await req.json().catch(() => ({ password: '' }));
   const expected = process.env.DASHBOARD_PASSWORD;
 
-  if (!expected || password !== expected) {
+  if (!expected || password.trim() !== expected.trim()) {
     return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
   }
 

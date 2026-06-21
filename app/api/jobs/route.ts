@@ -70,47 +70,46 @@ export async function PUT(req: Request) {
       )
     `;
 
-    // Upsert: update rows that have an id, insert those that don't,
-    // and delete any row whose id isn't in the incoming list.
     const incomingIds = applications.filter(a => a.id).map(a => Number(a.id));
 
+    // Batch delete rows not in incoming set
     if (incomingIds.length > 0) {
-      // Delete rows not in the incoming set
-      for (const row of await sql`SELECT id FROM applications`) {
-        const rid = Number(row.id);
-        if (!incomingIds.includes(rid)) {
-          await sql`DELETE FROM applications WHERE id = ${rid}`;
-        }
-      }
+      await sql`DELETE FROM applications WHERE id != ALL(${incomingIds}::int[])`;
     } else {
       await sql`DELETE FROM applications`;
     }
 
+    // Upsert all rows and collect the resulting rows (with server-assigned IDs)
+    const result: Application[] = [];
     for (const app of applications) {
-      const company       = app.company || '';
-      const role          = app.role          || '';
-      const date          = app.date          || '';
-      const status        = app.status        || 'applied';
-      const url           = app.url           || '';
-      const notes         = app.notes         || '';
+      const company        = app.company        || '';
+      const role           = app.role           || '';
+      const date           = app.date           || '';
+      const status         = app.status         || 'applied';
+      const url            = app.url            || '';
+      const notes          = app.notes          || '';
       const source_lead_id = app.source_lead_id || '';
 
       if (app.id) {
-        await sql`
+        const rows = await sql`
           UPDATE applications
           SET company=${company}, role=${role}, date=${date}, status=${status},
               url=${url}, notes=${notes}, source_lead_id=${source_lead_id}, updated_at=NOW()
           WHERE id=${app.id}
+          RETURNING id, company, role, date, status, url, notes, source_lead_id
         `;
+        if (rows[0]) result.push(rows[0] as Application);
       } else {
-        await sql`
+        const rows = await sql`
           INSERT INTO applications (company,role,date,status,url,notes,source_lead_id)
           VALUES (${company},${role},${date},${status},${url},${notes},${source_lead_id})
+          RETURNING id, company, role, date, status, url, notes, source_lead_id
         `;
+        if (rows[0]) result.push(rows[0] as Application);
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, applications: result });
   } catch (err) {
     console.error('PUT /api/jobs:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

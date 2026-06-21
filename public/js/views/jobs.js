@@ -33,11 +33,18 @@ const Jobs = (() => {
 
   async function _syncToServer(data) {
     try {
-      await fetch('/api/jobs', {
+      const r = await fetch('/api/jobs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
+      if (r.ok) {
+        const result = await r.json();
+        // Update localStorage with server-assigned IDs so new entries aren't re-inserted on next sync
+        if (result.applications) {
+          Storage.set('jobs', { applications: result.applications });
+        }
+      }
     } catch {}
   }
 
