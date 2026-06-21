@@ -50,6 +50,7 @@ const JobLeads = (() => {
   let _tierFilter = 'all';
   let _stateFilter = 'all';
   let _sourceFilter = 'all';
+  let _siteFilter = 'all';
   let _searchQuery = '';
   let _searchDebounceTimer = null;
   let _filteredLeadsCache = null;
@@ -108,6 +109,15 @@ const JobLeads = (() => {
             Source
             <select id="job-leads-source-filter" onchange="JobLeads.setSourceFilter(this.value)">
               ${_sourceFilterOptionsHTML()}
+            </select>
+          </label>
+          <label>
+            Site
+            <select id="job-leads-site-filter" onchange="JobLeads.setSiteFilter(this.value)">
+              ${_option('all', 'All', _siteFilter)}
+              ${_option('remote', 'Remote', _siteFilter)}
+              ${_option('hybrid', 'Hybrid', _siteFilter)}
+              ${_option('on-site', 'On-site', _siteFilter)}
             </select>
           </label>
           <label class="job-leads-search-label">
@@ -201,6 +211,7 @@ const JobLeads = (() => {
       _tierFilter,
       _stateFilter,
       _sourceFilter,
+      _siteFilter,
       _searchQuery,
       _sortKey,
       _sortDirection,
@@ -224,6 +235,13 @@ const JobLeads = (() => {
 
   function setSourceFilter(value) {
     _sourceFilter = value || 'all';
+    _invalidateLeadFilters();
+    _renderBodyOnly();
+    _updateCount();
+  }
+
+  function setSiteFilter(value) {
+    _siteFilter = value || 'all';
     _invalidateLeadFilters();
     _renderBodyOnly();
     _updateCount();
@@ -612,6 +630,14 @@ const JobLeads = (() => {
       .filter(item => {
         if (_sourceFilter === 'all') return true;
         return _sourceFilterKey(item) === _sourceFilter;
+      })
+      .filter(item => {
+        if (_siteFilter === 'all') return true;
+        const wt = String((item.lead || item).work_type || '').toLowerCase();
+        if (_siteFilter === 'remote')  return wt === 'remote' || wt.includes('remote');
+        if (_siteFilter === 'hybrid')  return wt === 'hybrid' || wt.includes('hybrid');
+        if (_siteFilter === 'on-site') return wt === 'on-site' || wt === 'on site' || !wt || wt === 'not listed';
+        return true;
       })
       .filter(item => {
         const query = _searchQuery.trim().toLowerCase();
@@ -1531,6 +1557,7 @@ Description: ${lead.description || ''}`;
     setTierFilter,
     setStateFilter,
     setSourceFilter,
+    setSiteFilter,
     setSearchQuery,
     handleSearchKeydown,
     setSort,
