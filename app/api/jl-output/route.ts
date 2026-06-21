@@ -56,13 +56,13 @@ export async function GET(req: Request) {
     // Include description so we can detect work_type for legacy rows that have none
     const rows = await sql`
       SELECT id, source, company, role, url, location, score, tier, approval_state, fetched_at,
-             salary, date_posted, work_type, description
+             salary, date_posted, description
       FROM job_leads
       ORDER BY score DESC, fetched_at DESC
       LIMIT 200
     `;
     const leads = rows.map(r => {
-      const wt = String(r.work_type || '') || detectWorkType(String(r.location || ''), String(r.description || ''));
+      const wt = detectWorkType(String(r.location || ''), String(r.description || ''));
       return {
         id: r.id,
         lead: {
