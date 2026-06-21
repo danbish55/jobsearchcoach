@@ -50,9 +50,11 @@ export async function GET() {
       const seeds = [
         { key: 'adzuna',   enabled: true,  api_key: process.env.ADZUNA_API_KEY   || '' },
         { key: 'usajobs',  enabled: true,  api_key: process.env.USA_JOBS_API_KEY || '' },
+        { key: 'the_muse', enabled: true,  api_key: '' },
+        { key: 'remoteok', enabled: true,  api_key: '' },
+        { key: 'remotive', enabled: true,  api_key: '' },
         { key: 'greenhouse', enabled: false, api_key: '' },
         { key: 'lever',    enabled: false, api_key: '' },
-        { key: 'the_muse', enabled: false, api_key: '' },
         { key: 'indeed_rss', enabled: false, api_key: '' },
         { key: 'built_in_la', enabled: false, api_key: '' },
       ];

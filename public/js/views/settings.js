@@ -65,18 +65,6 @@ const Settings = (() => {
 
   const JOB_SOURCE_FIELDS = [
     {
-      key: 'greenhouse',
-      label: 'Greenhouse',
-      description: 'Curated company career boards using the public Greenhouse Job Board API.',
-      requiresKey: false,
-    },
-    {
-      key: 'lever',
-      label: 'Lever',
-      description: 'Curated company career boards using the public Lever postings API.',
-      requiresKey: false,
-    },
-    {
       key: 'usajobs',
       label: 'USAJOBS',
       description: 'Federal analytics and IT roles. Requires a USAJOBS API key.',
@@ -91,19 +79,43 @@ const Settings = (() => {
     {
       key: 'the_muse',
       label: 'The Muse',
-      description: 'Company-focused roles and career content with structured listings.',
+      description: 'Company-focused roles and career content with structured listings. Free, no key.',
+      requiresKey: false,
+    },
+    {
+      key: 'remoteok',
+      label: 'RemoteOK',
+      description: 'All-remote tech and analytics roles. Free public API, no key.',
+      requiresKey: false,
+    },
+    {
+      key: 'remotive',
+      label: 'Remotive',
+      description: 'Curated remote jobs with salary and structured data. Free public API, no key.',
+      requiresKey: false,
+    },
+    {
+      key: 'greenhouse',
+      label: 'Greenhouse',
+      description: 'Per-company career boards (Greenhouse API). Requires a curated company list — not yet wired for general search.',
+      requiresKey: false,
+    },
+    {
+      key: 'lever',
+      label: 'Lever',
+      description: 'Per-company career boards (Lever API). Requires a curated company list — not yet wired for general search.',
       requiresKey: false,
     },
     {
       key: 'indeed_rss',
       label: 'Indeed RSS',
-      description: 'RSS-based search feed. Indeed may block automated requests; status appears after refresh.',
+      description: 'RSS-based search feed. Indeed blocks automated requests; not currently fetched.',
       requiresKey: false,
     },
     {
       key: 'built_in_la',
       label: 'Built In LA',
-      description: 'Los Angeles tech-company listings and startup-market leads.',
+      description: 'Los Angeles tech-company listings. Not currently fetched.',
       requiresKey: false,
     },
   ];
