@@ -1360,7 +1360,7 @@ Description: ${lead.description || ''}`;
       .job-leads-connection strong { display:block; color:var(--text); font-size:15px; margin-bottom:2px; }
       .job-leads-connection span { color:var(--text-muted); font-size:14px; }
       .job-leads-connection-meta { color:var(--text-muted); font-size:14px; white-space:nowrap; }
-      .job-leads-list { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.025); }
+      .job-leads-list { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:8px; overflow:clip; background:rgba(255,255,255,0.025); }
       body.light .job-leads-list { background:rgba(255,255,255,0.72); }
       .job-leads-row { display:grid; grid-template-columns:70px minmax(125px,0.95fr) minmax(240px,1.55fr) minmax(95px,0.7fr) minmax(92px,0.68fr) minmax(84px,0.62fr) minmax(82px,0.58fr) minmax(188px,210px); gap:12px; align-items:center; }
       .job-leads-row-head { padding:10px 14px; color:var(--text-muted); font-size:12px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; background:rgba(0,0,0,0.16); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
