@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     const sql = db();
     const rows = await sql`
       SELECT id, source, company, role, url, location, score, tier, approval_state, fetched_at,
-             salary, date_posted
+             salary, date_posted, work_type
       FROM job_leads
       ORDER BY score DESC, fetched_at DESC
       LIMIT 200
@@ -36,6 +36,7 @@ export async function GET(req: Request) {
         approval_state: r.approval_state,
         salary: r.salary || '',
         posted_at: r.date_posted || '',
+        work_type: r.work_type || '',
       },
       score: r.score,
       tier: r.tier,

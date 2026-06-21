@@ -68,15 +68,17 @@ const PREFERRED_CITIES = [
 ];
 
 function isPreferredLocation(locL: string): boolean {
-  // Check unambiguous cities
-  if (PREFERRED_CITIES.some(c => locL.includes(c))) return true;
-
-  // Check disambiguated cities (require state context)
+  // Check disambiguated cities FIRST — if the city name matches but the state context doesn't,
+  // short-circuit immediately as wrong geography (prevents 'denver' in "Glendale, Denver" from
+  // matching the PREFERRED_CITIES 'denver' entry and wrongly awarding +15)
   for (const { city, states } of DISAMBIGUATED) {
-    if (locL.includes(city) && states.some(s => locL.includes(s))) return true;
+    if (locL.includes(city)) {
+      return states.some(s => locL.includes(s));
+    }
   }
 
-  return false;
+  // Check unambiguous cities
+  return PREFERRED_CITIES.some(c => locL.includes(c));
 }
 
 export function scoreJob(title: string, description: string, location: string): { score: number; tier: string } {

@@ -1212,15 +1212,18 @@ Description: ${lead.description || ''}`;
   }
 
   function _displayJobType(lead) {
-    const explicit = String(lead?.job_type || '').trim();
-    if (explicit) return explicit;
+    const explicit = String(lead?.job_type || lead?.work_type || '').trim();
     const title = String(lead?.title || lead?.role || '').toLowerCase();
-    const location = String(lead?.location || '').toLowerCase();
     const types = [];
     if (/(intern|internship)/.test(title)) types.push('Internship');
-    if (/(contract|contractor|temporary)/.test(title)) types.push('Contract');
-    if (/remote|flexible \/ remote/.test(location)) types.push('Remote');
-    else if (location) types.push('On-site');
+    else if (/(contract|contractor|temporary)/.test(title)) types.push('Contract');
+    if (explicit) {
+      types.push(explicit);
+    } else {
+      const locL = String(lead?.location || '').toLowerCase();
+      if (/remote|telework/.test(locL)) types.push('Remote');
+      else if (locL) types.push('On-site');
+    }
     return types.length ? types.join(' / ') : 'Not listed';
   }
 
