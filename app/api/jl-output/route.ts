@@ -9,8 +9,15 @@ function db() {
   return neon(url);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const view = searchParams.get('view');
+
+    if (view === 'health') {
+      return NextResponse.json({ ok: true, sources: {}, last_run: null });
+    }
+
     const sql = db();
     const rows = await sql`
       SELECT id, source, company, role, url, location, score, tier, approval_state, fetched_at
@@ -19,6 +26,7 @@ export async function GET() {
       LIMIT 200
     `;
     const leads = rows.map(r => ({
+      id: r.id,
       lead: {
         company: r.company,
         role: r.role,
@@ -30,7 +38,6 @@ export async function GET() {
       tier: r.tier,
       approval_state: r.approval_state,
       source: r.source,
-      id: r.id,
     }));
     return NextResponse.json(leads);
   } catch (err) {
