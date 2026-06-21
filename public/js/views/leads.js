@@ -124,8 +124,20 @@ const JobLeads = (() => {
           <div class="job-leads-count">${_filteredLeads().length} of ${_leads.length} leads</div>
         </div>
 
-        <div id="job-leads-body">
-          ${_bodyHTML()}
+        <div class="job-leads-list" role="table" aria-label="Job leads">
+          <div class="job-leads-row job-leads-row-head" role="row">
+            ${_sortHeaderHTML('score', 'Score')}
+            ${_sortHeaderHTML('company', 'Company')}
+            ${_sortHeaderHTML('role', 'Role')}
+            ${_sortHeaderHTML('city', 'City/ST')}
+            ${_sortHeaderHTML('level', 'Level / Type')}
+            ${_sortHeaderHTML('salary', 'Salary')}
+            ${_sortHeaderHTML('posted', 'Posted')}
+            <div>Actions / Source</div>
+          </div>
+          <div id="job-leads-body" class="job-leads-body-scroll">
+            ${_bodyHTML()}
+          </div>
         </div>
       </div>`;
 
@@ -415,19 +427,7 @@ const JobLeads = (() => {
       </div>`;
     }
 
-    return `<div class="job-leads-list" role="table" aria-label="Job leads">
-      <div class="job-leads-row job-leads-row-head" role="row">
-        ${_sortHeaderHTML('score', 'Score')}
-        ${_sortHeaderHTML('company', 'Company')}
-        ${_sortHeaderHTML('role', 'Role')}
-        ${_sortHeaderHTML('city', 'City/ST')}
-        ${_sortHeaderHTML('level', 'Level / Type')}
-        ${_sortHeaderHTML('salary', 'Salary')}
-        ${_sortHeaderHTML('posted', 'Posted')}
-        <div>Actions / Source</div>
-      </div>
-      ${leads.map(_leadCardHTML).join('')}
-    </div>`;
+    return leads.map(_leadCardHTML).join('');
   }
 
   function _leadCardHTML(item, index) {
@@ -1360,10 +1360,11 @@ Description: ${lead.description || ''}`;
       .job-leads-connection strong { display:block; color:var(--text); font-size:15px; margin-bottom:2px; }
       .job-leads-connection span { color:var(--text-muted); font-size:14px; }
       .job-leads-connection-meta { color:var(--text-muted); font-size:14px; white-space:nowrap; }
-      .job-leads-list { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:8px; overflow:clip; background:rgba(255,255,255,0.025); }
+      .job-leads-list { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.025); }
       body.light .job-leads-list { background:rgba(255,255,255,0.72); }
+      .job-leads-body-scroll { overflow-y:auto; max-height:calc(100vh - 260px); }
       .job-leads-row { display:grid; grid-template-columns:70px minmax(125px,0.95fr) minmax(240px,1.55fr) minmax(95px,0.7fr) minmax(92px,0.68fr) minmax(84px,0.62fr) minmax(82px,0.58fr) minmax(188px,210px); gap:12px; align-items:center; }
-      .job-leads-row-head { padding:10px 14px; color:var(--text-muted); font-size:12px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; background:rgba(0,0,0,0.16); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
+      .job-leads-row-head { padding:10px 14px; color:var(--text-muted); font-size:12px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; background:rgba(0,0,0,0.16); border-bottom:1px solid var(--border); }
       body.light .job-leads-row-head { background:rgba(61,75,90,0.08); }
       .job-leads-sort-header { appearance:none; border:0; background:transparent; color:inherit; font:inherit; letter-spacing:inherit; text-transform:inherit; text-align:left; padding:0; cursor:pointer; }
       .job-leads-sort-header:hover, .job-leads-sort-header.active { color:var(--gold); }
