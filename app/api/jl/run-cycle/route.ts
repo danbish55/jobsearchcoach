@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
+import { scoreJob } from '@/lib/jl-score';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -8,41 +9,6 @@ function db() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL not set');
   return neon(url);
-}
-
-const PROFILE = {
-  target_titles: [
-    'Entry Level Data Analyst','Junior Data Analyst','Associate Data Analyst','Data Analyst',
-    'Data Coordinator','Business Intelligence Analyst','Junior Business Analyst',
-    'Associate Business Analyst','Business Analyst','Business Systems Analyst',
-    'Product Analyst','Associate Product Analyst','Operations Analyst',
-    'Associate Operations Analyst','Reporting Analyst','Research Analyst',
-    'Compliance Analyst','Data Operations Specialist','Operations Specialist',
-    'Analytics Consultant','Technology Consultant','Data Visualization Analyst','Analytics Engineer',
-  ],
-  must_have_keywords: [
-    'entry level','junior','associate','intern','graduate','analytics',
-    'business intelligence','requirements','database','reporting','visualization','dashboard','data-driven',
-  ],
-  excluded_keywords: [
-    'senior consultant','lead consultant','senior manager','associate manager','regional manager',
-    'principal','staff','director','vice president','VP','architect','expert','head of',
-    '3+ years','3 or more years','minimum 3 years','4+ years','5+ years','6+ years',
-    '7+ years','8+ years','10+ years','minimum experience of 3','at least 3 years',
-    '3 years of experience','4 years of experience','5 years of experience',
-    'unpaid','commission only','door-to-door',
-  ],
-};
-
-function scoreJob(title: string, description: string) {
-  const text = `${title} ${description}`.toLowerCase();
-  const titleLower = title.toLowerCase();
-  let score = 0;
-  if (PROFILE.target_titles.some(t => titleLower.includes(t.toLowerCase()))) score += 40;
-  score += PROFILE.must_have_keywords.filter(k => text.includes(k)).length * 5;
-  if (PROFILE.excluded_keywords.some(k => text.includes(k))) score -= 50;
-  score = Math.max(0, Math.min(100, score));
-  return { score, tier: score >= 70 ? 'A' : score >= 45 ? 'B' : 'C' };
 }
 
 async function fetchUSAJOBS(apiKey: string) {
@@ -57,7 +23,20 @@ async function fetchUSAJOBS(apiKey: string) {
       for (const item of data?.SearchResult?.SearchResultItems ?? []) {
         const pos = item.MatchedObjectDescriptor;
         if (!pos) continue;
-        results.push({ externalId: `usajobs-${pos.PositionID}`, company: pos.OrganizationName || 'Federal Agency', role: pos.PositionTitle || '', url: pos.PositionURI || '', location: pos.PositionLocation?.[0]?.LocationName || '', description: pos.QualificationSummary || '' });
+        // Check if remote/telework is noted
+        const remoteIndicator = pos.PositionRemuneration?.[0]?.Description || '';
+        const teleWorkEligible = pos.UserArea?.Details?.TeleworkEligible || '';
+        const locationName = teleWorkEligible === 'Yes'
+          ? 'Remote / Telework'
+          : pos.PositionLocation?.[0]?.LocationName || '';
+        results.push({
+          externalId: `usajobs-${pos.PositionID}`,
+          company: pos.OrganizationName || 'Federal Agency',
+          role: pos.PositionTitle || '',
+          url: pos.PositionURI || '',
+          location: locationName,
+          description: pos.QualificationSummary || remoteIndicator,
+        });
       }
     } catch {}
   }
@@ -72,7 +51,14 @@ async function fetchAdzuna(appId: string, appKey: string) {
       if (!res.ok) continue;
       const data = await res.json();
       for (const job of data?.results ?? []) {
-        results.push({ externalId: `adzuna-${job.id}`, company: job.company?.display_name || '', role: job.title || '', url: job.redirect_url || '', location: job.location?.display_name || '', description: job.description || '' });
+        results.push({
+          externalId: `adzuna-${job.id}`,
+          company: job.company?.display_name || '',
+          role: job.title || '',
+          url: job.redirect_url || '',
+          location: job.location?.display_name || '',
+          description: job.description || '',
+        });
       }
     } catch {}
   }
@@ -100,18 +86,27 @@ export async function POST() {
     if (usajobsKey) allJobs.push(...(await fetchUSAJOBS(usajobsKey)).map(j => ({ ...j, source: 'usajobs' })));
     if (adzunaKey && adzunaId) allJobs.push(...(await fetchAdzuna(adzunaId, adzunaKey)).map(j => ({ ...j, source: 'adzuna' })));
 
+    // Upsert new leads
     let inserted = 0;
     for (const job of allJobs) {
-      const { score, tier } = scoreJob(job.role, job.description);
+      const { score, tier } = scoreJob(job.role, job.description, job.location);
       try {
         await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier)
           VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${job.description}, ${score}, ${tier})
-          ON CONFLICT (source, external_id) DO UPDATE SET score=EXCLUDED.score, tier=EXCLUDED.tier, fetched_at=NOW()`;
+          ON CONFLICT (source, external_id) DO UPDATE
+            SET score=EXCLUDED.score, tier=EXCLUDED.tier, location=EXCLUDED.location, fetched_at=NOW()`;
         inserted++;
       } catch {}
     }
 
-    return NextResponse.json({ success: true, fetched: allJobs.length, inserted });
+    // Re-score ALL existing records with the updated scorer
+    const existing = await sql`SELECT id, role, description, location FROM job_leads`;
+    for (const row of existing) {
+      const { score, tier } = scoreJob(String(row.role), String(row.description), String(row.location));
+      await sql`UPDATE job_leads SET score=${score}, tier=${tier} WHERE id=${row.id}`;
+    }
+
+    return NextResponse.json({ success: true, fetched: allJobs.length, inserted, rescored: existing.length });
   } catch (err) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
