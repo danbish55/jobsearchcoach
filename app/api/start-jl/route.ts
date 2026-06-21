@@ -176,7 +176,16 @@ export async function POST() {
       } catch {}
     }
 
-    return NextResponse.json({ ok: true, status: 'completed', fetched: allJobs.length, inserted });
+    return NextResponse.json({
+      ok: true,
+      status: 'completed',
+      fetched: allJobs.length,
+      inserted,
+      sources_used: {
+        usajobs: !!usajobsKey,
+        adzuna: !!(adzunaKey && adzunaAppId),
+      },
+    });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }

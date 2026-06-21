@@ -1,0 +1,73 @@
+import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
+// Corinne's candidate profile — source of truth from candidate_profile.yaml
+const PROFILE = {
+  name: 'Corinne',
+  target_roles: [
+    'Entry Level Data Analyst','Junior Data Analyst','Associate Data Analyst','Data Analyst',
+    'Data Coordinator','Business Intelligence Analyst','Junior Business Analyst',
+    'Associate Business Analyst','Business Analyst','Business Systems Analyst',
+    'Product Analyst','Associate Product Analyst','Operations Analyst',
+    'Associate Operations Analyst','Reporting Analyst','Research Analyst',
+    'Compliance Analyst','Data Operations Specialist','Operations Specialist',
+    'Analytics Consultant','Technology Consultant','Data Visualization Analyst',
+    'Analytics Engineer',
+  ],
+  skills: [
+    'SQL','Python','Tableau','Power BI','Excel','data visualization',
+    'business intelligence','database management','data modeling','ETL',
+    'statistical analysis','machine learning','optimization','requirements analysis',
+    'systems analysis','A/B testing','forecasting',
+  ],
+  preferred_locations: [
+    'West Hollywood','Silver Lake','Los Feliz','Koreatown','Mid-Wilshire','La Brea',
+    'Hancock Park','Larchmont','Hollywood','Century City','Brentwood','Westwood',
+    'Beverly Hills','Culver City','Santa Monica','Playa Vista','Marina del Rey',
+    'Venice','El Segundo','Manhattan Beach','Hermosa Beach','Redondo Beach','Torrance',
+    'Hawthorne','Inglewood','Burbank','Glendale','Pasadena','Alhambra','San Gabriel',
+    'Arcadia','Monrovia','Studio City','Sherman Oaks','Encino','North Hollywood',
+    'Van Nuys','Chatsworth','Long Beach','Downey','Compton','Carson','Los Angeles',
+    'Irvine','Anaheim','Orange County','Costa Mesa','Newport Beach','Huntington Beach',
+    'Fullerton','Brea','Santa Ana','Garden Grove','San Diego','La Jolla','Chula Vista',
+    'Carlsbad','Oceanside','Escondido','Del Mar','Encinitas','El Cajon','National City',
+    'Dallas','Fort Worth','DFW','Plano','Irving','Frisco','McKinney','Arlington TX',
+    'Austin','Round Rock','Seattle','Bellevue','Redmond','Kirkland','Tacoma','Portland',
+    'Beaverton','Hillsboro','Denver','Boulder','Aurora CO','Lakewood CO','Salt Lake City',
+    'Provo','Sandy UT','Las Vegas','Henderson NV','Summerlin','Remote','Hybrid','Telework','WFH',
+  ],
+  must_have_keywords: [
+    'entry level','junior','associate','intern','graduate','analytics',
+    'business intelligence','requirements','database','reporting','visualization',
+    'dashboard','data-driven',
+  ],
+  preferred_keywords: [
+    'new grad','recent graduate','entry level','0-2 years',"bachelor's required",
+    "master's preferred",'MBA','MSBA','advanced degree','no experience required',
+  ],
+  excluded_keywords: [
+    'senior consultant','lead consultant','senior manager','associate manager',
+    'regional manager','principal','staff','director','vice president','VP',
+    'architect','expert','head of','3+ years','3 or more years','minimum 3 years',
+    '4+ years','5+ years','6+ years','7+ years','8+ years','10+ years',
+    'minimum experience of 3','at least 3 years','3 years of experience',
+    '4 years of experience','5 years of experience','unpaid','commission only','door-to-door',
+  ],
+  scoring_weights: {
+    title_match: 40,
+    must_have: 5,
+    preferred: 3,
+    location: 5,
+    excluded_penalty: 50,
+  },
+};
+
+export async function GET() {
+  return NextResponse.json({ ok: true, profile: PROFILE });
+}
+
+export async function POST() {
+  // Profile is managed via YAML / env — saves are no-ops in cloud mode
+  return NextResponse.json({ ok: true });
+}

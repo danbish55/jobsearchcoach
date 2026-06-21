@@ -43,6 +43,28 @@ export async function GET() {
   try {
     const sql = db();
     await ensureTables(sql);
+
+    // Seed from env vars on first load if table is empty
+    const existing = await sql`SELECT key FROM job_sources`;
+    if (existing.length === 0) {
+      const seeds = [
+        { key: 'adzuna',   enabled: true,  api_key: process.env.ADZUNA_API_KEY   || '' },
+        { key: 'usajobs',  enabled: true,  api_key: process.env.USA_JOBS_API_KEY || '' },
+        { key: 'greenhouse', enabled: false, api_key: '' },
+        { key: 'lever',    enabled: false, api_key: '' },
+        { key: 'the_muse', enabled: false, api_key: '' },
+        { key: 'indeed_rss', enabled: false, api_key: '' },
+        { key: 'built_in_la', enabled: false, api_key: '' },
+      ];
+      for (const s of seeds) {
+        await sql`
+          INSERT INTO job_sources (key, enabled, api_key)
+          VALUES (${s.key}, ${s.enabled}, ${s.api_key})
+          ON CONFLICT (key) DO NOTHING
+        `;
+      }
+    }
+
     const rows = await sql`SELECT key, enabled, api_key FROM job_sources`;
     const sources: Record<string, { enabled: boolean; api_key: string }> = {};
     for (const row of rows) {
