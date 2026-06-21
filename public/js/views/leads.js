@@ -1360,7 +1360,7 @@ Description: ${lead.description || ''}`;
       .job-leads-list { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.025); }
       body.light .job-leads-list { background:rgba(255,255,255,0.72); }
       .job-leads-row { display:grid; grid-template-columns:70px minmax(125px,0.95fr) minmax(240px,1.55fr) minmax(95px,0.7fr) minmax(92px,0.68fr) minmax(84px,0.62fr) minmax(82px,0.58fr) minmax(188px,210px); gap:12px; align-items:center; }
-      .job-leads-row-head { padding:10px 14px; color:var(--text-muted); font-size:12px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; background:rgba(0,0,0,0.16); border-bottom:1px solid var(--border); }
+      .job-leads-row-head { padding:10px 14px; color:var(--text-muted); font-size:12px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; background:rgba(0,0,0,0.16); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
       body.light .job-leads-row-head { background:rgba(61,75,90,0.08); }
       .job-leads-sort-header { appearance:none; border:0; background:transparent; color:inherit; font:inherit; letter-spacing:inherit; text-transform:inherit; text-align:left; padding:0; cursor:pointer; }
       .job-leads-sort-header:hover, .job-leads-sort-header.active { color:var(--gold); }
@@ -1386,7 +1386,7 @@ Description: ${lead.description || ''}`;
       .state-approved { background:rgba(34,197,94,0.18); color:var(--success); }
       .state-rejected { background:rgba(239,68,68,0.18); color:var(--danger); }
       .state-applied { background:rgba(168,85,247,0.18); color:#c084fc; }
-      .job-lead-company { font-size:19px; font-weight:900; color:var(--text); line-height:1.22; }
+      .job-lead-company { font-size:14px; font-weight:700; color:var(--text); line-height:1.22; }
       .job-lead-role-cell { min-width:0; }
       .job-lead-role { color:var(--text); line-height:1.38; font-size:16px; }
       .job-lead-description { color:var(--text-muted); font-size:14px; line-height:1.35; margin-top:4px; }
@@ -1397,10 +1397,11 @@ Description: ${lead.description || ''}`;
       .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text-muted); }
       .job-lead-level strong { color:var(--text); font-weight:800; }
       .job-lead-salary-range { display:inline-flex; flex-direction:column; gap:2px; line-height:1.25; }
-      .job-lead-actions-cell { min-width:0; justify-self:end; width:min(100%, 210px); }
-      .job-lead-actions { display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap; }
-      .job-lead-review-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-      .job-lead-actions .btn { max-width:116px; }
+      .job-lead-actions-cell { min-width:0; justify-self:end; width:min(100%, 260px); }
+      .job-lead-actions { display:flex; flex-direction:row; justify-content:flex-end; gap:4px; align-items:center; flex-wrap:wrap; }
+      .job-lead-review-actions { display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap; }
+      .job-lead-actions .btn { max-width:80px; font-size:12px; padding:4px 8px; }
+      .job-lead-actions .btn.btn-primary { max-width:80px; }
       .job-lead-approve-btn { background:var(--success); border-color:var(--success); color:#fff; }
       .job-lead-reject-btn { background:var(--danger); border-color:var(--danger); color:#fff; }
       .job-lead-apply-btn { background:var(--gold); border-color:var(--gold); color:#111827; }
@@ -1468,8 +1469,8 @@ Description: ${lead.description || ''}`;
         .job-lead-city::before { content:"City/ST: "; color:var(--text-muted); font-weight:800; }
         .job-lead-salary::before { content:"Salary: "; color:var(--text-muted); font-weight:800; }
         .job-lead-posted::before { content:"Posted: "; color:var(--text-muted); font-weight:800; }
-        .job-lead-actions { justify-content:flex-end; align-items:flex-end; flex-direction:column; }
-        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:132px; }
+        .job-lead-actions { justify-content:flex-end; align-items:center; flex-direction:row; flex-wrap:wrap; }
+        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:90px; font-size:12px; padding:4px 6px; }
         .job-lead-review-actions { flex-direction:column; align-items:flex-end; }
       }
       @media (max-width:980px) {

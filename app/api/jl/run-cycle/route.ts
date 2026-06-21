@@ -11,8 +11,10 @@ function db() {
   return neon(url);
 }
 
-async function fetchUSAJOBS(apiKey: string) {
-  const results: { externalId: string; company: string; role: string; url: string; location: string; description: string }[] = [];
+type JobResult = { externalId: string; company: string; role: string; url: string; location: string; description: string; salary: string; date_posted: string };
+
+async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
+  const results: JobResult[] = [];
   for (const kw of ['data analyst', 'business analyst', 'business intelligence']) {
     try {
       const res = await fetch(`https://data.usajobs.gov/api/search?Keyword=${encodeURIComponent(kw)}&ResultsPerPage=25`, {
@@ -23,42 +25,40 @@ async function fetchUSAJOBS(apiKey: string) {
       for (const item of data?.SearchResult?.SearchResultItems ?? []) {
         const pos = item.MatchedObjectDescriptor;
         if (!pos) continue;
-        // Check if remote/telework is noted
-        const remoteIndicator = pos.PositionRemuneration?.[0]?.Description || '';
         const teleWorkEligible = pos.UserArea?.Details?.TeleworkEligible || '';
-        const locationName = teleWorkEligible === 'Yes'
-          ? 'Remote / Telework'
-          : pos.PositionLocation?.[0]?.LocationName || '';
-        results.push({
-          externalId: `usajobs-${pos.PositionID}`,
-          company: pos.OrganizationName || 'Federal Agency',
-          role: pos.PositionTitle || '',
-          url: pos.PositionURI || '',
-          location: locationName,
-          description: pos.QualificationSummary || remoteIndicator,
-        });
+        const locationName = teleWorkEligible === 'Yes' ? 'Remote / Telework' : pos.PositionLocation?.[0]?.LocationName || '';
+        const rem = pos.PositionRemuneration?.[0];
+        let salary = '';
+        if (rem) {
+          const min = rem.MinimumRange ? `$${Number(rem.MinimumRange).toLocaleString()}` : '';
+          const max = rem.MaximumRange ? `$${Number(rem.MaximumRange).toLocaleString()}` : '';
+          const interval = rem.RateIntervalCode || '';
+          salary = [min && max ? `${min}–${max}` : min || max, interval].filter(Boolean).join(' ');
+        }
+        const pubDate = pos.PublicationStartDate ? pos.PublicationStartDate.split('T')[0] : '';
+        results.push({ externalId: `usajobs-${pos.PositionID}`, company: pos.OrganizationName || 'Federal Agency', role: pos.PositionTitle || '', url: pos.PositionURI || '', location: locationName, description: pos.QualificationSummary || '', salary, date_posted: pubDate });
       }
     } catch {}
   }
   return results;
 }
 
-async function fetchAdzuna(appId: string, appKey: string) {
-  const results: { externalId: string; company: string; role: string; url: string; location: string; description: string }[] = [];
+async function fetchAdzuna(appId: string, appKey: string): Promise<JobResult[]> {
+  const results: JobResult[] = [];
   for (const kw of ['data analyst', 'business analyst', 'business intelligence analyst']) {
     try {
       const res = await fetch(`https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${appId}&app_key=${appKey}&what=${encodeURIComponent(kw)}&results_per_page=25&content-type=application/json`);
       if (!res.ok) continue;
       const data = await res.json();
       for (const job of data?.results ?? []) {
-        results.push({
-          externalId: `adzuna-${job.id}`,
-          company: job.company?.display_name || '',
-          role: job.title || '',
-          url: job.redirect_url || '',
-          location: job.location?.display_name || '',
-          description: job.description || '',
-        });
+        let salary = '';
+        if (job.salary_min || job.salary_max) {
+          const min = job.salary_min ? `$${Math.round(job.salary_min).toLocaleString()}` : '';
+          const max = job.salary_max ? `$${Math.round(job.salary_max).toLocaleString()}` : '';
+          salary = min && max ? `${min}–${max}` : min || max;
+        }
+        const date_posted = job.created ? job.created.split('T')[0] : '';
+        results.push({ externalId: `adzuna-${job.id}`, company: job.company?.display_name || '', role: job.title || '', url: job.redirect_url || '', location: job.location?.display_name || '', description: job.description || '', salary, date_posted });
       }
     } catch {}
   }
@@ -75,14 +75,18 @@ export async function POST() {
       url TEXT NOT NULL DEFAULT '', location TEXT NOT NULL DEFAULT '',
       description TEXT NOT NULL DEFAULT '', score INTEGER NOT NULL DEFAULT 0,
       tier TEXT NOT NULL DEFAULT 'C', approval_state TEXT NOT NULL DEFAULT 'pending_review',
+      salary TEXT NOT NULL DEFAULT '', date_posted TEXT NOT NULL DEFAULT '',
       raw JSONB, fetched_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(source, external_id)
     )`;
+    // Add columns if upgrading from older schema
+    await sql`ALTER TABLE job_leads ADD COLUMN IF NOT EXISTS salary TEXT NOT NULL DEFAULT ''`;
+    await sql`ALTER TABLE job_leads ADD COLUMN IF NOT EXISTS date_posted TEXT NOT NULL DEFAULT ''`;
 
     const usajobsKey = process.env.USA_JOBS_API_KEY || '';
     const adzunaKey  = process.env.ADZUNA_API_KEY   || '';
     const adzunaId   = process.env.ADZUNA_APP_ID    || '';
 
-    const allJobs: { externalId: string; company: string; role: string; url: string; location: string; description: string; source: string }[] = [];
+    const allJobs: (JobResult & { source: string })[] = [];
     if (usajobsKey) allJobs.push(...(await fetchUSAJOBS(usajobsKey)).map(j => ({ ...j, source: 'usajobs' })));
     if (adzunaKey && adzunaId) allJobs.push(...(await fetchAdzuna(adzunaId, adzunaKey)).map(j => ({ ...j, source: 'adzuna' })));
 
@@ -91,10 +95,11 @@ export async function POST() {
     for (const job of allJobs) {
       const { score, tier } = scoreJob(job.role, job.description, job.location);
       try {
-        await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier)
-          VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${job.description}, ${score}, ${tier})
+        await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier, salary, date_posted)
+          VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${job.description}, ${score}, ${tier}, ${job.salary}, ${job.date_posted})
           ON CONFLICT (source, external_id) DO UPDATE
-            SET score=EXCLUDED.score, tier=EXCLUDED.tier, location=EXCLUDED.location, fetched_at=NOW()`;
+            SET score=EXCLUDED.score, tier=EXCLUDED.tier, location=EXCLUDED.location,
+                salary=EXCLUDED.salary, date_posted=EXCLUDED.date_posted, fetched_at=NOW()`;
         inserted++;
       } catch {}
     }
