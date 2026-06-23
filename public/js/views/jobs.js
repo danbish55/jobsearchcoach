@@ -205,7 +205,7 @@ const Jobs = (() => {
         <td style="color:var(--text-muted);white-space:nowrap">${_fmtDate(app.date)}</td>
         <td>
           <select class="status-badge ${statusClass}" onchange="Jobs.updateStatus(${i}, this.value)"
-            style="border:none;background:transparent;cursor:pointer;font-size:11px;font-weight:700;padding:3px 6px;min-width:100px">
+            style="border:none;background:transparent;cursor:pointer;font-size:11px;font-weight:700;padding:3px 4px;min-width:0;width:auto">
             ${STATUSES.map(s => `<option value="${s}" ${app.status === s ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
           </select>
         </td>
