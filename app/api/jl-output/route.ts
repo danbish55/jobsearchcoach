@@ -53,16 +53,22 @@ export async function GET(req: Request) {
     }
 
     const sql = db();
+    // Ensure newer columns exist so the SELECT never fails on an un-migrated DB
+    await sql`ALTER TABLE job_leads ADD COLUMN IF NOT EXISTS salary TEXT NOT NULL DEFAULT ''`;
+    await sql`ALTER TABLE job_leads ADD COLUMN IF NOT EXISTS date_posted TEXT NOT NULL DEFAULT ''`;
+    await sql`ALTER TABLE job_leads ADD COLUMN IF NOT EXISTS work_type TEXT NOT NULL DEFAULT ''`;
     // Include description so we can detect work_type for legacy rows that have none
     const rows = await sql`
       SELECT id, source, company, role, url, location, score, tier, approval_state, fetched_at,
-             salary, date_posted, description
+             salary, date_posted, description, work_type
       FROM job_leads
       ORDER BY score DESC, fetched_at DESC
       LIMIT 200
     `;
     const leads = rows.map(r => {
-      const wt = detectWorkType(String(r.location || ''), String(r.description || ''));
+      // Prefer the value stored by run-cycle (carries USAJOBS telework nuance);
+      // fall back to live detection for rows that predate the column.
+      const wt = String(r.work_type || '') || detectWorkType(String(r.location || ''), String(r.description || ''));
       return {
         id: r.id,
         lead: {

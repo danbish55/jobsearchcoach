@@ -218,21 +218,19 @@ export async function POST() {
     const adzunaKey  = cfg['adzuna']?.api_key  || process.env.ADZUNA_API_KEY   || '';
     const adzunaId   = process.env.ADZUNA_APP_ID || '';
 
-    const tasks: Promise<JobResult[]>[] = [];
-    const used: Record<string, boolean> = {};
+    // Pair each source with its fetch so result/source can never desync.
+    const jobs: { source: string; run: () => Promise<JobResult[]> }[] = [];
+    if (isEnabled('usajobs', true) && usajobsKey) jobs.push({ source: 'usajobs', run: () => fetchUSAJOBS(usajobsKey) });
+    if (isEnabled('adzuna', true) && adzunaKey && adzunaId) jobs.push({ source: 'adzuna', run: () => fetchAdzuna(adzunaId, adzunaKey) });
+    if (isEnabled('the_muse', true)) jobs.push({ source: 'the_muse', run: () => fetchTheMuse() });
+    if (isEnabled('remoteok', true)) jobs.push({ source: 'remoteok', run: () => fetchRemoteOK() });
+    if (isEnabled('remotive', true)) jobs.push({ source: 'remotive', run: () => fetchRemotive() });
 
-    if (isEnabled('usajobs', true) && usajobsKey) { tasks.push(fetchUSAJOBS(usajobsKey).then(r => r.map(j => ({ ...j })))); used.usajobs = true; }
-    if (isEnabled('adzuna', true) && adzunaKey && adzunaId) { tasks.push(fetchAdzuna(adzunaId, adzunaKey)); used.adzuna = true; }
-    if (isEnabled('the_muse', true)) { tasks.push(fetchTheMuse()); used.the_muse = true; }
-    if (isEnabled('remoteok', true)) { tasks.push(fetchRemoteOK()); used.remoteok = true; }
-    if (isEnabled('remotive', true)) { tasks.push(fetchRemotive()); used.remotive = true; }
-
-    // tag each result set with its source
-    const sourceKeys = Object.keys(used);
-    const settled = await Promise.all(tasks);
+    const sourceKeys = jobs.map(j => j.source);
+    const settled = await Promise.all(jobs.map(j => j.run().catch(() => [] as JobResult[])));
     const allJobs: (JobResult & { source: string })[] = [];
     settled.forEach((list, i) => {
-      const source = sourceKeys[i];
+      const source = jobs[i].source;
       for (const j of list) {
         // freshness guard — drop anything older than MAX_AGE_DAYS when we have a date
         if (j.date_posted && daysSince(j.date_posted) > MAX_AGE_DAYS) continue;
@@ -240,10 +238,11 @@ export async function POST() {
       }
     });
 
-    // Dedup within this batch by normalized company+role
+    // Dedup within this batch by normalized company+role+location
+    // (location included so genuinely different-location postings survive)
     const seen = new Set<string>();
     const deduped = allJobs.filter(j => {
-      const key = `${j.company}|${j.role}`.toLowerCase().replace(/\s+/g, ' ').trim();
+      const key = `${j.company}|${j.role}|${j.location}`.toLowerCase().replace(/\s+/g, ' ').trim();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
