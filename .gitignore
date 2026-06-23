@@ -33,3 +33,4 @@ JobLeadsTool/data/deleted_leads.json
 JobLeadsTool/outputs/
 JobLeadsTool/.venv*/
 *.tmp.log
+tsconfig.tsbuildinfo
