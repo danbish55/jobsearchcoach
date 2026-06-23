@@ -169,6 +169,7 @@ const Jobs = (() => {
                 <tr>
                   ${_thLabel('company', 'Company')}
                   ${_thLabel('role', 'Role')}
+                  <th>Contact</th>
                   ${_thLabel('date', 'Date')}
                   ${_thLabel('status', 'Status')}
                   <th>Next Action</th>
@@ -202,6 +203,7 @@ const Jobs = (() => {
       <tr style="${rowStyle}">
         <td><strong>${_esc(app.company)}</strong></td>
         <td>${_esc(app.role)}</td>
+        <td style="font-size:12px;line-height:1.4">${_contactCell(app)}</td>
         <td style="color:var(--text-muted);white-space:nowrap">${_fmtDate(app.date)}</td>
         <td>
           <select class="status-badge ${statusClass}" onchange="Jobs.updateStatus(${i}, this.value)"
@@ -220,6 +222,15 @@ const Jobs = (() => {
           <button class="btn btn-danger btn-sm" onclick="Jobs.remove(${i})" style="margin-left:4px">×</button>
         </td>
       </tr>`;
+  }
+
+  function _contactCell(app) {
+    const parts = [];
+    if (app.contact_name)  parts.push(`<div style="font-weight:600">${_esc(app.contact_name)}</div>`);
+    if (app.contact_email) parts.push(`<div><a href="mailto:${_esc(app.contact_email)}" style="color:var(--gold,#d97706);text-decoration:none">${_esc(app.contact_email)}</a></div>`);
+    if (app.contact_phone) parts.push(`<div style="color:var(--text-muted);white-space:nowrap">${_esc(app.contact_phone)}</div>`);
+    if (!parts.length) return `<span style="color:var(--text-muted);opacity:0.5">—</span>`;
+    return parts.join('');
   }
 
   function _nextActionCell(app, att) {
@@ -301,6 +312,18 @@ const Jobs = (() => {
         <input id="j-follow-up" type="date" value="${app.follow_up_date || ''}">
       </div>
       <div class="form-row">
+        <label>Contact Name</label>
+        <input id="j-contact-name" type="text" placeholder="First Last" value="${_esc(app.contact_name || '')}">
+      </div>
+      <div class="form-row">
+        <label>Contact Email</label>
+        <input id="j-contact-email" type="email" placeholder="name@company.com" value="${_esc(app.contact_email || '')}">
+      </div>
+      <div class="form-row">
+        <label>Contact Phone</label>
+        <input id="j-contact-phone" type="tel" placeholder="(555) 555-5555" value="${_esc(app.contact_phone || '')}">
+      </div>
+      <div class="form-row">
         <label>Job URL</label>
         <input id="j-url" type="url" placeholder="https://..." value="${_esc(app.url || '')}">
       </div>
@@ -325,6 +348,9 @@ const Jobs = (() => {
             status: document.getElementById('j-status').value,
             next_action:    document.getElementById('j-next-action').value.trim(),
             follow_up_date: document.getElementById('j-follow-up').value,
+            contact_name:   document.getElementById('j-contact-name').value.trim(),
+            contact_email:  document.getElementById('j-contact-email').value.trim(),
+            contact_phone:  document.getElementById('j-contact-phone').value.trim(),
             url:    document.getElementById('j-url').value.trim(),
             notes:  document.getElementById('j-notes').value,
           };
