@@ -13,6 +13,44 @@ const Jobs = (() => {
   // Sort and search state persist across re-renders
   let _sort   = { col: 'date', dir: 'desc' };
   let _search = '';
+  let _attentionOnly = false;
+
+  // Statuses considered "in process" — closed-out apps never need attention
+  const ACTIVE_STATUSES = ['applied', 'phone', 'interview', 'offer'];
+  const STALE_DAYS = 10;
+
+  function _todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function _daysSince(dateStr) {
+    if (!dateStr) return null;
+    const then = new Date(dateStr + 'T12:00:00').getTime();
+    if (Number.isNaN(then)) return null;
+    return Math.floor((Date.now() - then) / 86400000);
+  }
+
+  // Derive whether an application needs attention, with a reason and severity.
+  // Nothing is stored — this is computed fresh each render.
+  function _attention(app) {
+    if (!ACTIVE_STATUSES.includes(app.status)) return { needs: false, reason: '', severity: '' };
+    const today = _todayStr();
+
+    // Overdue follow-up — a date was set and it's today or past
+    if (app.follow_up_date && app.follow_up_date <= today) {
+      const overdueDays = _daysSince(app.follow_up_date);
+      return { needs: true, severity: 'overdue', reason: overdueDays > 0 ? `Follow-up ${overdueDays}d overdue` : 'Follow-up due today' };
+    }
+
+    // Stale — sitting in an early stage with no scheduled follow-up
+    if (['applied', 'phone'].includes(app.status) && !app.follow_up_date) {
+      const age = _daysSince(app.date);
+      if (age !== null && age >= STALE_DAYS) {
+        return { needs: true, severity: 'stale', reason: `No update in ${age}d` };
+      }
+    }
+    return { needs: false, reason: '', severity: '' };
+  }
 
   function _defaultData() {
     return { applications: [] };
@@ -84,19 +122,32 @@ const Jobs = (() => {
     render();
   }
 
+  function toggleAttention() {
+    _attentionOnly = !_attentionOnly;
+    render();
+  }
+
   function render() {
     const data   = Storage.get('jobs', _defaultData());
     const apps   = data.applications;
+    const attentionCount = apps.filter(a => _attention(a).needs).length;
     const sorted = _sortedWithIndex(apps);
-    const filtered = _search
+    let filtered = _search
       ? sorted.filter(({ app }) => app.company.toLowerCase().includes(_search.toLowerCase()))
       : sorted;
+    if (_attentionOnly) {
+      filtered = filtered.filter(({ app }) => _attention(app).needs);
+    }
     const container = document.getElementById('jobs-content');
 
     container.innerHTML = `
       <div class="jobs-toolbar">
         <button class="btn btn-primary btn-sm" onclick="Jobs.showAddModal()">+ Add Application</button>
         <button class="btn btn-ghost btn-sm" onclick="Jobs.showImportModal()" style="margin-left:8px">Import CSV</button>
+        <button class="btn btn-sm ${_attentionOnly ? 'btn-primary' : 'btn-ghost'}" onclick="Jobs.toggleAttention()" style="margin-left:8px"
+          title="Show only applications with an overdue follow-up or no recent movement"${attentionCount === 0 ? ' disabled' : ''}>
+          ⚠ Needs attention${attentionCount ? ` (${attentionCount})` : ''}
+        </button>
         <input type="text" placeholder="Search company…" value="${_search}"
           oninput="Jobs.setSearch(this.value)"
           style="width:180px;margin-left:12px;padding:6px 10px;font-size:13px">
@@ -120,6 +171,7 @@ const Jobs = (() => {
                   ${_thLabel('role', 'Role')}
                   ${_thLabel('date', 'Date')}
                   ${_thLabel('status', 'Status')}
+                  <th>Next Action</th>
                   <th></th>
                 </tr>
               </thead>
@@ -142,8 +194,12 @@ const Jobs = (() => {
 
   function _renderRow(app, i) {
     const statusClass = `status-${app.status}`;
+    const att = _attention(app);
+    const rowStyle = att.needs
+      ? `border-left:3px solid ${att.severity === 'overdue' ? 'var(--danger)' : 'var(--gold, #d97706)'}`
+      : '';
     return `
-      <tr>
+      <tr style="${rowStyle}">
         <td><strong>${_esc(app.company)}</strong></td>
         <td>${_esc(app.role)}</td>
         <td style="color:var(--text-muted);white-space:nowrap">${_fmtDate(app.date)}</td>
@@ -153,6 +209,9 @@ const Jobs = (() => {
             ${STATUSES.map(s => `<option value="${s}" ${app.status === s ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
           </select>
         </td>
+        <td style="font-size:12px;line-height:1.4;max-width:220px">
+          ${_nextActionCell(app, att)}
+        </td>
         <td style="white-space:nowrap">
           <button class="btn btn-ghost btn-sm" onclick="Jobs.showNotesModal(${i})">
             📝 Notes
@@ -161,6 +220,25 @@ const Jobs = (() => {
           <button class="btn btn-danger btn-sm" onclick="Jobs.remove(${i})" style="margin-left:4px">×</button>
         </td>
       </tr>`;
+  }
+
+  function _nextActionCell(app, att) {
+    const parts = [];
+    if (app.next_action) {
+      parts.push(`<div>${_esc(app.next_action)}</div>`);
+    }
+    if (app.follow_up_date) {
+      const color = att.severity === 'overdue' ? 'var(--danger)' : 'var(--text-muted)';
+      parts.push(`<div style="color:${color};white-space:nowrap">📅 ${_fmtDate(app.follow_up_date)}</div>`);
+    }
+    if (att.needs) {
+      const color = att.severity === 'overdue' ? 'var(--danger)' : 'var(--gold, #d97706)';
+      parts.push(`<div style="color:${color};font-weight:700">⚠ ${_esc(att.reason)}</div>`);
+    }
+    if (!parts.length) {
+      return `<span style="color:var(--text-muted);opacity:0.5">—</span>`;
+    }
+    return parts.join('');
   }
 
   // ── Modals ───────────────────────────────────────────────────────────────────
@@ -215,6 +293,14 @@ const Jobs = (() => {
         </select>
       </div>
       <div class="form-row">
+        <label>Next Action</label>
+        <input id="j-next-action" type="text" placeholder="e.g. Follow up with recruiter, prep for phone screen" value="${_esc(app.next_action || '')}">
+      </div>
+      <div class="form-row">
+        <label>Follow-up Date</label>
+        <input id="j-follow-up" type="date" value="${app.follow_up_date || ''}">
+      </div>
+      <div class="form-row">
         <label>Job URL</label>
         <input id="j-url" type="url" placeholder="https://..." value="${_esc(app.url || '')}">
       </div>
@@ -237,6 +323,8 @@ const Jobs = (() => {
             role,
             date:   document.getElementById('j-date').value,
             status: document.getElementById('j-status').value,
+            next_action:    document.getElementById('j-next-action').value.trim(),
+            follow_up_date: document.getElementById('j-follow-up').value,
             url:    document.getElementById('j-url').value.trim(),
             notes:  document.getElementById('j-notes').value,
           };
@@ -507,7 +595,7 @@ const Jobs = (() => {
   }
 
   return {
-    render, sortBy, setSearch,
+    render, sortBy, setSearch, toggleAttention,
     showAddModal, showEditModal, showNotesModal, showImportModal,
     updateStatus, addApplication, remove, initFromServer,
     _findExistingApplicationIndex,
