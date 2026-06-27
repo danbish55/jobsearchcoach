@@ -283,6 +283,39 @@ const JobLeads = (() => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  // Tier A networking helper: build pre-filtered, ToS-compliant searches that
+  // surface USC alumni working at a given company. We only construct URLs the
+  // user clicks — no scraping.
+  const _USC_SCHOOL = 'University of Southern California';
+  const _USC_ALUMNI_URL = 'https://www.linkedin.com/school/university-of-southern-california/people/';
+
+  function findUscConnections(company) {
+    const name = String(company || '').trim();
+    if (!name) return;
+    const peopleSearch = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${name} ${_USC_SCHOOL}`)}&origin=GLOBAL_SEARCH_HEADER`;
+    const googleDork = `https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in "${name}" "${_USC_SCHOOL}"`)}`;
+
+    const body = `
+      <div class="job-lead-usc-modal">
+        <p class="job-lead-usc-intro">Find USC (Trojan) alumni who work at <strong>${_esc(name)}</strong>. These open pre-filtered searches on LinkedIn and Google — nothing is scraped or stored.</p>
+        <a class="btn btn-primary job-lead-usc-link" href="${_escAttr(peopleSearch)}" target="_blank" rel="noopener noreferrer">
+          🔍 LinkedIn — people at ${_esc(name)} + USC
+        </a>
+        <a class="btn btn-ghost job-lead-usc-link" href="${_escAttr(_USC_ALUMNI_URL)}" target="_blank" rel="noopener noreferrer">
+          🎓 LinkedIn USC Alumni tool <span class="job-lead-usc-hint">(then filter “Where they work” → ${_esc(name)})</span>
+        </a>
+        <a class="btn btn-ghost job-lead-usc-link" href="${_escAttr(googleDork)}" target="_blank" rel="noopener noreferrer">
+          🌐 Google — public USC profiles at ${_esc(name)}
+        </a>
+        <p class="job-lead-usc-tip">Tip: a warm intro through the USC Alumni Association or connectSC beats a cold message. (Network outreach tools coming next.)</p>
+      </div>`;
+
+    UI.showModal(`USC connections — ${_esc(name)}`, body, [
+      { id: 'usc-close', label: 'Close', class: 'btn-ghost' },
+    ]);
+    document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');
+  }
+
   function openManualJobModal() {
     const body = `
       <div class="job-lead-manual-modal">
@@ -483,6 +516,7 @@ const JobLeads = (() => {
         <div class="job-lead-actions-cell" role="cell">
           <div class="job-lead-actions">
             <button class="btn btn-primary btn-sm" onclick="JobLeads.openJob('${_escAttr(lead.url || '')}')" ${lead.url ? '' : 'disabled'}>Open Job</button>
+            <button class="btn btn-sm job-lead-usc-btn" onclick="JobLeads.findUscConnections('${_escAttr(company)}')" ${company && company !== 'Unknown company' ? '' : 'disabled'} title="Find USC alumni who work at this company">🎓 USC</button>
             ${_reviewActionsHTML(item)}
             <button class="btn btn-sm job-lead-source-btn" type="button" aria-label="Source: ${_escAttr(source)}">${_esc(source)}</button>
             <button class="btn btn-sm job-lead-delete-btn" onclick="JobLeads.deleteLead('${_escAttr(leadId)}')" ${_transitioning.has(leadId) ? 'disabled' : ''}>Delete</button>
@@ -1460,6 +1494,14 @@ Description: ${lead.description || ''}`;
       .job-lead-delete-btn:hover { background:rgba(239,68,68,0.12); border-color:var(--danger); color:var(--danger); }
       .job-lead-source-btn { background:#d97706; border-color:#d97706; color:#fff; cursor:default; max-width:116px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .job-lead-source-btn:hover { background:#d97706; border-color:#d97706; color:#fff; }
+      .job-lead-usc-btn { background:#990000; border-color:#990000; color:#ffcc00; font-weight:800; }
+      .job-lead-usc-btn:hover:not(:disabled) { background:#7a0000; border-color:#7a0000; color:#ffcc00; }
+      .job-lead-usc-shell { width:min(520px, calc(100vw - 56px)); max-width:min(520px, calc(100vw - 56px)); }
+      .job-lead-usc-modal { display:flex; flex-direction:column; gap:10px; }
+      .job-lead-usc-intro { margin:0 0 4px; color:var(--text); line-height:1.5; }
+      .job-lead-usc-link { display:block; text-align:left; text-decoration:none; line-height:1.4; }
+      .job-lead-usc-hint { display:block; font-size:12px; font-weight:500; opacity:0.85; margin-top:2px; }
+      .job-lead-usc-tip { margin:6px 0 0; font-size:13px; color:var(--text-muted); line-height:1.5; }
       .job-lead-inline-error { color:var(--danger); font-size:14px; line-height:1.35; margin-top:8px; text-align:right; }
       .job-lead-apply-shell { width:min(920px, calc(100vw - 56px)); max-width:min(920px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
       .job-lead-apply-shell .modal-title { flex-shrink:0; }
@@ -1583,6 +1625,7 @@ Description: ${lead.description || ''}`;
     handleSearchKeydown,
     setSort,
     openJob,
+    findUscConnections,
     openManualJobModal,
     submitManualJob,
     applyLead,
