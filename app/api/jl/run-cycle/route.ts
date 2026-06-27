@@ -58,6 +58,81 @@ function detectWorkType(location: string, description: string): string {
   return 'On-site';
 }
 
+// ---------- location resolution ----------
+
+const STATE_NAME_TO_ABBR: Record<string, string> = {
+  alabama:'AL',alaska:'AK',arizona:'AZ',arkansas:'AR',california:'CA',colorado:'CO',
+  connecticut:'CT',delaware:'DE','district of columbia':'DC',florida:'FL',georgia:'GA',
+  hawaii:'HI',idaho:'ID',illinois:'IL',indiana:'IN',iowa:'IA',kansas:'KS',kentucky:'KY',
+  louisiana:'LA',maine:'ME',maryland:'MD',massachusetts:'MA',michigan:'MI',minnesota:'MN',
+  mississippi:'MS',missouri:'MO',montana:'MT',nebraska:'NE',nevada:'NV','new hampshire':'NH',
+  'new jersey':'NJ','new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND',
+  ohio:'OH',oklahoma:'OK',oregon:'OR',pennsylvania:'PA','rhode island':'RI','south carolina':'SC',
+  'south dakota':'SD',tennessee:'TN',texas:'TX',utah:'UT',vermont:'VT',virginia:'VA',
+  washington:'WA','west virginia':'WV',wisconsin:'WI',wyoming:'WY',
+};
+const US_STATE_ABBR = new Set(Object.values(STATE_NAME_TO_ABBR));
+
+function toStateAbbr(raw: string): string {
+  const s = (raw || '').trim();
+  if (/^[A-Z]{2}$/.test(s) && US_STATE_ABBR.has(s)) return s;
+  return STATE_NAME_TO_ABBR[s.toLowerCase()] || '';
+}
+
+// True when a location string carries no city/state — just a country or nothing.
+function isCountryOnly(loc: string): boolean {
+  return /^(us|usa|u\.s\.?|united states|nationwide|)$/i.test((loc || '').trim());
+}
+
+// Pull a "City, ST" out of free text when the structured location is missing.
+function extractLocationFromText(text: string): string {
+  const re = /([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,2}),\s*([A-Z]{2})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (US_STATE_ABBR.has(m[2])) return `${m[1]}, ${m[2]}`;
+  }
+  return '';
+}
+
+// Build the best "City, ST" from Adzuna's structured area array.
+// area is ordered country -> state -> county -> city (most specific last).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function adzunaLocation(job: any, description: string): string {
+  const area: string[] = Array.isArray(job?.location?.area) ? job.location.area : [];
+  if (area.length >= 2) {
+    const stAbbr = toStateAbbr(area[1]) || area[1];
+    const rest = area.slice(2);
+    // Prefer the most specific element that isn't a "County" label
+    let city = '';
+    for (let i = rest.length - 1; i >= 0; i--) {
+      if (!/county/i.test(rest[i])) { city = rest[i]; break; }
+    }
+    if (!city && rest.length) city = rest[rest.length - 1];
+    if (city) return `${city}, ${stAbbr}`;
+    if (stAbbr) return stAbbr;
+  }
+  const dn = job?.location?.display_name || '';
+  if (dn && !isCountryOnly(dn)) return dn;
+  return extractLocationFromText(description) || dn || 'US';
+}
+
+// Final pass over every job: if it reads as on-site but we don't actually know
+// where, try the description, and failing that mark it honestly so it can't pose
+// as an applyable on-site listing with no address.
+function normalizeLocation(job: JobResult): JobResult {
+  let location = job.location;
+  if (isCountryOnly(location)) {
+    const fromText = extractLocationFromText(job.description);
+    if (fromText) location = fromText;
+  }
+  let work_type = job.work_type;
+  if (work_type === 'On-site' && isCountryOnly(location)) {
+    location = 'Location not specified';
+    work_type = 'Unspecified';
+  }
+  return { ...job, location, work_type };
+}
+
 // ---------- source fetchers ----------
 
 async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
@@ -112,8 +187,8 @@ async function fetchAdzuna(appId: string, appKey: string): Promise<JobResult[]> 
           const max = job.salary_max ? `$${Math.round(job.salary_max).toLocaleString()}` : '';
           salary = min && max ? `${min}–${max}` : min || max;
         }
-        const location = job.location?.display_name || '';
         const description = stripHtml(job.description || '');
+        const location = adzunaLocation(job, description);
         results.push({ externalId: `adzuna-${job.id}`, company: job.company?.display_name || '', role: job.title || '', url: job.redirect_url || '', location, description, salary, date_posted: job.created ? job.created.split('T')[0] : '', work_type: detectWorkType(location, description) });
       }
     } catch {}
@@ -234,7 +309,8 @@ export async function POST() {
       for (const j of list) {
         // freshness guard — drop anything older than MAX_AGE_DAYS when we have a date
         if (j.date_posted && daysSince(j.date_posted) > MAX_AGE_DAYS) continue;
-        allJobs.push({ ...j, source });
+        // resolve/honestly flag the location before storing
+        allJobs.push({ ...normalizeLocation(j), source });
       }
     });
 
@@ -262,12 +338,17 @@ export async function POST() {
       } catch {}
     }
 
-    // Re-score ALL existing records and backfill work_type
+    // Re-score ALL existing records, backfill work_type, and resolve/flag locations
     const existing = await sql`SELECT id, role, description, location, work_type FROM job_leads`;
     for (const row of existing) {
-      const { score, tier } = scoreJob(String(row.role), String(row.description), String(row.location));
-      const wt = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
-      await sql`UPDATE job_leads SET score=${score}, tier=${tier}, work_type=${wt} WHERE id=${row.id}`;
+      const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
+      const normalized = normalizeLocation({
+        externalId: '', company: '', role: String(row.role), url: '',
+        location: String(row.location), description: String(row.description),
+        salary: '', date_posted: '', work_type: wt0,
+      });
+      const { score, tier } = scoreJob(String(row.role), normalized.description, normalized.location);
+      await sql`UPDATE job_leads SET score=${score}, tier=${tier}, work_type=${normalized.work_type}, location=${normalized.location} WHERE id=${row.id}`;
     }
 
     return NextResponse.json({ success: true, fetched: deduped.length, inserted, rescored: existing.length, sources_used: sourceKeys });
