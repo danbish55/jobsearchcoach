@@ -94,26 +94,41 @@ function extractLocationFromText(text: string): string {
   return '';
 }
 
+// Does a location string already carry a recognizable US state?
+function hasState(loc: string): boolean {
+  return (loc || '').split(',').map(s => s.trim()).some(p => toStateAbbr(p) !== '');
+}
+
 // Build the best "City, ST" from Adzuna's structured area array.
-// area is ordered country -> state -> county -> city (most specific last).
+// area is country -> state -> county -> city, but the state isn't always present
+// or at a fixed index, so scan the whole array for it.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function adzunaLocation(job: any, description: string): string {
   const area: string[] = Array.isArray(job?.location?.area) ? job.location.area : [];
-  if (area.length >= 2) {
-    const stAbbr = toStateAbbr(area[1]) || area[1];
-    const rest = area.slice(2);
-    // Prefer the most specific element that isn't a "County" label
-    let city = '';
-    for (let i = rest.length - 1; i >= 0; i--) {
-      if (!/county/i.test(rest[i])) { city = rest[i]; break; }
-    }
-    if (!city && rest.length) city = rest[rest.length - 1];
-    if (city) return `${city}, ${stAbbr}`;
-    if (stAbbr) return stAbbr;
+
+  // Find a real state anywhere in the array.
+  let stAbbr = '';
+  for (const a of area) { const ab = toStateAbbr(a); if (ab) { stAbbr = ab; break; } }
+
+  // City = the most specific element that isn't the country, a state, or a county.
+  const cityParts = area.filter(a => !isCountryOnly(a) && toStateAbbr(a) === '' && !/county/i.test(a));
+  const city = cityParts.length ? cityParts[cityParts.length - 1] : '';
+
+  if (city && stAbbr) return `${city}, ${stAbbr}`;
+
+  // No state in the structured data — try to recover "City, ST" from the description.
+  const fromText = extractLocationFromText(description);
+  if (fromText) return fromText;
+
+  // Keep whatever city/county we do have rather than dropping to country.
+  if (city) {
+    const county = area.find(a => /county/i.test(a));
+    return county ? `${city}, ${county}` : city;
   }
+  if (stAbbr) return stAbbr;
+
   const dn = job?.location?.display_name || '';
-  if (dn && !isCountryOnly(dn)) return dn;
-  return extractLocationFromText(description) || dn || 'US';
+  return (dn && !isCountryOnly(dn)) ? dn : (dn || 'US');
 }
 
 // Final pass over every job: if it reads as on-site but we don't actually know
@@ -121,11 +136,17 @@ function adzunaLocation(job: any, description: string): string {
 // as an applyable on-site listing with no address.
 function normalizeLocation(job: JobResult): JobResult {
   let location = job.location;
-  if (isCountryOnly(location)) {
+  let work_type = job.work_type;
+
+  // Only try to pin down a physical address for non-remote roles — a remote job's
+  // location legitimately has no state, and we don't want to glue a random city to it.
+  const isPhysical = !/remote|hybrid|telework/i.test(work_type) && !/remote|hybrid|telework/i.test(location);
+
+  if (isPhysical && (isCountryOnly(location) || !hasState(location))) {
     const fromText = extractLocationFromText(job.description);
     if (fromText) location = fromText;
   }
-  let work_type = job.work_type;
+
   if (work_type === 'On-site' && isCountryOnly(location)) {
     location = 'Location not specified';
     work_type = 'Unspecified';
