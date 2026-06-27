@@ -1347,7 +1347,7 @@ Description: ${lead.description || ''}`;
   function _cityCellHTML(rawLocation, city) {
     if (!city) return '&mdash;';
     if (_stateUndetermined(rawLocation)) {
-      return `<span class="job-lead-city-warn" title="State cannot be determined">${_esc(city)} <span aria-hidden="true">⚠</span></span>`;
+      return `${_esc(city)}<div class="job-lead-city-note">State cannot be determined</div>`;
     }
     return _esc(city);
   }
@@ -1444,8 +1444,7 @@ Description: ${lead.description || ''}`;
       .job-lead-detail-row { display:flex; justify-content:space-between; gap:10px; color:var(--text-muted); font-size:14px; border-top:1px solid var(--border); padding-top:8px; }
       .job-lead-detail-row strong { color:var(--text); text-align:right; }
       .job-lead-city, .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text); font-size:14px; line-height:1.35; }
-      .job-lead-city-warn { cursor:help; border-bottom:1px dotted var(--text-muted); }
-      .job-lead-city-warn span { color:var(--gold, #d97706); }
+      .job-lead-city-note { color:var(--gold, #d97706); font-size:11px; line-height:1.3; margin-top:2px; }
       .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text-muted); }
       .job-lead-level strong { color:var(--text); font-weight:800; }
       .job-lead-salary-range { display:inline-flex; flex-direction:column; gap:2px; line-height:1.25; }
