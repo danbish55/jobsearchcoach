@@ -99,6 +99,33 @@ function hasState(loc: string): boolean {
   return (loc || '').split(',').map(s => s.trim()).some(p => toStateAbbr(p) !== '');
 }
 
+// Unambiguous US counties → state (only counties whose name maps to a single
+// state; ambiguous ones like "Hillsborough County" are deliberately omitted).
+const COUNTY_TO_STATE: Record<string, string> = {
+  'los angeles county':'CA','orange county':'CA','san diego county':'CA','riverside county':'CA',
+  'ventura county':'CA','san bernardino county':'CA','alameda county':'CA','santa clara county':'CA',
+  'sacramento county':'CA','san mateo county':'CA','contra costa county':'CA','fresno county':'CA',
+  'tarrant county':'TX','dallas county':'TX','travis county':'TX','harris county':'TX',
+  'bexar county':'TX','collin county':'TX','denton county':'TX',
+  'king county':'WA','pierce county':'WA','snohomish county':'WA',
+  'multnomah county':'OR','washington county':'OR','clackamas county':'OR',
+  'denver county':'CO','boulder county':'CO','arapahoe county':'CO','jefferson county':'CO',
+  'salt lake county':'UT','utah county':'UT','clark county':'NV','maricopa county':'AZ',
+  'cook county':'IL','miami-dade county':'FL','broward county':'FL','palm beach county':'FL',
+};
+
+// If a location reads "City, Xxx County" with no state, resolve the county to its state.
+function resolveCountyState(location: string): string {
+  const parts = (location || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (parts.length < 2) return location;
+  const county = parts.find(p => /county/i.test(p));
+  if (!county) return location;
+  const st = COUNTY_TO_STATE[county.toLowerCase()];
+  if (!st) return location;
+  const city = parts.find(p => !/county/i.test(p) && toStateAbbr(p) === '' && !isCountryOnly(p));
+  return city ? `${city}, ${st}` : st;
+}
+
 // Build the best "City, ST" from Adzuna's structured area array.
 // area is country -> state -> county -> city, but the state isn't always present
 // or at a fixed index, so scan the whole array for it.
@@ -143,8 +170,12 @@ function normalizeLocation(job: JobResult): JobResult {
   const isPhysical = !/remote|hybrid|telework/i.test(work_type) && !/remote|hybrid|telework/i.test(location);
 
   if (isPhysical && (isCountryOnly(location) || !hasState(location))) {
-    const fromText = extractLocationFromText(job.description);
-    if (fromText) location = fromText;
+    // First resolve a known county to its state; then try the description.
+    location = resolveCountyState(location);
+    if (!hasState(location)) {
+      const fromText = extractLocationFromText(job.description);
+      if (fromText) location = fromText;
+    }
   }
 
   if (work_type === 'On-site' && isCountryOnly(location)) {
