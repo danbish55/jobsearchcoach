@@ -286,23 +286,50 @@ const JobLeads = (() => {
   function findUscConnections(company) {
     const name = String(company || '').trim();
     if (!name) return;
-    const kw = encodeURIComponent(name + ' USC alumni');
-    const gq = encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com');
-    const body = `<div class=”job-lead-usc-modal”>
-      <div class=”job-lead-usc-section-label”>Tier A &mdash; ${_esc(name)}</div>
-      <a class=”btn btn-primary job-lead-usc-link” href=”https://www.linkedin.com/school/university-of-southern-california/people/” target=”_blank” rel=”noopener noreferrer”>&#x1F393; LinkedIn USC Alumni page</a>
-      <a class=”btn btn-ghost job-lead-usc-link” href=”https://www.linkedin.com/search/results/people/?keywords=${kw}” target=”_blank” rel=”noopener noreferrer”>&#x1F50D; LinkedIn People Search</a>
-      <a class=”btn btn-ghost job-lead-usc-link” href=”https://www.google.com/search?q=${gq}” target=”_blank” rel=”noopener noreferrer”>&#x1F310; Google &mdash; USC alumni at ${_esc(name)}</a>
-      <div class=”job-lead-usc-divider”></div>
-      <div class=”job-lead-usc-section-label”>Tier B &mdash; Warm Intros</div>
-      <a class=”btn job-lead-usc-trojan-btn job-lead-usc-link” href=”https://careers.usc.edu/” target=”_blank” rel=”noopener noreferrer”>&#x1F91D; USC Career Services</a>
-      <a class=”btn btn-ghost job-lead-usc-link” href=”https://alumni.usc.edu/” target=”_blank” rel=”noopener noreferrer”>&#x1F3DB; USC Alumni Association</a>
-      <a class=”btn btn-ghost job-lead-usc-link” href=”https://www.marshall.usc.edu/alumni” target=”_blank” rel=”noopener noreferrer”>&#x1F4CA; USC Marshall Alumni</a>
-    </div>`;
+
+    // URLs are kept in JS only — never embedded in HTML — so the browser's HTML
+    // parser cannot mangle them into relative paths.
+    const urls = [
+      'https://www.linkedin.com/school/university-of-southern-california/people/',
+      'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(name + ' USC alumni'),
+      'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com'),
+      'https://careers.usc.edu/',
+      'https://alumni.usc.edu/',
+      'https://www.marshall.usc.edu/alumni',
+    ];
+
+    const body = '<div class=”job-lead-usc-modal”>'
+      + '<div class=”job-lead-usc-section-label”>Tier A — ' + _esc(name) + '</div>'
+      + '<button class=”btn btn-primary job-lead-usc-link” data-ui=”0”>🎓 LinkedIn USC Alumni page</button>'
+      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”1”>🔍 LinkedIn People Search</button>'
+      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”2”>🌐 Google — USC alumni</button>'
+      + '<div class=”job-lead-usc-divider”></div>'
+      + '<div class=”job-lead-usc-section-label”>Tier B — Warm Intros</div>'
+      + '<button class=”btn job-lead-usc-trojan-btn job-lead-usc-link” data-ui=”3”>🤝 USC Career Services</button>'
+      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”4”>🏛 USC Alumni Association</button>'
+      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”5”>📊 USC Marshall Alumni</button>'
+      + '</div>';
+
     UI.showModal('USC connections — ' + _esc(name), body, [
       { id: 'usc-close', label: 'Close', class: 'btn-ghost' },
     ]);
     document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');
+
+    // Programmatically create and click a real anchor element so the URL is set
+    // via JS assignment (never HTML-parsed) and the click is within a user gesture.
+    document.querySelectorAll('#active-modal [data-ui]').forEach(function(btn) {
+      var url = urls[Number(btn.getAttribute('data-ui'))];
+      if (!url) return;
+      btn.addEventListener('click', function() {
+        var a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+    });
   }
 
   function openManualJobModal() {
