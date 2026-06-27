@@ -473,7 +473,7 @@ const JobLeads = (() => {
           <div class="job-lead-role">${_esc(role)}</div>
           <div class="job-lead-description">${description ? _esc(description) : _esc(source)}</div>
         </div>
-        <div class="job-lead-city" role="cell">${city ? _esc(city) : '&mdash;'}</div>
+        <div class="job-lead-city" role="cell">${_cityCellHTML(lead.location, city)}</div>
         <div class="job-lead-level" role="cell">
           <div><strong>Level:</strong> ${_esc(_displayLevel(lead))}</div>
           <div><strong>Type:</strong> ${_esc(_displayJobType(lead))}</div>
@@ -1332,6 +1332,26 @@ Description: ${lead.description || ''}`;
     return state ? `${city}, ${state}` : city;
   }
 
+  // The location names a place (more than just a city) but we couldn't resolve a
+  // state from it — e.g. an ambiguous county like "Bedford, Hillsborough County".
+  function _stateUndetermined(value) {
+    const text = String(value || '').trim();
+    if (!text) return false;
+    if (/remote|telework|hybrid|flexible/i.test(text)) return false;
+    if (/^(united states|us|usa|nationwide|location not specified)$/i.test(text)) return false;
+    const parts = text.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) return false; // a bare city isn't the county-exception case
+    return !_stateAbbreviationFromLocationParts(parts);
+  }
+
+  function _cityCellHTML(rawLocation, city) {
+    if (!city) return '&mdash;';
+    if (_stateUndetermined(rawLocation)) {
+      return `<span class="job-lead-city-warn" title="State cannot be determined">${_esc(city)} <span aria-hidden="true">⚠</span></span>`;
+    }
+    return _esc(city);
+  }
+
   function _stateAbbreviationFromLocationParts(parts) {
     for (let index = 1; index < parts.length; index += 1) {
       const part = parts[index].replace(/\b(united states|usa|us)\b/ig, '').trim();
@@ -1424,6 +1444,8 @@ Description: ${lead.description || ''}`;
       .job-lead-detail-row { display:flex; justify-content:space-between; gap:10px; color:var(--text-muted); font-size:14px; border-top:1px solid var(--border); padding-top:8px; }
       .job-lead-detail-row strong { color:var(--text); text-align:right; }
       .job-lead-city, .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text); font-size:14px; line-height:1.35; }
+      .job-lead-city-warn { cursor:help; border-bottom:1px dotted var(--text-muted); }
+      .job-lead-city-warn span { color:var(--gold, #d97706); }
       .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text-muted); }
       .job-lead-level strong { color:var(--text); font-weight:800; }
       .job-lead-salary-range { display:inline-flex; flex-direction:column; gap:2px; line-height:1.25; }
