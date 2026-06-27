@@ -283,31 +283,57 @@ const JobLeads = (() => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  // Tier A networking helper: build pre-filtered, ToS-compliant searches that
-  // surface USC alumni working at a given company. We only construct URLs the
-  // user clicks — no scraping.
+  // USC networking helper: two tiers of ToS-compliant searches and warm-intro paths.
+  // Tier A: pre-filtered LinkedIn/Google searches. Tier B: official USC alumni channels.
+  // We only construct URLs the user clicks — nothing is scraped or stored.
   const _USC_SCHOOL = 'University of Southern California';
   const _USC_ALUMNI_URL = 'https://www.linkedin.com/school/university-of-southern-california/people/';
+  const _USC_TROJAN_NETWORK = 'https://careers.usc.edu/experiences/trojan-network-find-a-mentor/';
+  const _USC_CONNECTSC = 'https://usc.joinhandshake.com/';
+  const _USC_ALUMNI_ASSOC = 'https://alumni.usc.edu/';
+  const _USC_MARSHALL_LI_GROUP = 'https://www.linkedin.com/groups/25827/';
 
   function findUscConnections(company) {
     const name = String(company || '').trim();
     if (!name) return;
     const peopleSearch = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${name} ${_USC_SCHOOL}`)}&origin=GLOBAL_SEARCH_HEADER`;
-    const googleDork = `https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in "${name}" "${_USC_SCHOOL}"`)}`;
+    const googleDork = `https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in “${name}” “${_USC_SCHOOL}”`)}`;
+    const handshakeSearch = `${_USC_CONNECTSC}employers/${encodeURIComponent(name)}`;
 
     const body = `
-      <div class="job-lead-usc-modal">
-        <p class="job-lead-usc-intro">Find USC (Trojan) alumni who work at <strong>${_esc(name)}</strong>. These open pre-filtered searches on LinkedIn and Google — nothing is scraped or stored.</p>
-        <a class="btn btn-primary job-lead-usc-link" href="${_escAttr(peopleSearch)}" target="_blank" rel="noopener noreferrer">
-          🔍 LinkedIn — people at ${_esc(name)} + USC
-        </a>
-        <a class="btn btn-ghost job-lead-usc-link" href="${_escAttr(_USC_ALUMNI_URL)}" target="_blank" rel="noopener noreferrer">
-          🎓 LinkedIn USC Alumni tool <span class="job-lead-usc-hint">(then filter “Where they work” → ${_esc(name)})</span>
-        </a>
-        <a class="btn btn-ghost job-lead-usc-link" href="${_escAttr(googleDork)}" target="_blank" rel="noopener noreferrer">
-          🌐 Google — public USC profiles at ${_esc(name)}
-        </a>
-        <p class="job-lead-usc-tip">Tip: a warm intro through the USC Alumni Association or connectSC beats a cold message. (Network outreach tools coming next.)</p>
+      <div class=”job-lead-usc-modal”>
+        <div class=”job-lead-usc-section”>
+          <div class=”job-lead-usc-section-label”>Tier A &mdash; Find USC Trojans at ${_esc(name)}</div>
+          <p class=”job-lead-usc-intro”>Pre-filtered searches that surface USC alumni at this company. Nothing is scraped or stored.</p>
+          <a class=”btn btn-primary job-lead-usc-link” href=”${_escAttr(peopleSearch)}” target=”_blank” rel=”noopener noreferrer”>
+            🔍 LinkedIn — people at ${_esc(name)} + USC
+          </a>
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(_USC_ALUMNI_URL)}” target=”_blank” rel=”noopener noreferrer”>
+            🎓 LinkedIn USC Alumni tool <span class=”job-lead-usc-hint”>(then filter “Where they work” → ${_esc(name)})</span>
+          </a>
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(googleDork)}” target=”_blank” rel=”noopener noreferrer”>
+            🌐 Google — public USC profiles at ${_esc(name)}
+          </a>
+        </div>
+
+        <div class=”job-lead-usc-divider”></div>
+
+        <div class=”job-lead-usc-section”>
+          <div class=”job-lead-usc-section-label”>Tier B &mdash; Warm Intro Paths</div>
+          <p class=”job-lead-usc-intro”>USC's official channels let you request intros from alumni who <em>opted in</em> to help recent grads. A warm intro from here beats a cold LinkedIn message by a wide margin.</p>
+          <a class=”btn job-lead-usc-link job-lead-usc-trojan-btn” href=”${_escAttr(_USC_TROJAN_NETWORK)}” target=”_blank” rel=”noopener noreferrer”>
+            🤝 Trojan Network &mdash; Find a USC Mentor <span class=”job-lead-usc-hint”>(search by industry, then filter for ${_esc(name)} or its sector)</span>
+          </a>
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(handshakeSearch)}” target=”_blank” rel=”noopener noreferrer”>
+            🎯 connectSC / Handshake &mdash; ${_esc(name)} <span class=”job-lead-usc-hint”>(USC's career platform — events, alumni contacts, and job postings at this employer)</span>
+          </a>
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(_USC_MARSHALL_LI_GROUP)}” target=”_blank” rel=”noopener noreferrer”>
+            👥 USC Marshall Alumni LinkedIn Group <span class=”job-lead-usc-hint”>(post asking if anyone works at ${_esc(name)} — alumni in this group opted in to help)</span>
+          </a>
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(_USC_ALUMNI_ASSOC)}” target=”_blank” rel=”noopener noreferrer”>
+            🏛️ USC Alumni Association <span class=”job-lead-usc-hint”>(Trojan Directory search — searchable alumni database by company and industry)</span>
+          </a>
+        </div>
       </div>`;
 
     UI.showModal(`USC connections — ${_esc(name)}`, body, [
@@ -1496,12 +1522,17 @@ Description: ${lead.description || ''}`;
       .job-lead-source-btn:hover { background:#d97706; border-color:#d97706; color:#fff; }
       .job-lead-usc-btn { background:#990000; border-color:#990000; color:#ffcc00; font-weight:800; }
       .job-lead-usc-btn:hover:not(:disabled) { background:#7a0000; border-color:#7a0000; color:#ffcc00; }
-      .job-lead-usc-shell { width:min(520px, calc(100vw - 56px)); max-width:min(520px, calc(100vw - 56px)); }
-      .job-lead-usc-modal { display:flex; flex-direction:column; gap:10px; }
-      .job-lead-usc-intro { margin:0 0 4px; color:var(--text); line-height:1.5; }
+      .job-lead-usc-shell { width:min(560px, calc(100vw - 56px)); max-width:min(560px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
+      .job-lead-usc-shell .modal-body { min-height:0; overflow-y:auto; }
+      .job-lead-usc-modal { display:flex; flex-direction:column; gap:0; }
+      .job-lead-usc-section { display:flex; flex-direction:column; gap:8px; padding:4px 0 8px; }
+      .job-lead-usc-section-label { font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.09em; color:var(--gold); margin-bottom:2px; }
+      .job-lead-usc-divider { border:0; border-top:1px solid var(--border); margin:8px 0; }
+      .job-lead-usc-intro { margin:0 0 2px; color:var(--text); line-height:1.5; font-size:14px; }
       .job-lead-usc-link { display:block; text-align:left; text-decoration:none; line-height:1.4; }
-      .job-lead-usc-hint { display:block; font-size:12px; font-weight:500; opacity:0.85; margin-top:2px; }
-      .job-lead-usc-tip { margin:6px 0 0; font-size:13px; color:var(--text-muted); line-height:1.5; }
+      .job-lead-usc-hint { display:block; font-size:12px; font-weight:500; opacity:0.82; margin-top:2px; }
+      .job-lead-usc-trojan-btn { background:#990000; border-color:#990000; color:#ffcc00; font-weight:800; }
+      .job-lead-usc-trojan-btn:hover { background:#7a0000; border-color:#7a0000; color:#ffcc00; }
       .job-lead-inline-error { color:var(--danger); font-size:14px; line-height:1.35; margin-top:8px; text-align:right; }
       .job-lead-apply-shell { width:min(920px, calc(100vw - 56px)); max-width:min(920px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
       .job-lead-apply-shell .modal-title { flex-shrink:0; }
