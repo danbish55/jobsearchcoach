@@ -283,47 +283,57 @@ const JobLeads = (() => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  // USC networking helper. Buttons use window.open via openJob() — avoids any SPA
-  // router intercepting <a href> clicks on external URLs.
-  const _USC_ALUMNI_URL    = 'https://www.linkedin.com/school/university-of-southern-california/people/';
-  const _USC_CAREERS       = 'https://careers.usc.edu/';
-  const _USC_ALUMNI_ASSOC  = 'https://alumni.usc.edu/';
+  // USC networking helper. addEventListener is used (not onclick attribute) so that
+  // popup blockers treat the window.open as user-initiated and don't suppress it.
+  const _USC_ALUMNI_URL      = 'https://www.linkedin.com/school/university-of-southern-california/people/';
+  const _USC_CAREERS         = 'https://careers.usc.edu/';
+  const _USC_ALUMNI_ASSOC    = 'https://alumni.usc.edu/';
   const _USC_MARSHALL_ALUMNI = 'https://www.marshall.usc.edu/alumni';
-
-  function _uscBtn(url, label, cls) {
-    return `<button class=”btn ${cls || 'btn-ghost'} job-lead-usc-link” type=”button” data-url=”${_escAttr(url)}” onclick=”JobLeads.openJob(this.dataset.url)”>${_esc(label)}</button>`;
-  }
 
   function findUscConnections(company) {
     const name = String(company || '').trim();
     if (!name) return;
 
-    const liSearch  = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(name + ' USC alumni') + '&origin=GLOBAL_SEARCH_HEADER';
-    const gNarrow   = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com');
-    const gWide     = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “USC” OR “Trojan” linkedin.com');
+    // No &-separated params in these URLs so data-url attribute needs no escaping.
+    const liSearch = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(name + ' USC alumni');
+    const gNarrow  = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com');
+    const gWide    = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “USC” OR “Trojan” linkedin.com');
 
-    const body = `
-      <div class=”job-lead-usc-modal”>
-        <div class=”job-lead-usc-section”>
-          <div class=”job-lead-usc-section-label”>Tier A — ${_esc(name)}</div>
-          ${_uscBtn(_USC_ALUMNI_URL, '🎓 LinkedIn USC Alumni page', 'btn-primary')}
-          ${_uscBtn(liSearch,        '🔍 LinkedIn People Search')}
-          ${_uscBtn(gNarrow,         '🌐 Google — “University of Southern California”')}
-          ${_uscBtn(gWide,           '🌐 Google — “USC” / “Trojan”')}
-        </div>
-        <div class=”job-lead-usc-divider”></div>
-        <div class=”job-lead-usc-section”>
-          <div class=”job-lead-usc-section-label”>Tier B — Warm Intros</div>
-          ${_uscBtn(_USC_CAREERS,         '🤝 USC Career Services', 'job-lead-usc-trojan-btn')}
-          ${_uscBtn(_USC_ALUMNI_ASSOC,    '🏛️ USC Alumni Association')}
-          ${_uscBtn(_USC_MARSHALL_ALUMNI, '📊 USC Marshall Alumni')}
-        </div>
-      </div>`;
+    const links = [
+      { url: _USC_ALUMNI_URL,      label: '🎓 LinkedIn USC Alumni page',                    cls: 'btn-primary' },
+      { url: liSearch,             label: '🔍 LinkedIn People Search' },
+      { url: gNarrow,              label: '🌐 Google — “University of Southern California”' },
+      { url: gWide,                label: '🌐 Google — “USC” / “Trojan”' },
+      { url: _USC_CAREERS,         label: '🤝 USC Career Services',                          cls: 'job-lead-usc-trojan-btn' },
+      { url: _USC_ALUMNI_ASSOC,    label: '🏛️ USC Alumni Association' },
+      { url: _USC_MARSHALL_ALUMNI, label: '📊 USC Marshall Alumni' },
+    ];
+
+    const btnHTML = [
+      `<div class=”job-lead-usc-section-label”>Tier A — ${_esc(name)}</div>`,
+      ...links.slice(0, 4).map((link, i) =>
+        `<button class=”btn ${link.cls || 'btn-ghost'} job-lead-usc-link” type=”button” data-idx=”${i}”>${_esc(link.label)}</button>`),
+      '<div class=”job-lead-usc-divider”></div>',
+      '<div class=”job-lead-usc-section-label”>Tier B — Warm Intros</div>',
+      ...links.slice(4).map((link, i) =>
+        `<button class=”btn ${link.cls || 'btn-ghost'} job-lead-usc-link” type=”button” data-idx=”${i + 4}”>${_esc(link.label)}</button>`),
+    ].join('\n');
+
+    const body = `<div class=”job-lead-usc-modal”>${btnHTML}</div>`;
 
     UI.showModal('USC connections — ' + _esc(name), body, [
       { id: 'usc-close', label: 'Close', class: 'btn-ghost' },
     ]);
     document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');
+
+    // Attach listeners after modal is in the DOM — popup blockers allow window.open
+    // from addEventListener handlers on user click, unlike inline onclick attributes.
+    document.querySelectorAll('#active-modal .job-lead-usc-link[data-idx]').forEach(btn => {
+      const link = links[Number(btn.dataset.idx)];
+      if (link?.url) {
+        btn.addEventListener('click', () => window.open(link.url, '_blank', 'noopener,noreferrer'));
+      }
+    });
   }
 
   function openManualJobModal() {
