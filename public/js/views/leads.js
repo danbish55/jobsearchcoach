@@ -283,69 +283,44 @@ const JobLeads = (() => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  // USC networking helper: two tiers of ToS-compliant searches and warm-intro paths.
-  // Tier A: LinkedIn and Google searches. Tier B: official USC alumni channels.
-  // We only construct URLs the user clicks — nothing is scraped or stored.
-  const _USC_ALUMNI_URL = 'https://www.linkedin.com/school/university-of-southern-california/people/';
-  const _USC_CAREERS = 'https://careers.usc.edu/';
-  const _USC_ALUMNI_ASSOC = 'https://alumni.usc.edu/';
+  // USC networking helper. Buttons use window.open via openJob() — avoids any SPA
+  // router intercepting <a href> clicks on external URLs.
+  const _USC_ALUMNI_URL    = 'https://www.linkedin.com/school/university-of-southern-california/people/';
+  const _USC_CAREERS       = 'https://careers.usc.edu/';
+  const _USC_ALUMNI_ASSOC  = 'https://alumni.usc.edu/';
   const _USC_MARSHALL_ALUMNI = 'https://www.marshall.usc.edu/alumni';
+
+  function _uscBtn(url, label, cls) {
+    return `<button class=”btn ${cls || 'btn-ghost'} job-lead-usc-link” type=”button” data-url=”${_escAttr(url)}” onclick=”JobLeads.openJob(this.dataset.url)”>${_esc(label)}</button>`;
+  }
 
   function findUscConnections(company) {
     const name = String(company || '').trim();
     if (!name) return;
 
-    // LinkedIn school alumni page — user filters “Where they work” to the company on-page.
-    // The ?keywords= param on school pages isn't supported by LinkedIn; we send them to
-    // the base page and tell them which filter to use.
-    const alumniPage = _USC_ALUMNI_URL;
-
-    // LinkedIn people search with USC in keywords — broader but catches profiles that
-    // mention USC anywhere (bio, experience, education).
-    const peopleSearch = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(name + ' USC alumni')}&origin=GLOBAL_SEARCH_HEADER`;
-
-    // Google searches mentioning the company + USC on linkedin.com — avoids the
-    // site: operator which Google now limits for LinkedIn due to robots.txt.
-    const googleSearch = `https://www.google.com/search?q=${encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com')}`;
-    const googleWide = `https://www.google.com/search?q=${encodeURIComponent('”' + name + '” “USC” OR “Trojan” linkedin.com')}`;
+    const liSearch  = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(name + ' USC alumni') + '&origin=GLOBAL_SEARCH_HEADER';
+    const gNarrow   = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com');
+    const gWide     = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “USC” OR “Trojan” linkedin.com');
 
     const body = `
       <div class=”job-lead-usc-modal”>
         <div class=”job-lead-usc-section”>
-          <div class=”job-lead-usc-section-label”>Tier A &mdash; Find USC Trojans at ${_esc(name)}</div>
-          <p class=”job-lead-usc-intro”>Opens LinkedIn and Google searches — nothing is scraped or stored.</p>
-          <a class=”btn btn-primary job-lead-usc-link” href=”${_escAttr(alumniPage)}” target=”_blank” rel=”noopener noreferrer”>
-            🎓 LinkedIn USC Alumni page <span class=”job-lead-usc-hint”>Once open, click “Where they work” on the left and type <strong>${_esc(name)}</strong> — this is LinkedIn's own filter for USC alumni by employer</span>
-          </a>
-          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(peopleSearch)}” target=”_blank” rel=”noopener noreferrer”>
-            🔍 LinkedIn people search — “${_esc(name)} USC alumni” <span class=”job-lead-usc-hint”>Broader keyword search; catches USC mentions anywhere in a profile</span>
-          </a>
-          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(googleSearch)}” target=”_blank” rel=”noopener noreferrer”>
-            🌐 Google — ${_esc(name)} + “University of Southern California” on LinkedIn <span class=”job-lead-usc-hint”>Often surfaces profiles that LinkedIn's own search misses</span>
-          </a>
-          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(googleWide)}” target=”_blank” rel=”noopener noreferrer”>
-            🌐 Google — ${_esc(name)} + USC/Trojan on LinkedIn (wider net) <span class=”job-lead-usc-hint”>Catches people who use “USC” or “Trojan” instead of the full school name</span>
-          </a>
+          <div class=”job-lead-usc-section-label”>Tier A — ${_esc(name)}</div>
+          ${_uscBtn(_USC_ALUMNI_URL, '🎓 LinkedIn USC Alumni page', 'btn-primary')}
+          ${_uscBtn(liSearch,        '🔍 LinkedIn People Search')}
+          ${_uscBtn(gNarrow,         '🌐 Google — “University of Southern California”')}
+          ${_uscBtn(gWide,           '🌐 Google — “USC” / “Trojan”')}
         </div>
-
         <div class=”job-lead-usc-divider”></div>
-
         <div class=”job-lead-usc-section”>
-          <div class=”job-lead-usc-section-label”>Tier B &mdash; Warm Intro Paths</div>
-          <p class=”job-lead-usc-intro”>USC's official channels connect you with alumni who <em>opted in</em> to help recent grads — a warm intro from here beats a cold LinkedIn message.</p>
-          <a class=”btn job-lead-usc-link job-lead-usc-trojan-btn” href=”${_escAttr(_USC_CAREERS)}” target=”_blank” rel=”noopener noreferrer”>
-            🤝 USC Career Services &mdash; Trojan Network <span class=”job-lead-usc-hint”>Look for “Trojan Network” or “Mentor Matching” — alumni here signed up specifically to help recent grads like Corinne. Search by industry, then filter to ${_esc(name)}'s sector.</span>
-          </a>
-          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(_USC_ALUMNI_ASSOC)}” target=”_blank” rel=”noopener noreferrer”>
-            🏛️ USC Alumni Association <span class=”job-lead-usc-hint”>Trojan Directory — searchable alumni database. Search by company name or industry to find ${_esc(name)} employees with USC ties.</span>
-          </a>
-          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(_USC_MARSHALL_ALUMNI)}” target=”_blank” rel=”noopener noreferrer”>
-            📊 USC Marshall Alumni Hub <span class=”job-lead-usc-hint”>Marshall-specific alumni resources — mentorship programs, industry groups, and event networking specific to business/analytics grads.</span>
-          </a>
+          <div class=”job-lead-usc-section-label”>Tier B — Warm Intros</div>
+          ${_uscBtn(_USC_CAREERS,         '🤝 USC Career Services', 'job-lead-usc-trojan-btn')}
+          ${_uscBtn(_USC_ALUMNI_ASSOC,    '🏛️ USC Alumni Association')}
+          ${_uscBtn(_USC_MARSHALL_ALUMNI, '📊 USC Marshall Alumni')}
         </div>
       </div>`;
 
-    UI.showModal(`USC connections — ${_esc(name)}`, body, [
+    UI.showModal('USC connections — ' + _esc(name), body, [
       { id: 'usc-close', label: 'Close', class: 'btn-ghost' },
     ]);
     document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');
