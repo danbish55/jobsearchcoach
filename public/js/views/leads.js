@@ -296,23 +296,33 @@ const JobLeads = (() => {
   function findUscConnections(company) {
     const name = String(company || '').trim();
     if (!name) return;
-    const peopleSearch = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${name} ${_USC_SCHOOL}`)}&origin=GLOBAL_SEARCH_HEADER`;
-    const googleDork = `https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in “${name}” “${_USC_SCHOOL}”`)}`;
+    // School alumni page with company keyword pre-loaded — searches *within* USC
+    // alumni for the company name. Much stronger than the general people search.
+    const alumniFiltered = `${_USC_ALUMNI_URL}?keywords=${encodeURIComponent(name)}`;
+    // Broad LinkedIn search as a fallback — quoted terms tighten matching
+    const peopleSearch = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`”${name}” “University of Southern California”`)}&origin=GLOBAL_SEARCH_HEADER`;
+    // Google dork — current employees
+    const googleCurrent = `https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in “${name}” “University of Southern California”`)}`;
+    // Google dork — alumni who've moved on (catches past employees too)
+    const googleAlumni = `https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in “USC” OR “University of Southern California” “${name}”`)}`;
     const handshakeSearch = `${_USC_CONNECTSC}employers/${encodeURIComponent(name)}`;
 
     const body = `
       <div class=”job-lead-usc-modal”>
         <div class=”job-lead-usc-section”>
           <div class=”job-lead-usc-section-label”>Tier A &mdash; Find USC Trojans at ${_esc(name)}</div>
-          <p class=”job-lead-usc-intro”>Pre-filtered searches that surface USC alumni at this company. Nothing is scraped or stored.</p>
-          <a class=”btn btn-primary job-lead-usc-link” href=”${_escAttr(peopleSearch)}” target=”_blank” rel=”noopener noreferrer”>
-            🔍 LinkedIn — people at ${_esc(name)} + USC
+          <p class=”job-lead-usc-intro”>These open pre-filtered searches directly on LinkedIn and Google — nothing is scraped or stored.</p>
+          <a class=”btn btn-primary job-lead-usc-link” href=”${_escAttr(alumniFiltered)}” target=”_blank” rel=”noopener noreferrer”>
+            🎓 USC Alumni — filtered to “${_esc(name)}” <span class=”job-lead-usc-hint”>Searches within USC alumni for this company — most precise</span>
           </a>
-          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(_USC_ALUMNI_URL)}” target=”_blank” rel=”noopener noreferrer”>
-            🎓 LinkedIn USC Alumni tool <span class=”job-lead-usc-hint”>(then filter “Where they work” → ${_esc(name)})</span>
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(peopleSearch)}” target=”_blank” rel=”noopener noreferrer”>
+            🔍 LinkedIn people search — ${_esc(name)} + USC <span class=”job-lead-usc-hint”>Broader search; catches mentions of USC outside the education field</span>
           </a>
-          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(googleDork)}” target=”_blank” rel=”noopener noreferrer”>
-            🌐 Google — public USC profiles at ${_esc(name)}
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(googleCurrent)}” target=”_blank” rel=”noopener noreferrer”>
+            🌐 Google — current USC employees at ${_esc(name)} <span class=”job-lead-usc-hint”>Indexes public LinkedIn profiles; often finds people LinkedIn search misses</span>
+          </a>
+          <a class=”btn btn-ghost job-lead-usc-link” href=”${_escAttr(googleAlumni)}” target=”_blank” rel=”noopener noreferrer”>
+            🌐 Google — USC alumni (current &amp; past) at ${_esc(name)} <span class=”job-lead-usc-hint”>Casts a wider net — includes people who've since left the company</span>
           </a>
         </div>
 
