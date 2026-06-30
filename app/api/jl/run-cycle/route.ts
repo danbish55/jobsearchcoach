@@ -37,11 +37,15 @@ const FIREARM_RE   = /\b(firearm|carry\s+a\s+(weapon|gun)|concealed\s+carry|fire
 
 /**
  * Parse the minimum years of experience explicitly required in a job description.
- * Returns 0 if none found. Examples handled:
- *   "10+ years experience"  → 10
- *   "3-5 years of experience" → 3  (lower bound of range)
- *   "minimum 5 years" → 5
- *   "at least 4 years" → 4
+ * Returns 0 if none found.
+ *
+ * Catches patterns like:
+ *   "10+ years experience"           → 10
+ *   "3-5 years of experience"        → 3  (lower bound of range)
+ *   "minimum 5 years"                → 5
+ *   "at least 4 years"               → 4
+ *   "10 years SQL" (bullet lists)    → 10
+ *   "requires 7 years"               → 7
  */
 function minExperienceYears(description: string): number {
   const text = description.toLowerCase();
@@ -52,19 +56,25 @@ function minExperienceYears(description: string): number {
     re.lastIndex = 0;
     while ((m = re.exec(text)) !== null) {
       const n = parseInt(m[1], 10);
-      if (!isNaN(n) && n < min) min = n;
+      if (!isNaN(n) && n > 0 && n < min) min = n;
     }
   };
 
-  // "3-5 years", "3 to 5 years" — capture the lower bound
+  // Range: "3-5 years", "3 to 5 years" — capture the lower bound
   absorb(/(\d+)\s*(?:[-–]|to)\s*\d+\s*(?:years?|yrs?)\b/g);
-  // "5+ years of experience", "5 years experience"
-  absorb(/(\d+)\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|prior\s+|work\s+)?(?:experience|exp)\b/g);
-  // "minimum 5 years", "at least 5 years", "requires 5 years"
-  absorb(/(?:minimum|at\s+least|requires?\s+(?:a\s+minimum\s+of\s+)?|must\s+have\s+(?:at\s+least\s+)?)\s*(\d+)\s*\+?\s*(?:years?|yrs?)\b/g);
+  // "5+ years of experience", "5 years experience", "5 years of relevant experience"
+  absorb(/(\d+)\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|prior\s+|work\s+|related\s+)?(?:experience|exp)\b/g);
+  // "minimum 5 years", "at least 5 years", "requires 5 years", "must have 5 years"
+  absorb(/(?:minimum|at\s+least|requires?\s+(?:a\s+minimum\s+of\s+)?|must\s+have\s+(?:at\s+least\s+)?|need\s+(?:at\s+least\s+)?)\s*(\d+)\s*\+?\s*(?:years?|yrs?)\b/g);
+  // Bullet/skills-list pattern: "• 10 years SQL" or "- 10 years in Python"
+  absorb(/(?:^|[\n\r•\-\*])\s*(\d+)\s*\+?\s*(?:years?|yrs?)\s+(?:in\s+|of\s+|with\s+)?[a-z]/gm);
 
   return min === Infinity ? 0 : min;
 }
+
+// Hard-reject if description contains explicit high-experience strings.
+// Catches cases where the regex can't parse the phrasing but the literal text is clear.
+const EXPERIENCE_KEYWORD_RE = /\b(3\+\s*years?|4\+\s*years?|5\+\s*years?|6\+\s*years?|7\+\s*years?|8\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[3-9]\d*\s*years?|at\s+least\s+[3-9]\d*\s*years?|[3-9]\d*\s*or\s+more\s*years?)\b/i;
 
 function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -437,6 +447,7 @@ export async function POST() {
       if (SENIOR_TITLE_RE.test(job.role)) continue;
       // Drop jobs whose descriptions explicitly require more experience than Corinne has
       if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) continue;
+      if (EXPERIENCE_KEYWORD_RE.test(job.description) || EXPERIENCE_KEYWORD_RE.test(job.role)) continue;
       // Drop jobs requiring security clearance or firearm eligibility
       if (CLEARANCE_RE.test(job.description) || FIREARM_RE.test(job.description)) continue;
       try {
@@ -466,6 +477,8 @@ export async function POST() {
         (normalized.work_type === 'On-site' && score < 15) ||
         SENIOR_TITLE_RE.test(String(row.role)) ||
         minExperienceYears(normalized.description) > MAX_EXPERIENCE_YEARS ||
+        EXPERIENCE_KEYWORD_RE.test(normalized.description) ||
+        EXPERIENCE_KEYWORD_RE.test(String(row.role)) ||
         CLEARANCE_RE.test(normalized.description) ||
         FIREARM_RE.test(normalized.description)
       ) {
