@@ -23,7 +23,7 @@ const Coach = (() => {
 
     _appendMessage('coach', `Hey ${name}! Ready to work on your job search today? 🎯
 
-I've got your current context — you're on **Mission ${mission.codename}**: *${mission.title}*.
+I've got your current context — you're on **Phase ${mission.codename}**: *${mission.title}*.
 
 What would you like to focus on? I can help you with:
 - **Resume** — review, tailoring, or a specific section

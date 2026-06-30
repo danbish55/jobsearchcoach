@@ -174,12 +174,12 @@ const UI = (() => {
     document.getElementById('modal-container').innerHTML = '';
   }
 
-  // Mission complete celebration
+  // Phase complete celebration
   function showMissionComplete(mission) {
     const overlay = document.getElementById('mission-complete-overlay');
-    document.getElementById('mc-title').textContent = `Mission ${mission.codename} Complete`;
+    document.getElementById('mc-title').textContent = `Fight On! ${mission.codename} Complete`;
     document.getElementById('mc-sub').textContent = mission.title;
-    document.getElementById('mc-next').textContent = mission.nextBriefing || 'Prepare for your next mission.';
+    document.getElementById('mc-next').textContent = mission.nextBriefing || 'Get ready for the next phase. Fight On!';
     overlay.classList.remove('hidden');
   }
 

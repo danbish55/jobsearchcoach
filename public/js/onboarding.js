@@ -129,7 +129,7 @@ const Onboarding = (() => {
           <div class="onboarding-step-label">Step 4 of 5 — Google Drive</div>
           <div class="onboarding-title">Connect Google Drive</div>
           <div class="onboarding-desc">
-            JobSearchCoach saves your job applications, coaching sessions, mission progress, resume notes, and gauges to your private Google Drive app data.
+            JobSearchCoach saves your job applications, coaching sessions, goal progress, resume notes, and gauges to your private Google Drive app data.
           </div>
 
           <div class="security-note">
@@ -150,16 +150,16 @@ const Onboarding = (() => {
         const profile = { ...Storage.get('profile', {}), ..._answers.profile };
         return `
           <div class="onboarding-step-label">All Set!</div>
-          <div class="onboarding-title">Mission Briefing Ready 🕵️</div>
+          <div class="onboarding-title">Fight On, Trojan! 🏈</div>
           <div class="onboarding-desc">
-            Your coaching session is configured. Your first mission: get that resume bulletproof.
+            Your coaching session is configured. First play: get that resume bulletproof.
           </div>
 
           <div style="background:rgba(255,204,0,0.08);border:1px solid var(--gold-border);border-radius:12px;padding:20px;margin-bottom:20px">
-            <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;color:var(--gold);margin-bottom:12px">MISSION DOSSIER — BRIEFING</div>
+            <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;color:var(--gold);margin-bottom:12px">YOUR TROJAN GAME PLAN</div>
             <p style="font-size:14px;color:var(--text);line-height:1.6;margin-bottom:8px">
-              Welcome to the field, ${profile.name || 'Agent'}. Your cover identity needs work.
-              We start with the resume — your most important asset.
+              Welcome, ${profile.name || 'Trojan'}. Your resume is the starting line — and USC Marshall prepared you for exactly this.
+              We start here, then build everything around it.
             </p>
             <p style="font-size:13px;color:var(--text-muted)">
               Head to <strong style="color:var(--text)">Coach</strong> to begin, or review your

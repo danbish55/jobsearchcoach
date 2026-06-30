@@ -20,9 +20,9 @@
 <!-- Startup preloader — visible while the install/startup handshake finishes -->
 <div id="startup-preloader" class="startup-preloader">
   <div class="startup-preloader-card">
-    <div class="startup-preloader-mark">007</div>
+    <div class="startup-preloader-mark">USC</div>
     <div class="startup-preloader-title">Preparing JobSearchCoach</div>
-    <div class="startup-preloader-text" id="startup-preloader-text">Checking installation files and secure settings...</div>
+    <div class="startup-preloader-text" id="startup-preloader-text">Loading your Trojan game plan...</div>
     <div class="startup-preloader-bar"><span></span></div>
   </div>
 </div>
@@ -34,14 +34,14 @@
   </div>
 </div>
 
-<!-- Mission Complete overlay — shown on milestone unlock -->
+<!-- Phase Complete overlay — shown on milestone unlock -->
 <div id="mission-complete-overlay" class="hidden">
   <div class="mission-complete-card">
-    <div class="mission-complete-007">007</div>
-    <div class="mission-complete-title" id="mc-title">Mission Complete</div>
+    <div class="mission-complete-007">✌️</div>
+    <div class="mission-complete-title" id="mc-title">Fight On!</div>
     <div class="mission-complete-sub" id="mc-sub"></div>
     <div class="mission-complete-next" id="mc-next"></div>
-    <button class="btn btn-gold mission-break-btn" onclick="UI.closeMissionComplete()">Start the Debrief Break</button>
+    <button class="btn btn-gold mission-break-btn" onclick="UI.closeMissionComplete()">Keep Going, Trojan</button>
   </div>
 </div>
 
@@ -97,7 +97,7 @@
         <span class="nav-icon">🎓</span><span class="nav-label">USC/Eller Networking</span>
       </div>
       <div class="nav-item" data-view="workflow-interview-prep">
-        <span class="nav-icon">🎤</span><span class="nav-label">Interview Prep</span>
+        <span class="nav-icon">🗣️</span><span class="nav-label">Interview Prep</span>
       </div>
       <div class="nav-item" data-view="workflow-linkedin">
         <span class="nav-icon linkedin-nav-icon">in</span><span class="nav-label">LinkedIn Activity</span>
@@ -109,7 +109,7 @@
         <span class="nav-icon">🎯</span><span class="nav-label">Job Target Tracker</span>
       </div>
 
-      <div class="nav-section-label">Intelligence</div>
+      <div class="nav-section-label">Resources</div>
       <div class="nav-item" data-view="resources">
         <span class="nav-icon">🏆</span><span class="nav-label">Resources</span>
       </div>
@@ -131,7 +131,7 @@
         </button>
       </div>
       <div class="sidebar-mission-pages hidden" id="sidebar-mission-pages">
-        <div class="nav-section-label">Mission Pages</div>
+        <div class="nav-section-label">Playbook</div>
         <div id="sidebar-mission-page-buttons"></div>
       </div>
     </div>
@@ -151,11 +151,11 @@
 
         <div class="welcome-banner">
           <div class="welcome-text">
-            <h2 id="dash-banner-greeting">Ready for your next mission?</h2>
+            <h2 id="dash-banner-greeting">Fight On, Corinne — next play is ready.</h2>
             <p>Your coaching session is standing by. What would you like to work on today?</p>
           </div>
           <div>
-            <div class="welcome-badge" id="dash-mission-badge">MISSION: DOSSIER</div>
+            <div class="welcome-badge" id="dash-mission-badge">PHASE: RESUME</div>
           </div>
         </div>
       </div>
@@ -164,7 +164,7 @@
       <div class="dashboard-mission-row">
         <div id="dash-mission-card"></div>
         <div class="card all-missions-card">
-          <div class="card-title">All Missions</div>
+          <div class="card-title">Your Playbook</div>
           <div id="dash-missions-list"></div>
         </div>
       </div>
@@ -280,6 +280,11 @@
       <div id="leads-content"></div>
     </div>
 
+    <!-- JOB LEADS TOOL -->
+    <div id="view-job-leads-tool" class="view">
+      <div id="job-leads-tool-content"></div>
+    </div>
+
     <!-- REPORT -->
     <div id="view-report" class="view">
       <div class="view-header">
@@ -324,9 +329,10 @@
 <script src="js/views/coach.js?v=14"></script>
 <script src="js/views/resume.js?v=18"></script>
 <script src="js/views/resume-deep-dive.js?v=7"></script>
-<script src="js/views/jobs.js?v=19"></script>
+<script src="js/views/jobs.js?v=15"></script>
 <script src="js/views/resources.js?v=3"></script>
-<script src="js/views/leads.js?v=21"></script>
+<script src="js/views/leads.js?v=8"></script>
+<script src="js/views/job-leads-tool.js?v=2"></script>
 <script src="js/views/report.js?v=15"></script>
 <script src="js/views/settings.js?v=30"></script>
 <script src="js/app.js?v=28"></script>

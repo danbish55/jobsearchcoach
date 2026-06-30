@@ -50,6 +50,7 @@ const JobLeads = (() => {
   let _tierFilter = 'all';
   let _stateFilter = 'all';
   let _sourceFilter = 'all';
+  let _siteFilter = 'all';
   let _searchQuery = '';
   let _searchDebounceTimer = null;
   let _filteredLeadsCache = null;
@@ -110,6 +111,15 @@ const JobLeads = (() => {
               ${_sourceFilterOptionsHTML()}
             </select>
           </label>
+          <label>
+            Site
+            <select id="job-leads-site-filter" onchange="JobLeads.setSiteFilter(this.value)">
+              ${_option('all', 'All', _siteFilter)}
+              ${_option('remote', 'Remote', _siteFilter)}
+              ${_option('hybrid', 'Hybrid', _siteFilter)}
+              ${_option('on-site', 'On-site', _siteFilter)}
+            </select>
+          </label>
           <label class="job-leads-search-label">
             Search
             <input
@@ -124,8 +134,20 @@ const JobLeads = (() => {
           <div class="job-leads-count">${_filteredLeads().length} of ${_leads.length} leads</div>
         </div>
 
-        <div id="job-leads-body">
-          ${_bodyHTML()}
+        <div class="job-leads-list" role="table" aria-label="Job leads">
+          <div class="job-leads-row job-leads-row-head" role="row">
+            ${_sortHeaderHTML('score', 'Score')}
+            ${_sortHeaderHTML('company', 'Company')}
+            ${_sortHeaderHTML('role', 'Role')}
+            ${_sortHeaderHTML('city', 'City/ST')}
+            ${_sortHeaderHTML('level', 'Level / Type')}
+            ${_sortHeaderHTML('salary', 'Salary')}
+            ${_sortHeaderHTML('posted', 'Posted')}
+            <div>Actions / Source</div>
+          </div>
+          <div id="job-leads-body" class="job-leads-body-scroll">
+            ${_bodyHTML()}
+          </div>
         </div>
       </div>`;
 
@@ -189,6 +211,7 @@ const JobLeads = (() => {
       _tierFilter,
       _stateFilter,
       _sourceFilter,
+      _siteFilter,
       _searchQuery,
       _sortKey,
       _sortDirection,
@@ -212,6 +235,13 @@ const JobLeads = (() => {
 
   function setSourceFilter(value) {
     _sourceFilter = value || 'all';
+    _invalidateLeadFilters();
+    _renderBodyOnly();
+    _updateCount();
+  }
+
+  function setSiteFilter(value) {
+    _siteFilter = value || 'all';
     _invalidateLeadFilters();
     _renderBodyOnly();
     _updateCount();
@@ -251,6 +281,29 @@ const JobLeads = (() => {
   function openJob(url) {
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function findUscConnections(company) {
+    const name = String(company || '').trim();
+    if (!name) return;
+    const liAlumni  = 'https://www.linkedin.com/school/university-of-southern-california/people/?keywords=' + encodeURIComponent(name);
+    const liSearch  = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(name) + '&facetSchool=%5B%2212695%22%5D&origin=FACETED_SEARCH';
+    const gSearch   = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com -FTE -”open to work”');
+    const uscCareer = 'https://careers.usc.edu/';
+    const uscAlumni = 'https://alumni.usc.edu/';
+    const marshall  = 'https://usc.peoplegrove.com/auth/sign-in?postLoginRedirect=/hub/marshall/home-v3';
+    const open = url => window.open(url, '_blank', 'noopener,noreferrer');
+    const body = '<p style=”margin:0 0 8px;font-size:13px;color:var(--text-muted)”>Tier A — LinkedIn &amp; Google &nbsp;|&nbsp; Tier B — USC official channels</p>';
+    UI.showModal('USC connections — ' + _esc(name), body, [
+      { id: 'u0', label: '🎓 LinkedIn USC Alumni',   class: 'btn-primary',           close: false, action: () => open(liAlumni) },
+      { id: 'u1', label: '🔍 LinkedIn Search',       class: 'btn-ghost',             close: false, action: () => open(liSearch) },
+      { id: 'u2', label: '🌐 Google — USC alumni',   class: 'btn-ghost',             close: false, action: () => open(gSearch) },
+      { id: 'u3', label: '🤝 USC Career Services',   class: 'job-lead-usc-trojan-btn', close: false, action: () => open(uscCareer) },
+      { id: 'u4', label: '🏛 USC Alumni Assoc.',     class: 'btn-ghost',             close: false, action: () => open(uscAlumni) },
+      { id: 'u5', label: '📊 Marshall Alumni',       class: 'btn-ghost',             close: false, action: () => open(marshall) },
+      { id: 'ux', label: 'Close',                    class: 'btn-ghost' },
+    ]);
+    document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');
   }
 
   function openManualJobModal() {
@@ -415,19 +468,7 @@ const JobLeads = (() => {
       </div>`;
     }
 
-    return `<div class="job-leads-list" role="table" aria-label="Job leads">
-      <div class="job-leads-row job-leads-row-head" role="row">
-        ${_sortHeaderHTML('score', 'Score')}
-        ${_sortHeaderHTML('company', 'Company')}
-        ${_sortHeaderHTML('role', 'Role')}
-        ${_sortHeaderHTML('city', 'City/ST')}
-        ${_sortHeaderHTML('level', 'Level / Type')}
-        ${_sortHeaderHTML('salary', 'Salary')}
-        ${_sortHeaderHTML('posted', 'Posted')}
-        <div>Actions / Source</div>
-      </div>
-      ${leads.map(_leadCardHTML).join('')}
-    </div>`;
+    return leads.map(_leadCardHTML).join('');
   }
 
   function _leadCardHTML(item, index) {
@@ -455,7 +496,7 @@ const JobLeads = (() => {
           <div class="job-lead-role">${_esc(role)}</div>
           <div class="job-lead-description">${description ? _esc(description) : _esc(source)}</div>
         </div>
-        <div class="job-lead-city" role="cell">${city ? _esc(city) : '&mdash;'}</div>
+        <div class="job-lead-city" role="cell">${_cityCellHTML(lead.location, city)}</div>
         <div class="job-lead-level" role="cell">
           <div><strong>Level:</strong> ${_esc(_displayLevel(lead))}</div>
           <div><strong>Type:</strong> ${_esc(_displayJobType(lead))}</div>
@@ -465,6 +506,7 @@ const JobLeads = (() => {
         <div class="job-lead-actions-cell" role="cell">
           <div class="job-lead-actions">
             <button class="btn btn-primary btn-sm" onclick="JobLeads.openJob('${_escAttr(lead.url || '')}')" ${lead.url ? '' : 'disabled'}>Open Job</button>
+            <button class="btn btn-sm job-lead-usc-btn" onclick="JobLeads.findUscConnections('${_escAttr(company)}')" ${company && company !== 'Unknown company' ? '' : 'disabled'} title="Find USC alumni who work at this company">🎓 USC</button>
             ${_reviewActionsHTML(item)}
             <button class="btn btn-sm job-lead-source-btn" type="button" aria-label="Source: ${_escAttr(source)}">${_esc(source)}</button>
             <button class="btn btn-sm job-lead-delete-btn" onclick="JobLeads.deleteLead('${_escAttr(leadId)}')" ${_transitioning.has(leadId) ? 'disabled' : ''}>Delete</button>
@@ -612,6 +654,19 @@ const JobLeads = (() => {
       .filter(item => {
         if (_sourceFilter === 'all') return true;
         return _sourceFilterKey(item) === _sourceFilter;
+      })
+      .filter(item => {
+        if (_siteFilter === 'all') return true;
+        const wt = String((item.lead || item).work_type || '').toLowerCase();
+        if (_siteFilter === 'remote')  return wt === 'remote' || wt.includes('remote');
+        if (_siteFilter === 'hybrid')  return wt === 'hybrid' || wt.includes('hybrid');
+        if (_siteFilter === 'on-site') return wt === 'on-site' || wt === 'on site' || !wt || wt === 'not listed';
+        return true;
+      })
+      .filter(item => {
+        const lead = item.lead || item;
+        const haystack = ((lead.title || lead.role || '') + ' ' + (lead.description || '')).toLowerCase();
+        return !/\bfte\b/.test(haystack);
       })
       .filter(item => {
         const query = _searchQuery.trim().toLowerCase();
@@ -1212,15 +1267,18 @@ Description: ${lead.description || ''}`;
   }
 
   function _displayJobType(lead) {
-    const explicit = String(lead?.job_type || '').trim();
-    if (explicit) return explicit;
+    const explicit = String(lead?.job_type || lead?.work_type || '').trim();
     const title = String(lead?.title || lead?.role || '').toLowerCase();
-    const location = String(lead?.location || '').toLowerCase();
     const types = [];
     if (/(intern|internship)/.test(title)) types.push('Internship');
-    if (/(contract|contractor|temporary)/.test(title)) types.push('Contract');
-    if (/remote|flexible \/ remote/.test(location)) types.push('Remote');
-    else if (location) types.push('On-site');
+    else if (/(contract|contractor|temporary)/.test(title)) types.push('Contract');
+    if (explicit) {
+      types.push(explicit);
+    } else {
+      const locL = String(lead?.location || '').toLowerCase();
+      if (/remote|telework/.test(locL)) types.push('Remote');
+      else if (locL) types.push('On-site');
+    }
     return types.length ? types.join(' / ') : 'Not listed';
   }
 
@@ -1303,6 +1361,26 @@ Description: ${lead.description || ''}`;
     return state ? `${city}, ${state}` : city;
   }
 
+  // The location names a place (more than just a city) but we couldn't resolve a
+  // state from it — e.g. an ambiguous county like "Bedford, Hillsborough County".
+  function _stateUndetermined(value) {
+    const text = String(value || '').trim();
+    if (!text) return false;
+    if (/remote|telework|hybrid|flexible/i.test(text)) return false;
+    if (/^(united states|us|usa|nationwide|location not specified)$/i.test(text)) return false;
+    const parts = text.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) return false; // a bare city isn't the county-exception case
+    return !_stateAbbreviationFromLocationParts(parts);
+  }
+
+  function _cityCellHTML(rawLocation, city) {
+    if (!city) return '&mdash;';
+    if (_stateUndetermined(rawLocation)) {
+      return `${_esc(city)}<div class="job-lead-city-note">State cannot be determined</div>`;
+    }
+    return _esc(city);
+  }
+
   function _stateAbbreviationFromLocationParts(parts) {
     for (let index = 1; index < parts.length; index += 1) {
       const part = parts[index].replace(/\b(united states|usa|us)\b/ig, '').trim();
@@ -1359,6 +1437,7 @@ Description: ${lead.description || ''}`;
       .job-leads-connection-meta { color:var(--text-muted); font-size:14px; white-space:nowrap; }
       .job-leads-list { display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.025); }
       body.light .job-leads-list { background:rgba(255,255,255,0.72); }
+      .job-leads-body-scroll { overflow-y:auto; max-height:calc(100vh - 260px); }
       .job-leads-row { display:grid; grid-template-columns:70px minmax(125px,0.95fr) minmax(240px,1.55fr) minmax(95px,0.7fr) minmax(92px,0.68fr) minmax(84px,0.62fr) minmax(82px,0.58fr) minmax(188px,210px); gap:12px; align-items:center; }
       .job-leads-row-head { padding:10px 14px; color:var(--text-muted); font-size:12px; font-weight:900; letter-spacing:0.08em; text-transform:uppercase; background:rgba(0,0,0,0.16); border-bottom:1px solid var(--border); }
       body.light .job-leads-row-head { background:rgba(61,75,90,0.08); }
@@ -1386,7 +1465,7 @@ Description: ${lead.description || ''}`;
       .state-approved { background:rgba(34,197,94,0.18); color:var(--success); }
       .state-rejected { background:rgba(239,68,68,0.18); color:var(--danger); }
       .state-applied { background:rgba(168,85,247,0.18); color:#c084fc; }
-      .job-lead-company { font-size:19px; font-weight:900; color:var(--text); line-height:1.22; }
+      .job-lead-company { font-size:14px; font-weight:700; color:var(--text); line-height:1.22; }
       .job-lead-role-cell { min-width:0; }
       .job-lead-role { color:var(--text); line-height:1.38; font-size:16px; }
       .job-lead-description { color:var(--text-muted); font-size:14px; line-height:1.35; margin-top:4px; }
@@ -1394,13 +1473,15 @@ Description: ${lead.description || ''}`;
       .job-lead-detail-row { display:flex; justify-content:space-between; gap:10px; color:var(--text-muted); font-size:14px; border-top:1px solid var(--border); padding-top:8px; }
       .job-lead-detail-row strong { color:var(--text); text-align:right; }
       .job-lead-city, .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text); font-size:14px; line-height:1.35; }
+      .job-lead-city-note { color:var(--gold, #d97706); font-size:11px; line-height:1.3; margin-top:2px; }
       .job-lead-level, .job-lead-salary, .job-lead-posted { color:var(--text-muted); }
       .job-lead-level strong { color:var(--text); font-weight:800; }
       .job-lead-salary-range { display:inline-flex; flex-direction:column; gap:2px; line-height:1.25; }
-      .job-lead-actions-cell { min-width:0; justify-self:end; width:min(100%, 210px); }
-      .job-lead-actions { display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap; }
-      .job-lead-review-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-      .job-lead-actions .btn { max-width:116px; }
+      .job-lead-actions-cell { min-width:0; justify-self:end; width:min(100%, 260px); }
+      .job-lead-actions { display:flex; flex-direction:row; justify-content:flex-end; gap:4px; align-items:center; flex-wrap:wrap; }
+      .job-lead-review-actions { display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap; }
+      .job-lead-actions .btn { max-width:80px; font-size:12px; padding:4px 8px; }
+      .job-lead-actions .btn.btn-primary { max-width:80px; }
       .job-lead-approve-btn { background:var(--success); border-color:var(--success); color:#fff; }
       .job-lead-reject-btn { background:var(--danger); border-color:var(--danger); color:#fff; }
       .job-lead-apply-btn { background:var(--gold); border-color:var(--gold); color:#111827; }
@@ -1408,6 +1489,21 @@ Description: ${lead.description || ''}`;
       .job-lead-delete-btn:hover { background:rgba(239,68,68,0.12); border-color:var(--danger); color:var(--danger); }
       .job-lead-source-btn { background:#d97706; border-color:#d97706; color:#fff; cursor:default; max-width:116px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .job-lead-source-btn:hover { background:#d97706; border-color:#d97706; color:#fff; }
+      .job-lead-usc-btn { background:#990000; border-color:#990000; color:#ffcc00; font-weight:800; }
+      .job-lead-usc-btn:hover:not(:disabled) { background:#7a0000; border-color:#7a0000; color:#ffcc00; }
+      .job-lead-usc-shell { width:min(400px, calc(100vw - 56px)); max-width:min(400px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
+      .job-lead-usc-shell .modal-body { min-height:0; overflow-y:auto; }
+      .job-lead-usc-shell .modal-footer { flex-direction:column; align-items:stretch; gap:6px; }
+      .job-lead-usc-shell .modal-footer .btn { text-align:left; justify-content:flex-start; }
+      .job-lead-usc-modal { display:flex; flex-direction:column; gap:0; }
+      .job-lead-usc-section { display:flex; flex-direction:column; gap:8px; padding:4px 0 8px; }
+      .job-lead-usc-section-label { font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.09em; color:var(--gold); margin-bottom:2px; }
+      .job-lead-usc-divider { border:0; border-top:1px solid var(--border); margin:8px 0; }
+      .job-lead-usc-intro { margin:0 0 2px; color:var(--text); line-height:1.5; font-size:14px; }
+      .job-lead-usc-link { display:block; text-align:left; text-decoration:none; line-height:1.4; }
+      .job-lead-usc-hint { display:block; font-size:12px; font-weight:500; opacity:0.82; margin-top:2px; }
+      .job-lead-usc-trojan-btn { background:#990000; border-color:#990000; color:#ffcc00; font-weight:800; }
+      .job-lead-usc-trojan-btn:hover { background:#7a0000; border-color:#7a0000; color:#ffcc00; }
       .job-lead-inline-error { color:var(--danger); font-size:14px; line-height:1.35; margin-top:8px; text-align:right; }
       .job-lead-apply-shell { width:min(920px, calc(100vw - 56px)); max-width:min(920px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
       .job-lead-apply-shell .modal-title { flex-shrink:0; }
@@ -1468,8 +1564,8 @@ Description: ${lead.description || ''}`;
         .job-lead-city::before { content:"City/ST: "; color:var(--text-muted); font-weight:800; }
         .job-lead-salary::before { content:"Salary: "; color:var(--text-muted); font-weight:800; }
         .job-lead-posted::before { content:"Posted: "; color:var(--text-muted); font-weight:800; }
-        .job-lead-actions { justify-content:flex-end; align-items:flex-end; flex-direction:column; }
-        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:132px; }
+        .job-lead-actions { justify-content:flex-end; align-items:center; flex-direction:row; flex-wrap:wrap; }
+        .job-lead-actions .btn, .job-lead-review-actions .btn { width:auto; max-width:90px; font-size:12px; padding:4px 6px; }
         .job-lead-review-actions { flex-direction:column; align-items:flex-end; }
       }
       @media (max-width:980px) {
@@ -1526,10 +1622,12 @@ Description: ${lead.description || ''}`;
     setTierFilter,
     setStateFilter,
     setSourceFilter,
+    setSiteFilter,
     setSearchQuery,
     handleSearchKeydown,
     setSort,
     openJob,
+    findUscConnections,
     openManualJobModal,
     submitManualJob,
     applyLead,

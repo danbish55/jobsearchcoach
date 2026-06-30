@@ -1,14 +1,14 @@
-/* Milestones — 007 mission system */
+/* Milestones — USC Trojan playbook system */
 const Milestones = (() => {
 
   const MISSION_DEFS = [
     {
       id: 'dossier',
-      codename: 'DOSSIER',
-      title: 'Resume Dossier Complete',
+      codename: 'RESUME',
+      title: 'Resume Ready',
       icon: '📁',
-      briefing: 'Every field agent needs a bulletproof cover identity. Your resume is that identity — it must be sharp, tailored, and error-free.',
-      nextBriefing: 'Dossier secured. Take a short 007 First Light break and run a clean stealth route. You earned a little Q Branch downtime before the next operation.',
+      briefing: 'Every Trojan needs a resume that opens doors. Yours is your first impression — sharp, targeted, and error-free. Marshall grads don\'t send sloppy resumes.',
+      nextBriefing: 'Resume locked in. You\'ve earned a break — take a walk, grab a coffee, celebrate this milestone. Then come back ready for the next play.',
       tasks: [
         { id: 'resume_draft',     label: 'Resume draft complete' },
         { id: 'coach_reviewed',   label: 'Coach has reviewed your resume' },
@@ -18,11 +18,11 @@ const Milestones = (() => {
     },
     {
       id: 'network',
-      codename: 'NETWORK',
-      title: 'Intelligence Network Established',
+      codename: 'TROJAN NETWORK',
+      title: 'Trojan Network Built',
       icon: '🕸️',
-      briefing: 'Classified intelligence travels through people, not job boards. Build your network of contacts inside your target companies.',
-      nextBriefing: 'Network mapped. Step away for a mission or two in First Light. Good agents know when to gather intel, when to move, and when to recharge.',
+      briefing: 'Your USC Marshall network is the most powerful recruiting asset you have. People open doors that job boards never will. Build the connections that matter.',
+      nextBriefing: 'Network activated. Step away and recharge — Fight On spirit is sustainable, not sprint-and-crash. Good things are moving.',
       tasks: [
         { id: 'linkedin_updated', label: 'LinkedIn profile updated' },
         { id: 'alumni_5',         label: '5 USC alumni messaged' },
@@ -32,11 +32,11 @@ const Milestones = (() => {
     },
     {
       id: 'deploy',
-      codename: 'DEPLOY',
-      title: 'Applications Deployed',
+      codename: 'BLITZ',
+      title: 'Applications in Motion',
       icon: '🚀',
-      briefing: 'Covert operations require volume and precision. Get your applications into the field. Quality AND quantity both matter.',
-      nextBriefing: 'Applications deployed. Cue the cinematic driving sequence: you handled the chase, now take the wheel in First Light and let the next signal come in.',
+      briefing: 'A Marshall Trojan plays the full field. Get your applications moving — quality AND quantity both matter. Don\'t wait for a perfect moment that never comes.',
+      nextBriefing: 'Applications rolling. Take a breather before the next phase. You did the work — now let it land.',
       tasks: [
         { id: 'first_app',  label: 'First application submitted' },
         { id: 'apps_10',    label: '10 applications submitted' },
@@ -45,11 +45,11 @@ const Milestones = (() => {
     },
     {
       id: 'interview',
-      codename: 'INTERVIEW',
-      title: 'Field Interrogation Survived',
+      codename: 'PRESSURE TEST',
+      title: 'Interview Conquered',
       icon: '🎤',
-      briefing: 'They want to know if you are the right asset. Prove it. Tell your story with confidence. Prepare your answers. Know the company cold.',
-      nextBriefing: 'Interrogation survived. Go enjoy a clean gadget play or Q-Watch trick in First Light. You stayed composed under pressure, exactly like the job required.',
+      briefing: 'Show them why you\'re the Trojan for this role. Tell your story with confidence. Prepare your answers. Know the company cold. USC Marshall trained you for exactly this.',
+      nextBriefing: 'Interview handled. You showed up prepared and composed — that\'s the Trojan standard. Recharge and stay ready for the next round.',
       tasks: [
         { id: 'phone_screen',    label: 'Phone screen completed' },
         { id: 'formal_interview', label: 'Full interview completed' },
@@ -58,11 +58,11 @@ const Milestones = (() => {
     },
     {
       id: 'negotiate',
-      codename: 'NEGOTIATE',
+      codename: 'ENDZONE',
       title: 'Terms Secured',
       icon: '🤝',
       briefing: 'Never accept the first offer. You have leverage — use it calmly and professionally. Know your number. State your case. Get what you deserve.',
-      nextBriefing: 'Terms secured. That was the boss-level negotiation. Take your victory lap in First Light before reporting back to HQ for extraction.',
+      nextBriefing: 'Terms locked. That was the most important conversation of this whole search. Take your victory lap — you earned it.',
       tasks: [
         { id: 'offer_received',  label: 'Offer received' },
         { id: 'counter_made',    label: 'Negotiation strategy executed' },
@@ -71,11 +71,11 @@ const Milestones = (() => {
     },
     {
       id: 'extraction',
-      codename: 'EXTRACTION',
-      title: 'Mission Complete: Placed',
+      codename: 'FIGHT ON',
+      title: 'Placed: Fight On!',
       icon: '🏆',
-      briefing: 'Agent, you have successfully completed your mission. You have secured your position. The world is your next assignment.',
-      nextBriefing: 'Placed and extracted. Full 00 status earned. Take the night off, play First Light, and enjoy the part where all that effort turns into freedom.',
+      briefing: 'Trojan, you did it. You secured the role. USC Marshall produced another winner — and that winner is you. The real work starts now.',
+      nextBriefing: 'Placed and thriving. Full Fight On status earned. Take tonight off, celebrate with people who love you, and come back tomorrow as a working professional.',
       tasks: [
         { id: 'start_confirmed', label: 'Start date confirmed' },
         { id: 'first_day',       label: 'First day completed' },
@@ -202,8 +202,8 @@ const Milestones = (() => {
       .map(m => m.codename)
       .join(', ');
 
-    return `Current mission: ${current.codename} — ${current.title} (${progress.pct}% complete, ${progress.done}/${progress.total} tasks done).
-Overall progress: ${overall.done}/${overall.total} missions complete.${completedNames ? `\nCompleted missions: ${completedNames}.` : ''}`;
+    return `Current phase: ${current.codename} — ${current.title} (${progress.pct}% complete, ${progress.done}/${progress.total} tasks done).
+Overall progress: ${overall.done}/${overall.total} phases complete.${completedNames ? `\nCompleted phases: ${completedNames}.` : ''}`;
   }
 
   return { init, getDefs, getMissionState, getMissionProgress, getCurrentMission, setCurrentMission, toggleTask, getOverallProgress, buildContextSummary };

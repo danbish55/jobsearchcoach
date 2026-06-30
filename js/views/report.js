@@ -16,7 +16,7 @@ const Report = (() => {
     { key: 'applications', label: 'Applications summary' },
     { key: 'interviews',   label: 'Interview activity'   },
     { key: 'networking',   label: 'Alumni networking'    },
-    { key: 'mission',      label: 'Mission progress'     },
+    { key: 'mission',      label: 'Playbook progress'    },
     { key: 'resume',       label: 'Resume update'        },
   ];
 
@@ -187,8 +187,8 @@ const Report = (() => {
 
     if (inc.mission) {
       parts.push(
-        `🎯 MISSION PROGRESS  (${milestoneProgress.done}/${milestoneProgress.total} missions complete)\n` +
-        `  Current: ${currentMission.codename} — ${currentMission.title}\n` +
+        `🎯 PLAYBOOK PROGRESS  (${milestoneProgress.done}/${milestoneProgress.total} phases complete)\n` +
+        `  Current phase: ${currentMission.codename} — ${currentMission.title}\n` +
         `  ${missionProgress.pct}% done  (${missionProgress.done}/${missionProgress.total} tasks)`
       );
     }

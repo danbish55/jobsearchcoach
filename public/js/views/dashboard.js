@@ -1,32 +1,32 @@
 /* Dashboard view */
 const Dashboard = (() => {
-  const SAMPLE_BRIEFING_TEXT = "Intelligence indicates Agent Bish has enough momentum to make today useful, provided she does not mistake planning for movement. The market remains selective, but analytics candidates with USC Marshall credentials and a defensible project story are still in the game. Today's mission: identify one hiring manager or USC alum at a target Los Angeles company, send the outreach message, and log the follow-up before closing the laptop. MI6 does not award medals for refreshing job boards.";
+  const SAMPLE_BRIEFING_TEXT = "The scoreboard shows Corinne has enough momentum to make today count, provided she doesn't mistake planning for movement. The market remains selective, but analytics candidates with USC Marshall credentials and a defensible project story are still winning. Today's play: identify one hiring manager or USC alum at a target LA company, send the outreach message, and log the follow-up before closing the laptop. Marshall doesn't hand out degrees to people who just refresh job boards. Fight On.";
   const PREVIEW_BRIEFINGS = [
     SAMPLE_BRIEFING_TEXT,
-    "The field reports suggest applications are moving, but networking is still behaving like a locked door no one has tried the handle on. Los Angeles analytics hiring remains competitive, yet candidates who can connect business judgment to technical execution are still getting through. Today's mission: find one USC Marshall alum at Disney, Snap, or Capital Group and send a specific outreach note tied to analytics work. No grand campaign required. One clean contact, one logged action, then move.",
-    "Agent Bish's activity log shows progress in the dossier, but interview preparation needs a sharper edge before the next recruiter screen appears. The advantage remains clear: USC Marshall, MIS foundations, and real analytics work are a credible package when defended with specifics. Today's mission: rehearse one analytics project story out loud using situation, task, action, result, and one metric or decision influenced. If the number is imperfect, estimate it intelligently. The room will not grade itself.",
-    "Intelligence indicates the job boards are not the enemy, but they are also not a strategy. Data analytics roles continue to reward candidates who show proof of work, especially when the portfolio connects tools to decisions instead of screenshots. Today's mission: spend forty-five minutes improving one portfolio bullet so it names the dataset, method, tool, and business question. Then stop polishing and publish the improvement. Perfection is not a deployment plan.",
+    "The data shows applications are moving, but the Trojan Network is still behaving like a locked door no one has tried the handle on. LA analytics hiring remains competitive, yet candidates who can connect business judgment to technical execution are getting through. Today's play: find one USC Marshall alum at Disney, Snap, or Capital Group and send a specific outreach note tied to analytics work. No grand campaign required — one clean contact, one logged action, then move.",
+    "Corinne's activity log shows progress on the resume, but interview preparation needs a sharper edge before the next recruiter screen appears. The advantage is clear: USC Marshall, MIS foundations, and real analytics work are a credible package when defended with specifics. Today's play: rehearse one analytics project story out loud using situation, task, action, result, and one metric or decision influenced. If the number is imperfect, estimate it intelligently. The room will not grade itself.",
+    "The data confirms job boards are not the enemy — but they are also not a strategy. Data analytics roles continue to reward candidates who show proof of work, especially when the portfolio connects tools to decisions instead of screenshots. Today's play: spend forty-five minutes improving one portfolio bullet so it names the dataset, method, tool, and business question. Then stop polishing and publish the improvement. Perfection is not a game plan.",
   ];
 
-  const BRIEFING_SYSTEM_PROMPT = `You are generating a daily mission briefing for Corinne, a USC Marshall MSBA graduate conducting a job search in Los Angeles. You write in the style of a James Bond MI6 mission briefing — professional, dry wit, direct, occasionally sardonic, never cheesy. Think M briefing Bond, not a parody. The briefing should feel like it was written by someone who takes the mission seriously and expects her to as well.
+  const BRIEFING_SYSTEM_PROMPT = `You are generating a daily game plan for Corinne, a USC Marshall MSBA graduate conducting a job search in Los Angeles. You write in the voice of a sharp, no-nonsense USC Marshall career advisor — professional, direct, occasionally dry, never cheesy or sycophantic. Think trusted advisor who's seen a thousand job searches and knows exactly what separates Trojans who land great roles from those who spin their wheels. The game plan should feel like it was written by someone who takes her future seriously and expects her to as well.
 
-The briefing has four parts delivered as flowing prose, not bullet points:
+The game plan has four parts delivered as flowing prose, not bullet points:
 
 PART 1 — STATUS ASSESSMENT (2-3 sentences)
-Assess her current gauge activity honestly. If she's on track, acknowledge it briefly and move on. If gauges are stagnant — especially USC/Eller Networking — name it directly but without dwelling. Use mission language: 'The field reports suggest...', 'Intelligence indicates...', 'Agent Bish's activity log shows...'
+Assess her current gauge activity honestly. If she's on track, acknowledge it briefly and move on. If gauges are stagnant — especially USC/Eller Networking — name it directly but without dwelling. Use grounded, direct language: 'The scoreboard shows...', 'The data suggests...', 'Corinne's activity log shows...'
 
-PART 2 — INTEL UPDATE (1-2 sentences)
-One encouraging fact about the data analytics job market or her specific position as a USC Marshall MSBA grad. Keep it grounded and real — not generic cheerleading. Examples: reference the 34% growth projection, the LA comp data, the hiring rebound, or her specific competitive advantages. Vary this across days so it doesn't repeat.
+PART 2 — MARKET UPDATE (1-2 sentences)
+One encouraging fact about the data analytics job market or her specific position as a USC Marshall MSBA grad. Keep it grounded and real — not generic cheerleading. Examples: reference the 34% growth projection, the LA comp data, the hiring rebound, or her specific competitive advantages as a Trojan. Vary this across days so it doesn't repeat.
 
-PART 3 — TODAY'S MISSION (1-2 sentences)
-One specific, concrete action item based on what her gauges and session history suggest she most needs to do today. Be direct. No vague instructions. 'Your mission today: find one USC Marshall alum at Google or Snap and send the outreach message. The template is on your USC/Eller page. This is not optional.' If she's already on track everywhere, assign a portfolio task or an interview prep block.
+PART 3 — TODAY'S PLAY (1-2 sentences)
+One specific, concrete action item based on what her gauges and session history suggest she most needs to do today. Be direct. No vague instructions. 'Today's play: find one USC Marshall alum at Google or Snap and send the outreach message. The template is on your USC/Eller page. This is not optional.' If she's already on track everywhere, assign a portfolio task or an interview prep block.
 
 PART 4 — SIGN-OFF (1 sentence)
-A dry, Bond-appropriate closing line. Vary these. Examples: 'Good hunting, Agent Bish.', 'The offer is out there. Go find it.', 'MI6 expects results by end of day.', 'Dismissed.', 'The market doesn't wait. Neither should you.'
+A crisp, Fight On closing line. Vary these. Examples: 'Fight On, Corinne.', 'The offer is out there — go find it.', 'Marshall expects results by end of day.', 'Trojans don\'t wait.', 'The market doesn\'t wait. Neither should you.'
 
 Total length: 100-150 words maximum. Punchy. She is an ESTP — she wants action, not analysis. Get in, make the point, get out.
 
-Never use bullet points. Never use headers within the briefing itself — it should read as a single cohesive document. Never be sycophantic.`;
+Never use bullet points. Never use headers within the game plan itself — it should read as a single cohesive document. Never be sycophantic.`;
 
   let _briefingInFlight = false;
   let _briefingMemory = '';
@@ -70,8 +70,8 @@ Never use bullet points. Never use headers within the briefing itself — it sho
 
     // Current mission banner
     const current = Milestones.getCurrentMission();
-    document.getElementById('dash-mission-badge').textContent = `MISSION: ${current.codename}`;
-    document.getElementById('dash-banner-greeting').textContent = `Ready for your next mission?`;
+    document.getElementById('dash-mission-badge').textContent = `PHASE: ${current.codename}`;
+    document.getElementById('dash-banner-greeting').textContent = `Fight On, Corinne — next play is ready.`;
 
     // Mission card
     _renderCurrentMissionCard(current);
@@ -88,7 +88,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
 
     _renderDailyBriefingCard({
       state: 'loading',
-      text: "Retrieving today's mission briefing...",
+      text: "Retrieving today's game plan...",
     });
     _generateDailyBriefing();
   }
@@ -212,7 +212,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
   function retryDailyBriefing() {
     _renderDailyBriefingCard({
       state: 'loading',
-      text: "Retrieving today's mission briefing...",
+      text: "Retrieving today's game plan...",
     });
     _generateDailyBriefing();
   }
@@ -234,13 +234,13 @@ Never use bullet points. Never use headers within the briefing itself — it sho
 
     el.innerHTML = `
       <section class="daily-briefing-card ${state === 'loading' ? 'loading' : ''}">
-        <div class="daily-briefing-watermark">007</div>
-        <div class="daily-briefing-stamp">CLASSIFIED</div>
-        <div class="daily-briefing-kicker">DAILY MISSION BRIEFING · ${today}</div>
+        <div class="daily-briefing-watermark">USC</div>
+        <div class="daily-briefing-stamp">FIGHT ON</div>
+        <div class="daily-briefing-kicker">DAILY GAME PLAN · ${today}</div>
         <div class="daily-briefing-divider"></div>
         <div class="daily-briefing-content">${_esc(text || '')}</div>
         ${state === 'error' && !sample ? `<button class="btn btn-ghost btn-sm daily-briefing-retry" onclick="Dashboard.retryDailyBriefing()">Retry</button>` : ''}
-        <div class="daily-briefing-footer">This briefing will self-destruct at midnight.</div>
+        <div class="daily-briefing-footer">This game plan refreshes at midnight. Fight On.</div>
         <button class="daily-briefing-calendar-btn" onclick="Dashboard.showBriefingPreviews()" aria-label="Open briefing previews" title="Preview briefings">📅</button>
       </section>`;
   }
@@ -278,7 +278,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
 
     document.getElementById('dash-mission-card').innerHTML = `
       <div class="mission-card">
-        <div class="mission-codename">CURRENT MISSION: ${mission.codename}</div>
+        <div class="mission-codename">CURRENT PHASE: ${mission.codename}</div>
         <div class="mission-title">${mission.title}</div>
         <div class="mission-briefing">"${mission.briefing}"</div>
         <div style="margin-bottom:8px">
@@ -318,7 +318,7 @@ Never use bullet points. Never use headers within the briefing itself — it sho
     const result = Milestones.toggleTask(missionId, taskId);
     if (result.justCompleted) {
       UI.showMissionComplete(result.mission);
-      UI.notify(`Mission ${result.mission.codename} complete! 🎉`, 'success', 6000);
+      UI.notify(`Fight On! ${result.mission.codename} complete! 🎉`, 'success', 6000);
     }
     render();
     UI.updateSidebar();
