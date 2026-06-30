@@ -19,6 +19,7 @@ export const PROFILE = {
     '7+ years','8+ years','10+ years','minimum experience of 3','at least 3 years',
     '3 years of experience','4 years of experience','5 years of experience',
     'unpaid','commission only','door-to-door',
+    'top secret','ts/sci','secret clearance','security clearance','firearm','carry a weapon','concealed carry','firearms qualification',
   ],
   remote_terms: ['remote','hybrid','telework','wfh','work from home','virtual','anywhere in the u.s'],
 };

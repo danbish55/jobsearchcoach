@@ -286,50 +286,24 @@ const JobLeads = (() => {
   function findUscConnections(company) {
     const name = String(company || '').trim();
     if (!name) return;
-
-    // URLs are kept in JS only — never embedded in HTML — so the browser's HTML
-    // parser cannot mangle them into relative paths.
-    const urls = [
-      'https://www.linkedin.com/school/university-of-southern-california/people/',
-      'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(name + ' USC alumni'),
-      'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com'),
-      'https://careers.usc.edu/',
-      'https://alumni.usc.edu/',
-      'https://www.marshall.usc.edu/alumni',
-    ];
-
-    const body = '<div class=”job-lead-usc-modal”>'
-      + '<div class=”job-lead-usc-section-label”>Tier A — ' + _esc(name) + '</div>'
-      + '<button class=”btn btn-primary job-lead-usc-link” data-ui=”0”>🎓 LinkedIn USC Alumni page</button>'
-      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”1”>🔍 LinkedIn People Search</button>'
-      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”2”>🌐 Google — USC alumni</button>'
-      + '<div class=”job-lead-usc-divider”></div>'
-      + '<div class=”job-lead-usc-section-label”>Tier B — Warm Intros</div>'
-      + '<button class=”btn job-lead-usc-trojan-btn job-lead-usc-link” data-ui=”3”>🤝 USC Career Services</button>'
-      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”4”>🏛 USC Alumni Association</button>'
-      + '<button class=”btn btn-ghost job-lead-usc-link” data-ui=”5”>📊 USC Marshall Alumni</button>'
-      + '</div>';
-
+    const liAlumni  = 'https://www.linkedin.com/school/university-of-southern-california/people/?keywords=' + encodeURIComponent(name);
+    const liSearch  = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(name) + '&facetSchool=%5B%2212695%22%5D&origin=FACETED_SEARCH';
+    const gSearch   = 'https://www.google.com/search?q=' + encodeURIComponent('”' + name + '” “University of Southern California” linkedin.com -FTE -”open to work”');
+    const uscCareer = 'https://careers.usc.edu/';
+    const uscAlumni = 'https://alumni.usc.edu/';
+    const marshall  = 'https://usc.peoplegrove.com/auth/sign-in?postLoginRedirect=/hub/marshall/home-v3';
+    const open = url => window.open(url, '_blank', 'noopener,noreferrer');
+    const body = '<p style=”margin:0 0 8px;font-size:13px;color:var(--text-muted)”>Tier A — LinkedIn &amp; Google &nbsp;|&nbsp; Tier B — USC official channels</p>';
     UI.showModal('USC connections — ' + _esc(name), body, [
-      { id: 'usc-close', label: 'Close', class: 'btn-ghost' },
+      { id: 'u0', label: '🎓 LinkedIn USC Alumni',   class: 'btn-primary',           close: false, action: () => open(liAlumni) },
+      { id: 'u1', label: '🔍 LinkedIn Search',       class: 'btn-ghost',             close: false, action: () => open(liSearch) },
+      { id: 'u2', label: '🌐 Google — USC alumni',   class: 'btn-ghost',             close: false, action: () => open(gSearch) },
+      { id: 'u3', label: '🤝 USC Career Services',   class: 'job-lead-usc-trojan-btn', close: false, action: () => open(uscCareer) },
+      { id: 'u4', label: '🏛 USC Alumni Assoc.',     class: 'btn-ghost',             close: false, action: () => open(uscAlumni) },
+      { id: 'u5', label: '📊 Marshall Alumni',       class: 'btn-ghost',             close: false, action: () => open(marshall) },
+      { id: 'ux', label: 'Close',                    class: 'btn-ghost' },
     ]);
     document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');
-
-    // Programmatically create and click a real anchor element so the URL is set
-    // via JS assignment (never HTML-parsed) and the click is within a user gesture.
-    document.querySelectorAll('#active-modal [data-ui]').forEach(function(btn) {
-      var url = urls[Number(btn.getAttribute('data-ui'))];
-      if (!url) return;
-      btn.addEventListener('click', function() {
-        var a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      });
-    });
   }
 
   function openManualJobModal() {
@@ -688,6 +662,11 @@ const JobLeads = (() => {
         if (_siteFilter === 'hybrid')  return wt === 'hybrid' || wt.includes('hybrid');
         if (_siteFilter === 'on-site') return wt === 'on-site' || wt === 'on site' || !wt || wt === 'not listed';
         return true;
+      })
+      .filter(item => {
+        const lead = item.lead || item;
+        const haystack = ((lead.title || lead.role || '') + ' ' + (lead.description || '')).toLowerCase();
+        return !/\bfte\b/.test(haystack);
       })
       .filter(item => {
         const query = _searchQuery.trim().toLowerCase();
@@ -1512,8 +1491,10 @@ Description: ${lead.description || ''}`;
       .job-lead-source-btn:hover { background:#d97706; border-color:#d97706; color:#fff; }
       .job-lead-usc-btn { background:#990000; border-color:#990000; color:#ffcc00; font-weight:800; }
       .job-lead-usc-btn:hover:not(:disabled) { background:#7a0000; border-color:#7a0000; color:#ffcc00; }
-      .job-lead-usc-shell { width:min(560px, calc(100vw - 56px)); max-width:min(560px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
+      .job-lead-usc-shell { width:min(400px, calc(100vw - 56px)); max-width:min(400px, calc(100vw - 56px)); max-height:calc(100vh - 56px); display:flex; flex-direction:column; }
       .job-lead-usc-shell .modal-body { min-height:0; overflow-y:auto; }
+      .job-lead-usc-shell .modal-footer { flex-direction:column; align-items:stretch; gap:6px; }
+      .job-lead-usc-shell .modal-footer .btn { text-align:left; justify-content:flex-start; }
       .job-lead-usc-modal { display:flex; flex-direction:column; gap:0; }
       .job-lead-usc-section { display:flex; flex-direction:column; gap:8px; padding:4px 0 8px; }
       .job-lead-usc-section-label { font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.09em; color:var(--gold); margin-bottom:2px; }

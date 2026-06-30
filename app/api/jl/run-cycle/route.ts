@@ -23,7 +23,48 @@ const MAX_AGE_DAYS = 45;
 // Search terms used across every source.
 const KEYWORDS = ['data analyst', 'business analyst', 'business intelligence analyst'];
 
+// Titles that require OTJ experience Corinne doesn't have yet — reject outright.
+const SENIOR_TITLE_RE = /\b(senior|lead|sr\.?|principal|staff|manager|director|head of|vp|vice president|ii|iii|iv)\b/i;
+
+// Max years of experience Corinne can credibly claim (MSBA, no OTJ experience).
+const MAX_EXPERIENCE_YEARS = 2;
+
+// Jobs requiring security clearance or firearm eligibility — not applicable to Corinne.
+const CLEARANCE_RE = /\b(top\s*secret|ts\/sci|sci\s+clearance|secret\s+clearance|security\s+clearance|dod\s+clearance|q\s+clearance|sensitive\s+compartmented|classified\s+access|nato\s+secret)\b/i;
+const FIREARM_RE   = /\b(firearm|carry\s+a\s+(weapon|gun)|concealed\s+carry|firearms?\s+qualif|armed\s+(guard|officer|position)|must\s+be\s+(able\s+to\s+)?carry|pistol\s+qualif)\b/i;
+
 // ---------- helpers ----------
+
+/**
+ * Parse the minimum years of experience explicitly required in a job description.
+ * Returns 0 if none found. Examples handled:
+ *   "10+ years experience"  → 10
+ *   "3-5 years of experience" → 3  (lower bound of range)
+ *   "minimum 5 years" → 5
+ *   "at least 4 years" → 4
+ */
+function minExperienceYears(description: string): number {
+  const text = description.toLowerCase();
+  let min = Infinity;
+
+  const absorb = (re: RegExp) => {
+    let m: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((m = re.exec(text)) !== null) {
+      const n = parseInt(m[1], 10);
+      if (!isNaN(n) && n < min) min = n;
+    }
+  };
+
+  // "3-5 years", "3 to 5 years" — capture the lower bound
+  absorb(/(\d+)\s*(?:[-–]|to)\s*\d+\s*(?:years?|yrs?)\b/g);
+  // "5+ years of experience", "5 years experience"
+  absorb(/(\d+)\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|prior\s+|work\s+)?(?:experience|exp)\b/g);
+  // "minimum 5 years", "at least 5 years", "requires 5 years"
+  absorb(/(?:minimum|at\s+least|requires?\s+(?:a\s+minimum\s+of\s+)?|must\s+have\s+(?:at\s+least\s+)?)\s*(\d+)\s*\+?\s*(?:years?|yrs?)\b/g);
+
+  return min === Infinity ? 0 : min;
+}
 
 function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -205,7 +246,18 @@ async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
         const locationName = (teleWorkEligible === 'Yes' || remoteIndicator === 'Yes')
           ? 'Remote / Telework'
           : pos.PositionLocation?.[0]?.LocationName || '';
-        const description = pos.QualificationSummary || (pos.UserArea?.Details?.MajorDuties || []).join(' ') || '';
+        // Assemble ALL available text fields so filters can scan conditions,
+        // qualifications, duties, and requirements — not just the summary.
+        const details = pos.UserArea?.Details || {};
+        const description = [
+          pos.QualificationSummary,
+          (details.MajorDuties   || []).join(' '),
+          (details.Conditions    || []).join(' '),
+          (details.Requirements  || []).join(' '),
+          (details.Evaluations   || []).join(' '),
+          pos.JobSummary,
+          details.ServiceType,
+        ].filter(Boolean).join(' ');
         const rem = pos.PositionRemuneration?.[0];
         let salary = '';
         if (rem) {
@@ -379,6 +431,14 @@ export async function POST() {
     let inserted = 0;
     for (const job of deduped) {
       const { score, tier } = scoreJob(job.role, job.description, job.location);
+      // Drop on-site jobs outside the target geography — they score ≤0 due to the -60 penalty
+      if (job.work_type === 'On-site' && score < 15) continue;
+      // Drop senior/lead/manager titles — Corinne is entry-level
+      if (SENIOR_TITLE_RE.test(job.role)) continue;
+      // Drop jobs whose descriptions explicitly require more experience than Corinne has
+      if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) continue;
+      // Drop jobs requiring security clearance or firearm eligibility
+      if (CLEARANCE_RE.test(job.description) || FIREARM_RE.test(job.description)) continue;
       try {
         await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier, salary, date_posted, work_type)
           VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${job.description}, ${score}, ${tier}, ${job.salary}, ${job.date_posted}, ${job.work_type})
@@ -390,8 +450,10 @@ export async function POST() {
       } catch {}
     }
 
-    // Re-score ALL existing records, backfill work_type, and resolve/flag locations
+    // Re-score ALL existing records, backfill work_type, and resolve/flag locations.
+    // Delete any on-site records outside the target geography.
     const existing = await sql`SELECT id, role, description, location, work_type FROM job_leads`;
+    let pruned = 0;
     for (const row of existing) {
       const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
       const normalized = normalizeLocation({
@@ -400,10 +462,21 @@ export async function POST() {
         salary: '', date_posted: '', work_type: wt0,
       });
       const { score, tier } = scoreJob(String(row.role), normalized.description, normalized.location);
-      await sql`UPDATE job_leads SET score=${score}, tier=${tier}, work_type=${normalized.work_type}, location=${normalized.location} WHERE id=${row.id}`;
+      if (
+        (normalized.work_type === 'On-site' && score < 15) ||
+        SENIOR_TITLE_RE.test(String(row.role)) ||
+        minExperienceYears(normalized.description) > MAX_EXPERIENCE_YEARS ||
+        CLEARANCE_RE.test(normalized.description) ||
+        FIREARM_RE.test(normalized.description)
+      ) {
+        await sql`DELETE FROM job_leads WHERE id=${row.id}`;
+        pruned++;
+      } else {
+        await sql`UPDATE job_leads SET score=${score}, tier=${tier}, work_type=${normalized.work_type}, location=${normalized.location} WHERE id=${row.id}`;
+      }
     }
 
-    return NextResponse.json({ success: true, fetched: deduped.length, inserted, rescored: existing.length, sources_used: sourceKeys });
+    return NextResponse.json({ success: true, fetched: deduped.length, inserted, pruned, rescored: existing.length - pruned, sources_used: sourceKeys });
   } catch (err) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
