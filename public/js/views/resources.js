@@ -6,7 +6,7 @@ const Resources = (() => {
       id: 'market_intel',
       title: 'MARKET INTEL',
       description: 'Hiring trends, salary data, and opportunities for entry-level analytics roles in 2026.',
-      prompt: "Search for recent news (2025-2026) about data analytics hiring growth, business intelligence demand, analytics salary increases, or companies expanding their data teams. Find 4 results that are encouraging for an entry-level data analytics job seeker. For each result return: headline (max 10 words), source name, publication date, one-sentence summary in an upbeat tone, and the URL. STRICT RULES: No AI-doom or 'AI is replacing jobs' framing. No 'brutal market' or layoff statistics. No anxiety-inducing or discouraging content. Only include results that a job seeker would find genuinely motivating. Format as JSON array.",
+      prompt: "Today is July 2026. Search for data analytics job market news published in June or July 2026 — hiring growth, business intelligence demand, analytics salary increases, or companies expanding data teams. Find 4 results from the last 60 days maximum. Reject anything published before May 2026. For each result return: headline (max 10 words), source name, publication date (must be June or July 2026), one-sentence summary in an upbeat tone, and the URL. STRICT RULES: No AI-doom or 'AI is replacing jobs' framing. No 'brutal market' or layoff statistics. No anxiety-inducing content. If you cannot find 4 results from the last 60 days, return only what you find — do not pad with older articles. Format as JSON array.",
     },
     {
       id: 'field_strategy',
