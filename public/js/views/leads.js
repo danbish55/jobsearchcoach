@@ -432,7 +432,7 @@ const JobLeads = (() => {
       await _fetchJSON('/api/jl/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId }),
+        body: JSON.stringify({ id: leadId }),
       });
       UI.notify('Job lead deleted.', 'success');
     } catch (err) {
@@ -759,7 +759,7 @@ const JobLeads = (() => {
       const updated = await _fetchJSON(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId }),
+        body: JSON.stringify({ id: leadId }),
       });
       _leads[index] = _mergeUpdatedLead(_leads[index], updated);
       delete _actionErrors[leadId];
