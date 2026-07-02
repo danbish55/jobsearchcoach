@@ -87,6 +87,31 @@ function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// Fetch the full text of a job page to supplement a truncated API description.
+// Returns the longer of the fetched text vs the original — never shortens it.
+// Silently returns original on any error so the pipeline never blocks.
+async function fetchFullText(url: string, originalDesc: string): Promise<string> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+      redirect: 'follow',
+    });
+    clearTimeout(timer);
+    if (!res.ok) return originalDesc;
+    const html = await res.text();
+    const text = stripHtml(html);
+    return text.length > originalDesc.length ? text : originalDesc;
+  } catch {
+    return originalDesc;
+  }
+}
+
 function daysSince(dateStr: string): number {
   if (!dateStr) return 0;
   const t = Date.parse(dateStr);
@@ -445,21 +470,32 @@ export async function POST() {
       return true;
     });
 
+    // For truncated descriptions (Adzuna caps at 500 chars), fetch the full job page
+    // in parallel so the experience/clearance filters can read the complete text.
+    const TRUNCATED_THRESHOLD = 600;
+    const needsFullText = deduped.filter(j => j.description.length < TRUNCATED_THRESHOLD);
+    const fullTexts = await Promise.all(
+      needsFullText.map(j => fetchFullText(j.url, j.description))
+    );
+    const fullDescMap = new Map<string, string>();
+    needsFullText.forEach((j, i) => fullDescMap.set(j.externalId, fullTexts[i]));
+
     let inserted = 0;
     for (const job of deduped) {
-      const { score, tier } = scoreJob(job.role, job.description, job.location);
+      const fullDesc = fullDescMap.get(job.externalId) || job.description;
+      const { score, tier } = scoreJob(job.role, fullDesc, job.location);
       // Drop on-site AND hybrid jobs outside the target geography — remote is location-agnostic
       if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 30) continue;
       // Drop senior/lead/manager titles — Corinne is entry-level
       if (SENIOR_TITLE_RE.test(job.role)) continue;
       // Drop jobs whose descriptions explicitly require more experience than Corinne has
-      if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) continue;
-      if (EXPERIENCE_KEYWORD_RE.test(job.description) || EXPERIENCE_KEYWORD_RE.test(job.role)) continue;
+      if (minExperienceYears(fullDesc) > MAX_EXPERIENCE_YEARS) continue;
+      if (EXPERIENCE_KEYWORD_RE.test(fullDesc) || EXPERIENCE_KEYWORD_RE.test(job.role)) continue;
       // Drop jobs requiring security clearance or firearm eligibility
-      if (CLEARANCE_RE.test(job.description) || FIREARM_RE.test(job.description)) continue;
+      if (CLEARANCE_RE.test(fullDesc) || FIREARM_RE.test(fullDesc)) continue;
       try {
         await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier, salary, date_posted, work_type)
-          VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${job.description}, ${score}, ${tier}, ${job.salary}, ${job.date_posted}, ${job.work_type})
+          VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${fullDesc}, ${score}, ${tier}, ${job.salary}, ${job.date_posted}, ${job.work_type})
           ON CONFLICT (source, external_id) DO UPDATE
             SET score=EXCLUDED.score, tier=EXCLUDED.tier, location=EXCLUDED.location,
                 salary=EXCLUDED.salary, date_posted=EXCLUDED.date_posted,
