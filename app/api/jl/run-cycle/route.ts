@@ -447,8 +447,8 @@ export async function POST() {
     let inserted = 0;
     for (const job of deduped) {
       const { score, tier } = scoreJob(job.role, job.description, job.location);
-      // Drop on-site jobs outside the target geography — they score ≤0 due to the -60 penalty
-      if (job.work_type === 'On-site' && score < 15) continue;
+      // Drop on-site AND hybrid jobs outside the target geography — remote is location-agnostic
+      if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 15) continue;
       // Drop senior/lead/manager titles — Corinne is entry-level
       if (SENIOR_TITLE_RE.test(job.role)) continue;
       // Drop jobs whose descriptions explicitly require more experience than Corinne has
@@ -480,7 +480,7 @@ export async function POST() {
       });
       const { score, tier } = scoreJob(String(row.role), normalized.description, normalized.location);
       if (
-        (normalized.work_type === 'On-site' && score < 15) ||
+        ((normalized.work_type === 'On-site' || normalized.work_type === 'Hybrid') && score < 15) ||
         SENIOR_TITLE_RE.test(String(row.role)) ||
         minExperienceYears(normalized.description) > MAX_EXPERIENCE_YEARS ||
         EXPERIENCE_KEYWORD_RE.test(normalized.description) ||
