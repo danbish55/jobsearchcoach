@@ -26,8 +26,8 @@ const KEYWORDS = ['data analyst', 'business analyst', 'business intelligence ana
 // Titles that require OTJ experience Corinne doesn't have yet — reject outright.
 const SENIOR_TITLE_RE = /\b(senior|lead|sr\.?|principal|staff|manager|director|head of|vp|vice president|ii|iii|iv)\b/i;
 
-// Max years of experience Corinne can credibly claim (MSBA, no OTJ experience).
-const MAX_EXPERIENCE_YEARS = 2;
+// Max years of experience required — entry-level only.
+const MAX_EXPERIENCE_YEARS = 1;
 
 // Jobs requiring security clearance or firearm eligibility — not applicable to Corinne.
 const CLEARANCE_RE = /\b(top\s*secret|ts\/sci|sci\s+clearance|secret\s+clearance|security\s+clearance|dod\s+clearance|q\s+clearance|sensitive\s+compartmented|classified\s+access|nato\s+secret)\b/i;
@@ -80,7 +80,7 @@ function minExperienceYears(description: string): number {
 }
 
 // Hard-reject if description contains explicit high-experience strings the parser might miss.
-const EXPERIENCE_KEYWORD_RE = /\b([3-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[3-9]\d*\s*years?|at\s+least\s+[3-9]\d*\s*years?|[3-9]\d*\s*or\s+more\s+years?|must\s+have\s+[3-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[3-9]\d*|requires?\s+[3-9]\d*\s*\+?\s*years?|[3-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
+const EXPERIENCE_KEYWORD_RE = /\b([2-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[2-9]\d*\s*years?|at\s+least\s+[2-9]\d*\s*years?|[2-9]\d*\s*or\s+more\s+years?|must\s+have\s+[2-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[2-9]\d*|requires?\s+[2-9]\d*\s*\+?\s*years?|[2-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
 
 function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
