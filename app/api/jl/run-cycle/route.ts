@@ -87,28 +87,36 @@ function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Fetch the full text of a job page to supplement a truncated API description.
-// Returns the longer of the fetched text vs the original — never shortens it.
-// Silently returns original on any error so the pipeline never blocks.
-async function fetchFullText(url: string, originalDesc: string): Promise<string> {
+// Use Claude (Haiku + web_search) to check experience requirements for a batch of jobs
+// whose descriptions were truncated by the source API. Runs one API call for the whole batch.
+// Returns a Set of externalIds that require more experience than MAX_EXPERIENCE_YEARS.
+async function checkExperienceViaClaude(
+  jobs: { externalId: string; url: string; role: string; company: string }[],
+  apiKey: string
+): Promise<Set<string>> {
+  if (!jobs.length || !apiKey) return new Set();
+  const list = jobs.map((j, i) =>
+    `${i + 1}. ID=${j.externalId} | "${j.role}" at ${j.company} | URL: ${j.url}`
+  ).join('\n');
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-      redirect: 'follow',
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey });
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      tools: [{ type: 'web_search_20250305' as const, name: 'web_search', max_uses: jobs.length * 2 }],
+      messages: [{
+        role: 'user',
+        content: `For each job below, visit the URL and check whether the job description requires more than 1 year of professional work experience. Answer with a JSON array of objects: {"id": "<externalId>", "over_limit": true/false}. Only use over_limit:true if you clearly see a requirement for 2+ years.\n\n${list}`
+      }]
     });
-    clearTimeout(timer);
-    if (!res.ok) return originalDesc;
-    const html = await res.text();
-    const text = stripHtml(html);
-    return text.length > originalDesc.length ? text : originalDesc;
+    const text = msg.content.filter((b: { type: string }) => b.type === 'text').map((b: { type: string; text?: string }) => (b as { type: string; text: string }).text).join('');
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return new Set();
+    const parsed: { id: string; over_limit: boolean }[] = JSON.parse(match[0]);
+    return new Set(parsed.filter(r => r.over_limit).map(r => r.id));
   } catch {
-    return originalDesc;
+    return new Set();
   }
 }
 
@@ -470,19 +478,33 @@ export async function POST() {
       return true;
     });
 
-    // For truncated descriptions (Adzuna caps at 500 chars), fetch the full job page
-    // in parallel so the experience/clearance filters can read the complete text.
+    // First pass: apply all filters using the (possibly truncated) description.
+    // Collect jobs that survive this pass but have truncated descriptions for deeper verification.
     const TRUNCATED_THRESHOLD = 600;
-    const needsFullText = deduped.filter(j => j.description.length < TRUNCATED_THRESHOLD);
-    const fullTexts = await Promise.all(
-      needsFullText.map(j => fetchFullText(j.url, j.description))
-    );
-    const fullDescMap = new Map<string, string>();
-    needsFullText.forEach((j, i) => fullDescMap.set(j.externalId, fullTexts[i]));
+    const firstPassJobs: (typeof deduped[0])[] = [];
+    const truncatedForVerification: { externalId: string; url: string; role: string; company: string }[] = [];
+
+    for (const job of deduped) {
+      const { score } = scoreJob(job.role, job.description, job.location);
+      if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 30) continue;
+      if (SENIOR_TITLE_RE.test(job.role)) continue;
+      if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) continue;
+      if (EXPERIENCE_KEYWORD_RE.test(job.description) || EXPERIENCE_KEYWORD_RE.test(job.role)) continue;
+      if (CLEARANCE_RE.test(job.description) || FIREARM_RE.test(job.description)) continue;
+      firstPassJobs.push(job);
+      if (job.description.length < TRUNCATED_THRESHOLD) {
+        truncatedForVerification.push({ externalId: job.externalId, url: job.url, role: job.role, company: job.company });
+      }
+    }
+
+    // Second pass: use Claude web_search to verify experience on truncated descriptions.
+    const anthropicKey = process.env.ANTHROPIC_API_KEY || '';
+    const overExperience = await checkExperienceViaClaude(truncatedForVerification, anthropicKey);
 
     let inserted = 0;
-    for (const job of deduped) {
-      const fullDesc = fullDescMap.get(job.externalId) || job.description;
+    for (const job of firstPassJobs) {
+      if (overExperience.has(job.externalId)) continue; // Claude confirmed too much experience
+      const fullDesc = job.description;
       const { score, tier } = scoreJob(job.role, fullDesc, job.location);
       // Drop on-site AND hybrid jobs outside the target geography — remote is location-agnostic
       if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 30) continue;
@@ -495,7 +517,7 @@ export async function POST() {
       if (CLEARANCE_RE.test(fullDesc) || FIREARM_RE.test(fullDesc)) continue;
       try {
         await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier, salary, date_posted, work_type)
-          VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${fullDesc}, ${score}, ${tier}, ${job.salary}, ${job.date_posted}, ${job.work_type})
+          VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${job.description}, ${score}, ${tier}, ${job.salary}, ${job.date_posted}, ${job.work_type})
           ON CONFLICT (source, external_id) DO UPDATE
             SET score=EXCLUDED.score, tier=EXCLUDED.tier, location=EXCLUDED.location,
                 salary=EXCLUDED.salary, date_posted=EXCLUDED.date_posted,
