@@ -24,7 +24,8 @@ const MAX_AGE_DAYS = 45;
 const KEYWORDS = ['data analyst', 'business analyst', 'business intelligence analyst'];
 
 // Titles that require OTJ experience Corinne doesn't have yet — reject outright.
-const SENIOR_TITLE_RE = /\b(senior|lead|sr\.?|principal|staff|manager|director|head of|vp|vice president|ii|iii|iv)\b/i;
+// Also catches numeric level suffixes: "Analyst 2", "Analyst 5", "BI Analyst 3", etc.
+const SENIOR_TITLE_RE = /\b(senior|lead|sr\.?|principal|staff|manager|director|head of|vp|vice president|ii|iii|iv)\b|\b(analyst|engineer|developer|specialist|consultant)\s+[2-9]\d*\b/i;
 
 // Max years of experience required — entry-level only.
 const MAX_EXPERIENCE_YEARS = 1;
@@ -448,7 +449,7 @@ export async function POST() {
     for (const job of deduped) {
       const { score, tier } = scoreJob(job.role, job.description, job.location);
       // Drop on-site AND hybrid jobs outside the target geography — remote is location-agnostic
-      if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 15) continue;
+      if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 30) continue;
       // Drop senior/lead/manager titles — Corinne is entry-level
       if (SENIOR_TITLE_RE.test(job.role)) continue;
       // Drop jobs whose descriptions explicitly require more experience than Corinne has
@@ -467,9 +468,8 @@ export async function POST() {
       } catch {}
     }
 
-    // Re-score ALL existing records, backfill work_type, and resolve/flag locations.
-    // Delete any on-site records outside the target geography.
-    const existing = await sql`SELECT id, role, description, location, work_type FROM job_leads`;
+    // Re-score pending_review records only — approved/rejected stay as the user left them.
+    const existing = await sql`SELECT id, role, description, location, work_type FROM job_leads WHERE approval_state = 'pending_review'`;
     let pruned = 0;
     for (const row of existing) {
       const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
@@ -480,7 +480,7 @@ export async function POST() {
       });
       const { score, tier } = scoreJob(String(row.role), normalized.description, normalized.location);
       if (
-        ((normalized.work_type === 'On-site' || normalized.work_type === 'Hybrid') && score < 15) ||
+        ((normalized.work_type === 'On-site' || normalized.work_type === 'Hybrid') && score < 30) ||
         SENIOR_TITLE_RE.test(String(row.role)) ||
         minExperienceYears(normalized.description) > MAX_EXPERIENCE_YEARS ||
         EXPERIENCE_KEYWORD_RE.test(normalized.description) ||

@@ -43,6 +43,27 @@ const DISAMBIGUATED: { city: string; states: string[] }[] = [
   { city: 'austin',     states: ['tx','texas','round rock','pflugerville'] },
   { city: 'portland',   states: ['or','oregon','beaverton','hillsboro'] },
   { city: 'richmond',   states: ['ca','california'] },
+  // Seattle metro — must require WA context to avoid Bellevue ID, Redmond OR, etc.
+  { city: 'bellevue',   states: ['wa','washington','seattle','king county'] },
+  { city: 'redmond',    states: ['wa','washington','seattle','king county'] },
+  { city: 'kirkland',   states: ['wa','washington','seattle','king county'] },
+  { city: 'renton',     states: ['wa','washington','seattle','king county'] },
+  { city: 'bothell',    states: ['wa','washington','seattle','snohomish'] },
+  { city: 'tacoma',     states: ['wa','washington','pierce county'] },
+  // DFW suburbs — must require TX context
+  { city: 'plano',      states: ['tx','texas','dfw','dallas','collin county'] },
+  { city: 'irving',     states: ['tx','texas','dfw','dallas'] },
+  { city: 'frisco',     states: ['tx','texas','dfw','dallas','collin county'] },
+  { city: 'mckinney',   states: ['tx','texas','dfw','dallas','collin county'] },
+  { city: 'richardson', states: ['tx','texas','dfw','dallas'] },
+  { city: 'garland',    states: ['tx','texas','dfw','dallas'] },
+  { city: 'allen',      states: ['tx','texas','dfw','dallas','collin county'] },
+  { city: 'carrollton', states: ['tx','texas','dfw','dallas'] },
+  { city: 'lewisville', states: ['tx','texas','dfw','denton county'] },
+  { city: 'frisco',     states: ['tx','texas','dfw','dallas'] },
+  { city: 'grapevine',  states: ['tx','texas','dfw','dallas','tarrant county'] },
+  { city: 'southlake',  states: ['tx','texas','dfw','tarrant county'] },
+  { city: 'keller',     states: ['tx','texas','dfw','tarrant county'] },
 ];
 
 // Unambiguous preferred cities/regions (any state context is fine)
@@ -59,12 +80,11 @@ const PREFERRED_CITIES = [
   'fullerton','brea','santa ana','garden grove',
   'san diego','la jolla','chula vista','carlsbad','oceanside','escondido',
   'del mar','encinitas','el cajon','national city',
-  'dallas','fort worth','plano','irving','frisco','mckinney',
-  'richardson','garland','allen','carrollton','lewisville','flower mound',
+  'dallas','fort worth','flower mound',
   'coppell','addison','grand prairie','mesquite','rowlett','wylie','murphy',
-  'southlake','colleyville','grapevine','euless','bedford','hurst','keller',
+  'colleyville','euless','bedford','hurst',
   'round rock','cedar park','pflugerville','georgetown','san marcos',
-  'seattle','bellevue','redmond','kirkland','tacoma','renton','bothell',
+  'seattle',
   'denver','boulder','salt lake city','provo','las vegas','henderson',
   'los angeles','orange county','dfw','socal','southern california',
   // These are unambiguous enough at metro level:
