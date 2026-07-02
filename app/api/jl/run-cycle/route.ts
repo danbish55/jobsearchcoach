@@ -62,19 +62,25 @@ function minExperienceYears(description: string): number {
 
   // Range: "3-5 years", "3 to 5 years" — capture the lower bound
   absorb(/(\d+)\s*(?:[-–]|to)\s*\d+\s*(?:years?|yrs?)\b/g);
-  // "5+ years of experience", "5 years experience", "5 years of relevant experience"
-  absorb(/(\d+)\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|prior\s+|work\s+|related\s+)?(?:experience|exp)\b/g);
-  // "minimum 5 years", "at least 5 years", "requires 5 years", "must have 5 years"
-  absorb(/(?:minimum|at\s+least|requires?\s+(?:a\s+minimum\s+of\s+)?|must\s+have\s+(?:at\s+least\s+)?|need\s+(?:at\s+least\s+)?)\s*(\d+)\s*\+?\s*(?:years?|yrs?)\b/g);
+  // "5+ years of experience", "5 years experience", "5 years of relevant/prior/work/related experience"
+  absorb(/(\d+)\s*\+?\s*(?:years?|yrs?)['']?\s+(?:of\s+)?(?:relevant\s+|prior\s+|work\s+|related\s+|professional\s+|hands.on\s+|industry\s+)?(?:experience|exp)\b/g);
+  // "experience of 5+ years", "experience of at least 5 years"
+  absorb(/experience\s+of\s+(?:at\s+least\s+|a\s+minimum\s+of\s+)?(\d+)\s*\+?\s*(?:years?|yrs?)\b/g);
+  // "minimum X years", "at least X years", "requires X years", "must have X years",
+  // "candidates must have X years", "need X years", "expected to have X years"
+  absorb(/(?:minimum(?:\s+of)?|at\s+least|requires?\s+(?:a\s+minimum\s+of\s+)?|must\s+have(?:\s+at\s+least)?|candidates?\s+(?:must|should)\s+have(?:\s+at\s+least)?|need(?:s)?\s+(?:at\s+least\s+)?|expected\s+to\s+have|bring\s+(?:at\s+least\s+)?)\s*(\d+)\s*\+?\s*(?:years?|yrs?)\b/g);
+  // "X years of experience required", "X years' experience required"
+  absorb(/(\d+)\s*\+?\s*(?:years?|yrs?)['']?\s+(?:of\s+)?(?:\w+\s+)?experience\s+(?:required|preferred|needed|minimum)/g);
+  // "X or more years", "X+ years"
+  absorb(/(\d+)\s*(?:\+|\s+or\s+more)\s*(?:years?|yrs?)\b/g);
   // Bullet/skills-list pattern: "• 10 years SQL" or "- 10 years in Python"
   absorb(/(?:^|[\n\r•\-\*])\s*(\d+)\s*\+?\s*(?:years?|yrs?)\s+(?:in\s+|of\s+|with\s+)?[a-z]/gm);
 
   return min === Infinity ? 0 : min;
 }
 
-// Hard-reject if description contains explicit high-experience strings.
-// Catches cases where the regex can't parse the phrasing but the literal text is clear.
-const EXPERIENCE_KEYWORD_RE = /\b(3\+\s*years?|4\+\s*years?|5\+\s*years?|6\+\s*years?|7\+\s*years?|8\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[3-9]\d*\s*years?|at\s+least\s+[3-9]\d*\s*years?|[3-9]\d*\s*or\s+more\s*years?)\b/i;
+// Hard-reject if description contains explicit high-experience strings the parser might miss.
+const EXPERIENCE_KEYWORD_RE = /\b([3-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[3-9]\d*\s*years?|at\s+least\s+[3-9]\d*\s*years?|[3-9]\d*\s*or\s+more\s+years?|must\s+have\s+[3-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[3-9]\d*|requires?\s+[3-9]\d*\s*\+?\s*years?|[3-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
 
 function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
