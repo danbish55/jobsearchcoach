@@ -87,35 +87,69 @@ function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Use Claude (Haiku + web_search) to check experience requirements for a batch of jobs
-// whose descriptions were truncated by the source API. Runs one API call for the whole batch.
-// Returns a Set of externalIds that require more experience than MAX_EXPERIENCE_YEARS.
-async function checkExperienceViaClaude(
-  jobs: { externalId: string; url: string; role: string; company: string }[],
+// Use Claude Haiku to evaluate a batch of jobs against entry-level criteria.
+// For truncated descriptions (Adzuna), uses web_search to read the full page.
+// Returns a Set of externalIds that should be REJECTED.
+async function evaluateJobsViaClaude(
+  jobs: { externalId: string; url: string; role: string; company: string; description: string; location: string; work_type: string }[],
   apiKey: string
 ): Promise<Set<string>> {
   if (!jobs.length || !apiKey) return new Set();
-  const list = jobs.map((j, i) =>
-    `${i + 1}. ID=${j.externalId} | "${j.role}" at ${j.company} | URL: ${j.url}`
-  ).join('\n');
+
+  const TRUNCATED = 600;
+  const truncatedIds = new Set(jobs.filter(j => j.description.length < TRUNCATED).map(j => j.externalId));
+
+  // Build job list for Claude — include full description when available, URL when truncated
+  const list = jobs.map((j, i) => {
+    const descPart = j.description.length >= TRUNCATED
+      ? `DESCRIPTION:\n${j.description.slice(0, 3000)}`
+      : `DESCRIPTION TRUNCATED — visit URL to read full posting: ${j.url}`;
+    return `--- JOB ${i + 1} | ID=${j.externalId} ---\nTITLE: ${j.role}\nCOMPANY: ${j.company}\nLOCATION: ${j.location} (${j.work_type})\n${descPart}`;
+  }).join('\n\n');
+
+  const prompt = `You are screening job listings for Corinne, a recent USC Marshall MSBA graduate with NO prior professional work experience. She is looking for ENTRY-LEVEL data/business analyst roles.
+
+REJECT a job if ANY of the following are true:
+- Requires 2 or more years of professional work experience (e.g. "2+ years", "2-3 years", "minimum 2 years", "3+ years BA experience")
+- Title or description indicates a senior, lead, principal, staff, manager, director, or VP-level role
+- Requires security clearance (top secret, TS/SCI, secret clearance, DOD clearance)
+- Requires carrying a firearm or armed position
+- Is on-site or hybrid AND located outside these regions: Los Angeles/SoCal, Dallas/DFW, Austin TX, Seattle WA, Denver CO, Salt Lake City UT, Las Vegas NV, San Diego CA, Orange County CA, Portland OR
+- For truncated descriptions: visit the URL and read the FULL posting before deciding
+
+ACCEPT a job if:
+- It is entry-level (0-1 year experience, or no experience stated)
+- Title matches: data analyst, business analyst, BI analyst, operations analyst, reporting analyst, data coordinator, product analyst, or similar entry-level analytics role
+- Remote jobs are accepted regardless of location
+
+Evaluate each job below. Return ONLY a JSON array — no other text:
+[{"id": "<externalId>", "reject": true/false, "reason": "<brief reason if rejected>"}]
+
+${list}`;
+
   try {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey });
+    const useWebSearch = truncatedIds.size > 0;
+    const tools = useWebSearch
+      ? [{ type: 'web_search_20250305' as const, name: 'web_search' as const, max_uses: truncatedIds.size * 2 }]
+      : [];
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      tools: [{ type: 'web_search_20250305' as const, name: 'web_search', max_uses: jobs.length * 2 }],
-      messages: [{
-        role: 'user',
-        content: `For each job below, visit the URL and check whether the job description requires more than 1 year of professional work experience. Answer with a JSON array of objects: {"id": "<externalId>", "over_limit": true/false}. Only use over_limit:true if you clearly see a requirement for 2+ years.\n\n${list}`
-      }]
+      max_tokens: 1200,
+      ...(tools.length ? { tools } : {}),
+      messages: [{ role: 'user', content: prompt }],
     });
-    const text = msg.content.filter((b: { type: string }) => b.type === 'text').map((b: { type: string; text?: string }) => (b as { type: string; text: string }).text).join('');
+    const text = msg.content
+      .filter((b: { type: string }) => b.type === 'text')
+      .map((b: { type: string; text?: string }) => (b as { type: string; text: string }).text)
+      .join('');
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return new Set();
-    const parsed: { id: string; over_limit: boolean }[] = JSON.parse(match[0]);
-    return new Set(parsed.filter(r => r.over_limit).map(r => r.id));
+    const parsed: { id: string; reject: boolean }[] = JSON.parse(match[0]);
+    return new Set(parsed.filter(r => r.reject).map(r => r.id));
   } catch {
+    // On error, reject nothing — let regex pre-filters stand
     return new Set();
   }
 }
@@ -478,43 +512,36 @@ export async function POST() {
       return true;
     });
 
-    // First pass: apply all filters using the (possibly truncated) description.
-    // Collect jobs that survive this pass but have truncated descriptions for deeper verification.
-    const TRUNCATED_THRESHOLD = 600;
-    const firstPassJobs: (typeof deduped[0])[] = [];
-    const truncatedForVerification: { externalId: string; url: string; role: string; company: string }[] = [];
-
-    for (const job of deduped) {
-      const { score } = scoreJob(job.role, job.description, job.location);
-      if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 30) continue;
-      if (SENIOR_TITLE_RE.test(job.role)) continue;
-      if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) continue;
-      if (EXPERIENCE_KEYWORD_RE.test(job.description) || EXPERIENCE_KEYWORD_RE.test(job.role)) continue;
-      if (CLEARANCE_RE.test(job.description) || FIREARM_RE.test(job.description)) continue;
-      firstPassJobs.push(job);
-      if (job.description.length < TRUNCATED_THRESHOLD) {
-        truncatedForVerification.push({ externalId: job.externalId, url: job.url, role: job.role, company: job.company });
+    // Pre-filter: fast regex pass to eliminate obvious hard rejects before calling Claude.
+    // Catches clear senior titles, known clearance/firearm keywords, and explicit high-experience
+    // strings in long descriptions. Reduces the Claude batch size significantly.
+    const preFiltered = deduped.filter(job => {
+      if (SENIOR_TITLE_RE.test(job.role)) return false;
+      if (CLEARANCE_RE.test(job.description) || FIREARM_RE.test(job.description)) return false;
+      // Only run experience regex on longer descriptions (truncated ones go to Claude)
+      if (job.description.length >= 600) {
+        if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) return false;
+        if (EXPERIENCE_KEYWORD_RE.test(job.description)) return false;
       }
-    }
+      return true;
+    });
 
-    // Second pass: use Claude web_search to verify experience on truncated descriptions.
+    // Claude evaluation: reads every job (full text or via web_search for truncated ones)
+    // and makes the final call on experience level, location, and role fit.
     const anthropicKey = process.env.ANTHROPIC_API_KEY || '';
-    const overExperience = await checkExperienceViaClaude(truncatedForVerification, anthropicKey);
+    const rejected = await evaluateJobsViaClaude(
+      preFiltered.map(j => ({
+        externalId: j.externalId, url: j.url, role: j.role,
+        company: j.company, description: j.description,
+        location: j.location, work_type: j.work_type,
+      })),
+      anthropicKey
+    );
 
     let inserted = 0;
-    for (const job of firstPassJobs) {
-      if (overExperience.has(job.externalId)) continue; // Claude confirmed too much experience
-      const fullDesc = job.description;
-      const { score, tier } = scoreJob(job.role, fullDesc, job.location);
-      // Drop on-site AND hybrid jobs outside the target geography — remote is location-agnostic
-      if ((job.work_type === 'On-site' || job.work_type === 'Hybrid') && score < 30) continue;
-      // Drop senior/lead/manager titles — Corinne is entry-level
-      if (SENIOR_TITLE_RE.test(job.role)) continue;
-      // Drop jobs whose descriptions explicitly require more experience than Corinne has
-      if (minExperienceYears(fullDesc) > MAX_EXPERIENCE_YEARS) continue;
-      if (EXPERIENCE_KEYWORD_RE.test(fullDesc) || EXPERIENCE_KEYWORD_RE.test(job.role)) continue;
-      // Drop jobs requiring security clearance or firearm eligibility
-      if (CLEARANCE_RE.test(fullDesc) || FIREARM_RE.test(fullDesc)) continue;
+    for (const job of preFiltered) {
+      if (rejected.has(job.externalId)) continue;
+      const { score, tier } = scoreJob(job.role, job.description, job.location);
       try {
         await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier, salary, date_posted, work_type)
           VALUES (${job.source}, ${job.externalId}, ${job.company}, ${job.role}, ${job.url}, ${job.location}, ${job.description}, ${score}, ${tier}, ${job.salary}, ${job.date_posted}, ${job.work_type})
@@ -526,29 +553,33 @@ export async function POST() {
       } catch {}
     }
 
-    // Re-score pending_review records only — approved/rejected stay as the user left them.
-    const existing = await sql`SELECT id, role, description, location, work_type FROM job_leads WHERE approval_state = 'pending_review'`;
+    // Re-evaluate existing pending_review records with Claude — same criteria as new inserts.
+    // approved/rejected records are never touched.
+    const existing = await sql`SELECT id, external_id, role, company, url, description, location, work_type FROM job_leads WHERE approval_state = 'pending_review'`;
+    const existingForEval = existing.map((row: Record<string, unknown>) => ({
+      externalId: String(row.external_id || row.id),
+      url: String(row.url || ''),
+      role: String(row.role),
+      company: String(row.company || ''),
+      description: String(row.description),
+      location: String(row.location),
+      work_type: String(row.work_type),
+    }));
+    const rejectedExisting = await evaluateJobsViaClaude(existingForEval, anthropicKey);
     let pruned = 0;
     for (const row of existing) {
-      const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
-      const normalized = normalizeLocation({
-        externalId: '', company: '', role: String(row.role), url: '',
-        location: String(row.location), description: String(row.description),
-        salary: '', date_posted: '', work_type: wt0,
-      });
-      const { score, tier } = scoreJob(String(row.role), normalized.description, normalized.location);
-      if (
-        ((normalized.work_type === 'On-site' || normalized.work_type === 'Hybrid') && score < 30) ||
-        SENIOR_TITLE_RE.test(String(row.role)) ||
-        minExperienceYears(normalized.description) > MAX_EXPERIENCE_YEARS ||
-        EXPERIENCE_KEYWORD_RE.test(normalized.description) ||
-        EXPERIENCE_KEYWORD_RE.test(String(row.role)) ||
-        CLEARANCE_RE.test(normalized.description) ||
-        FIREARM_RE.test(normalized.description)
-      ) {
+      const exId = String(row.external_id || row.id);
+      if (rejectedExisting.has(exId)) {
         await sql`DELETE FROM job_leads WHERE id=${row.id}`;
         pruned++;
       } else {
+        const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
+        const normalized = normalizeLocation({
+          externalId: '', company: '', role: String(row.role), url: '',
+          location: String(row.location), description: String(row.description),
+          salary: '', date_posted: '', work_type: wt0,
+        });
+        const { score, tier } = scoreJob(String(row.role), normalized.description, normalized.location);
         await sql`UPDATE job_leads SET score=${score}, tier=${tier}, work_type=${normalized.work_type}, location=${normalized.location} WHERE id=${row.id}`;
       }
     }
