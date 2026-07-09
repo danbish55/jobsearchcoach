@@ -468,6 +468,81 @@ async function fetchRemoteOK(): Promise<JobResult[]> {
   return results;
 }
 
+// Greenhouse + Lever — free public board APIs, no keys required.
+// Curated list of companies with analytics teams in Corinne's target metros.
+// Unknown/renamed board tokens 404 silently and are skipped.
+const GREENHOUSE_BOARDS = [
+  // LA / SoCal
+  'snapchat', 'spacex', 'riotgames', 'hulu', 'liveramp', 'zwift', 'gooddata',
+  'servicetitan', 'gohealth', 'honey', 'tala', 'scopely', 'crexi', 'fairapp',
+  // Dallas / Austin / TX
+  'atlassian', 'cloudflare', 'duosecurity', 'selffinancial', 'outdoorsy',
+  // Seattle / Denver / SLC / Vegas
+  'remitly', 'outreach', 'qualtrics', 'guildeducation', 'ibotta', 'checkr',
+  // Big remote-friendly analytics employers
+  'stripe', 'airbnb', 'coinbase', 'doordashusa', 'instacart', 'robinhood',
+  'gusto', 'brex', 'affirm', 'flexport', 'scaleai', 'samsara', 'attentive',
+];
+const LEVER_BOARDS = [
+  'plaid', 'palantir', 'mixpanel', 'postman', 'kraken',
+  'welocalize', 'veho', 'voleon', 'zoox', 'octoenergy',
+];
+const ANALYST_TITLE_RE = /(data analyst|business analyst|business intelligence|bi analyst|analytics analyst|product analyst|operations analyst|reporting analyst|insights analyst|research analyst|revenue analyst|strategy analyst|growth analyst|marketing analyst|decision science)/i;
+
+async function fetchGreenhouse(): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+  await Promise.all(GREENHOUSE_BOARDS.map(async board => {
+    try {
+      const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${board}/jobs?content=true`, {
+        headers: { 'User-Agent': 'contact@example.com' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const job of data?.jobs ?? []) {
+        if (!ANALYST_TITLE_RE.test(job.title || '')) continue;
+        const location = job.location?.name || '';
+        const description = stripHtml(job.content || '');
+        const date_posted = job.updated_at ? String(job.updated_at).split('T')[0] : '';
+        results.push({
+          externalId: `greenhouse-${board}-${job.id}`,
+          company: data?.name || board,
+          role: job.title || '', url: job.absolute_url || '',
+          location, description, salary: '', date_posted,
+          work_type: detectWorkType(location, description),
+        });
+      }
+    } catch {}
+  }));
+  return results;
+}
+
+async function fetchLever(): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+  await Promise.all(LEVER_BOARDS.map(async board => {
+    try {
+      const res = await fetch(`https://api.lever.co/v0/postings/${board}?mode=json`, {
+        headers: { 'User-Agent': 'contact@example.com' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const job of Array.isArray(data) ? data : []) {
+        if (!ANALYST_TITLE_RE.test(job.text || '')) continue;
+        const location = job.categories?.location || '';
+        const description = stripHtml(`${job.descriptionPlain || job.description || ''} ${(job.lists || []).map((l: { text: string; content: string }) => `${l.text} ${stripHtml(l.content || '')}`).join(' ')}`);
+        const date_posted = job.createdAt ? new Date(job.createdAt).toISOString().split('T')[0] : '';
+        results.push({
+          externalId: `lever-${board}-${job.id}`,
+          company: board.charAt(0).toUpperCase() + board.slice(1),
+          role: job.text || '', url: job.hostedUrl || '',
+          location, description, salary: '', date_posted,
+          work_type: /remote/i.test(job.workplaceType || '') ? 'Remote' : detectWorkType(location, description),
+        });
+      }
+    } catch {}
+  }));
+  return results;
+}
+
 // Remotive — free public API, curated remote jobs
 async function fetchRemotive(): Promise<JobResult[]> {
   const results: JobResult[] = [];
@@ -527,6 +602,8 @@ export async function POST() {
     if (isEnabled('the_muse', true)) jobs.push({ source: 'the_muse', run: () => fetchTheMuse() });
     if (isEnabled('remoteok', true)) jobs.push({ source: 'remoteok', run: () => fetchRemoteOK() });
     if (isEnabled('remotive', true)) jobs.push({ source: 'remotive', run: () => fetchRemotive() });
+    if (isEnabled('greenhouse', true)) jobs.push({ source: 'greenhouse', run: () => fetchGreenhouse() });
+    if (isEnabled('lever', true)) jobs.push({ source: 'lever', run: () => fetchLever() });
 
     const sourceKeys = jobs.map(j => j.source);
     const settled = await Promise.all(jobs.map(j => j.run().catch(() => [] as JobResult[])));
