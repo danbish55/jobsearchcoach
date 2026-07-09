@@ -132,7 +132,7 @@ const JobLeads = (() => {
             >
           </label>
           <div class="job-leads-count">${_filteredLeads().length} of ${_leads.length} leads</div>
-          <button class="btn btn-sm job-lead-delete-btn" onclick="JobLeads.removeAllRejected()" title="Permanently remove every rejected lead">Remove All Deleted</button>
+          <button class="btn btn-sm job-lead-delete-btn" onclick="JobLeads.removeAllRejected()" title="Permanently remove every rejected lead">Remove All Rejected</button>
         </div>
 
         <div class="job-leads-list" role="table" aria-label="Job leads">
