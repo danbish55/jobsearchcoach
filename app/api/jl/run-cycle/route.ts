@@ -25,7 +25,14 @@ const KEYWORDS = ['data analyst', 'business analyst', 'business intelligence ana
 
 // Titles that require OTJ experience Corinne doesn't have yet — reject outright.
 // Also catches numeric level suffixes: "Analyst 2", "Analyst 5", "BI Analyst 3", etc.
-const SENIOR_TITLE_RE = /\b(senior|lead|sr\.?|principal|staff|manager|director|head of|vp|vice president|ii|iii|iv)\b|\b(analyst|engineer|developer|specialist|consultant)\s+[2-9]\d*\b/i;
+const SENIOR_TITLE_RE = /\b(senior|lead|sr\.?|principal|staff|manager|director|head of|vp|vice president|experienced|ii|iii|iv)\b|\b(analyst|engineer|developer|specialist|consultant)\s+[2-9]\d*\b/i;
+
+// The role must actually be an analytics/business-analysis role. Anything that doesn't
+// match this (nurses, social workers, mechanical engineers, pharmacists...) is rejected
+// before any other check runs.
+const ROLE_FIT_RE = /\b(analyst|analytics|business intelligence|\bbi\b|data|insights?|reporting|research|operations specialist|data coordinator|product owner|consultant)\b/i;
+// ...but data/consultant alone can still smuggle in engineering roles; reject these outright.
+const ROLE_MISFIT_RE = /\b(nurse|\brn\b|social worker|lmsw|pharmacist|physician|mechanical engineer|electrical engineer|civil engineer|forward deployed|architect|registrar|rail coordinator|care coordinator|welder|technician|driver|therapist|counselor)\b/i;
 
 // Max years of experience required — entry-level only.
 const MAX_EXPERIENCE_YEARS = 1;
@@ -87,71 +94,92 @@ function stripHtml(html: string): string {
   return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Use Claude Haiku to evaluate a batch of jobs against entry-level criteria.
-// For truncated descriptions (Adzuna), uses web_search to read the full page.
-// Returns a Set of externalIds that should be REJECTED.
-async function evaluateJobsViaClaude(
-  jobs: { externalId: string; url: string; role: string; company: string; description: string; location: string; work_type: string }[],
-  apiKey: string
-): Promise<Set<string>> {
-  if (!jobs.length || !apiKey) return new Set();
+type EvalJob = { externalId: string; url: string; role: string; company: string; description: string; location: string; work_type: string };
 
+const SCREEN_PROMPT_HEADER = `You are screening job listings for Corinne, a recent USC Marshall MSBA graduate with NO prior professional work experience. She is looking for ENTRY-LEVEL data/business analyst roles. The goal is FEWER, MORE ACCURATE matches — when in doubt, REJECT.
+
+REJECT a job if ANY of the following are true:
+- Requires 2 or more years of professional work experience (e.g. "2+ years", "2-3 years", "minimum 2 years", "several years", "proven experience")
+- REMOTE jobs have a STRICTER bar: reject if they require ANY experience beyond 0-1 years or use phrases like "proven experience" or "seasoned"
+- Title or description indicates a senior, lead, principal, staff, manager, director, experienced, or VP-level role
+- The role is not actually an analytics/business-analysis role (reject nurses, engineers, pharmacists, coordinators of physical operations, etc.)
+- Requires security clearance (top secret, TS/SCI, secret clearance, DOD clearance) — check the TITLE too
+- Requires carrying a firearm or armed position
+- Is on-site or hybrid AND located outside these regions: Los Angeles/SoCal, Orange County, San Diego, Dallas/DFW, Austin TX, Seattle WA, Denver CO, Salt Lake City UT, Las Vegas NV, Portland OR
+- For truncated descriptions: visit the URL and read the FULL posting before deciding. If you cannot read the posting, REJECT it — never accept a job you could not verify.
+
+ACCEPT a job ONLY if:
+- It is genuinely entry-level (0-1 year experience, or no experience stated) — for remote, 0-1 years strictly
+- Title is an analytics role: data analyst, business analyst, BI analyst, operations analyst, reporting analyst, data coordinator, product analyst, insights analyst, or close variant
+- Location passes the rule above (remote passes automatically)
+
+Evaluate each job below. Return ONLY a JSON array — no other text:
+[{"id": "<externalId>", "reject": true/false, "reason": "<brief reason if rejected>"}]`;
+
+// Evaluate one chunk of jobs (≤15) in a single Claude call.
+async function evaluateChunk(jobs: EvalJob[], apiKey: string): Promise<Set<string>> {
   const TRUNCATED = 600;
-  const truncatedIds = new Set(jobs.filter(j => j.description.length < TRUNCATED).map(j => j.externalId));
+  const truncatedCount = jobs.filter(j => j.description.length < TRUNCATED).length;
 
-  // Build job list for Claude — include full description when available, URL when truncated
   const list = jobs.map((j, i) => {
     const descPart = j.description.length >= TRUNCATED
-      ? `DESCRIPTION:\n${j.description.slice(0, 3000)}`
+      ? `DESCRIPTION:\n${j.description.slice(0, 2500)}`
       : `DESCRIPTION TRUNCATED — visit URL to read full posting: ${j.url}`;
     return `--- JOB ${i + 1} | ID=${j.externalId} ---\nTITLE: ${j.role}\nCOMPANY: ${j.company}\nLOCATION: ${j.location} (${j.work_type})\n${descPart}`;
   }).join('\n\n');
 
-  const prompt = `You are screening job listings for Corinne, a recent USC Marshall MSBA graduate with NO prior professional work experience. She is looking for ENTRY-LEVEL data/business analyst roles.
-
-REJECT a job if ANY of the following are true:
-- Requires 2 or more years of professional work experience (e.g. "2+ years", "2-3 years", "minimum 2 years", "3+ years BA experience")
-- Title or description indicates a senior, lead, principal, staff, manager, director, or VP-level role
-- Requires security clearance (top secret, TS/SCI, secret clearance, DOD clearance)
-- Requires carrying a firearm or armed position
-- Is on-site or hybrid AND located outside these regions: Los Angeles/SoCal, Dallas/DFW, Austin TX, Seattle WA, Denver CO, Salt Lake City UT, Las Vegas NV, San Diego CA, Orange County CA, Portland OR
-- For truncated descriptions: visit the URL and read the FULL posting before deciding
-
-ACCEPT a job if:
-- It is entry-level (0-1 year experience, or no experience stated)
-- Title matches: data analyst, business analyst, BI analyst, operations analyst, reporting analyst, data coordinator, product analyst, or similar entry-level analytics role
-- Remote jobs are accepted regardless of location
-
-Evaluate each job below. Return ONLY a JSON array — no other text:
-[{"id": "<externalId>", "reject": true/false, "reason": "<brief reason if rejected>"}]
-
-${list}`;
-
   try {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey });
-    const useWebSearch = truncatedIds.size > 0;
-    const tools = useWebSearch
-      ? [{ type: 'web_search_20250305' as const, name: 'web_search' as const, max_uses: truncatedIds.size * 2 }]
+    const tools = truncatedCount > 0
+      ? [{ type: 'web_search_20250305' as const, name: 'web_search' as const, max_uses: Math.min(truncatedCount * 2, 20) }]
       : [];
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1200,
+      max_tokens: 250 + jobs.length * 60, // scale output budget with batch size
       ...(tools.length ? { tools } : {}),
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: `${SCREEN_PROMPT_HEADER}\n\n${list}` }],
     });
     const text = msg.content
       .filter((b: { type: string }) => b.type === 'text')
       .map((b: { type: string; text?: string }) => (b as { type: string; text: string }).text)
       .join('');
     const match = text.match(/\[[\s\S]*\]/);
-    if (!match) return new Set();
+    if (!match) {
+      // Unparseable response = unverified batch. Reject truncated jobs (couldn't be
+      // verified), keep full-description jobs (regex gates already vetted them).
+      return new Set(jobs.filter(j => j.description.length < TRUNCATED).map(j => j.externalId));
+    }
     const parsed: { id: string; reject: boolean }[] = JSON.parse(match[0]);
-    return new Set(parsed.filter(r => r.reject).map(r => r.id));
+    const rejected = new Set(parsed.filter(r => r.reject).map(r => r.id));
+    // Any job Claude didn't return a verdict for and that is truncated → reject (unverified).
+    const answered = new Set(parsed.map(r => r.id));
+    for (const j of jobs) {
+      if (!answered.has(j.externalId) && j.description.length < TRUNCATED) rejected.add(j.externalId);
+    }
+    return rejected;
   } catch {
-    // On error, reject nothing — let regex pre-filters stand
-    return new Set();
+    // API failure = nothing verified. Reject truncated jobs; keep regex-vetted long ones.
+    return new Set(jobs.filter(j => j.description.length < TRUNCATED).map(j => j.externalId));
   }
+}
+
+// Use Claude Haiku to evaluate jobs against entry-level criteria, in chunks of 15
+// so responses always fit the output budget and one bad batch can't poison the rest.
+// Returns a Set of externalIds that should be REJECTED.
+async function evaluateJobsViaClaude(jobs: EvalJob[], apiKey: string): Promise<Set<string>> {
+  if (!jobs.length) return new Set();
+  if (!apiKey) {
+    // No API key = nothing can be verified. Reject all truncated-description jobs.
+    return new Set(jobs.filter(j => j.description.length < 600).map(j => j.externalId));
+  }
+  const CHUNK = 15;
+  const chunks: EvalJob[][] = [];
+  for (let i = 0; i < jobs.length; i += CHUNK) chunks.push(jobs.slice(i, i + CHUNK));
+  const results = await Promise.all(chunks.map(c => evaluateChunk(c, apiKey)));
+  const rejected = new Set<string>();
+  results.forEach(set => set.forEach(id => rejected.add(id)));
+  return rejected;
 }
 
 function daysSince(dateStr: string): number {
@@ -512,19 +540,32 @@ export async function POST() {
       return true;
     });
 
-    // Pre-filter: fast regex pass to eliminate obvious hard rejects before calling Claude.
-    // Catches clear senior titles, known clearance/firearm keywords, and explicit high-experience
-    // strings in long descriptions. Reduces the Claude batch size significantly.
-    const preFiltered = deduped.filter(job => {
+    // Deterministic hard gates — every job must pass these regardless of what Claude says.
+    // Claude is the second line of defense, not the only line.
+    const passesHardGates = (job: { role: string; description: string; location: string; work_type: string }): boolean => {
+      // Role must be an analytics role and not an obvious misfit (nurse, engineer, etc.)
+      if (!ROLE_FIT_RE.test(job.role)) return false;
+      if (ROLE_MISFIT_RE.test(job.role)) return false;
+      // Senior/experienced titles
       if (SENIOR_TITLE_RE.test(job.role)) return false;
-      if (CLEARANCE_RE.test(job.description) || FIREARM_RE.test(job.description)) return false;
-      // Only run experience regex on longer descriptions (truncated ones go to Claude)
+      // Clearance/firearm — check TITLE and description
+      if (CLEARANCE_RE.test(job.role) || CLEARANCE_RE.test(job.description)) return false;
+      if (FIREARM_RE.test(job.role) || FIREARM_RE.test(job.description)) return false;
+      // Geography: on-site/hybrid/unspecified must be in a preferred location.
+      // scoreJob gives +15 for preferred locations, -60 for wrong geography.
+      if (job.work_type !== 'Remote') {
+        const { score } = scoreJob(job.role, job.description, job.location);
+        if (score < 30) return false;
+      }
+      // Experience regex on longer descriptions (truncated ones are verified by Claude)
       if (job.description.length >= 600) {
         if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) return false;
         if (EXPERIENCE_KEYWORD_RE.test(job.description)) return false;
       }
       return true;
-    });
+    };
+
+    const preFiltered = deduped.filter(passesHardGates);
 
     // Claude evaluation: reads every job (full text or via web_search for truncated ones)
     // and makes the final call on experience level, location, and role fit.
@@ -553,34 +594,48 @@ export async function POST() {
       } catch {}
     }
 
-    // Re-evaluate existing pending_review records with Claude — same criteria as new inserts.
-    // approved/rejected records are never touched.
+    // Re-evaluate existing pending_review records — hard gates first (deterministic,
+    // catches wrong geo / wrong role / senior / clearance instantly), then Claude for
+    // whatever survives. approved/rejected records are never touched.
     const existing = await sql`SELECT id, external_id, role, company, url, description, location, work_type FROM job_leads WHERE approval_state = 'pending_review'`;
-    const existingForEval = existing.map((row: Record<string, unknown>) => ({
-      externalId: String(row.external_id || row.id),
-      url: String(row.url || ''),
-      role: String(row.role),
-      company: String(row.company || ''),
-      description: String(row.description),
-      location: String(row.location),
-      work_type: String(row.work_type),
-    }));
-    const rejectedExisting = await evaluateJobsViaClaude(existingForEval, anthropicKey);
     let pruned = 0;
+    const survivors: typeof existing = [];
     for (const row of existing) {
+      const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
+      const normalized = normalizeLocation({
+        externalId: '', company: '', role: String(row.role), url: '',
+        location: String(row.location), description: String(row.description),
+        salary: '', date_posted: '', work_type: wt0,
+      });
+      if (!passesHardGates({ role: String(row.role), description: normalized.description, location: normalized.location, work_type: normalized.work_type })) {
+        await sql`DELETE FROM job_leads WHERE id=${row.id}`;
+        pruned++;
+      } else {
+        survivors.push({ ...row, work_type: normalized.work_type, location: normalized.location });
+      }
+    }
+
+    // Claude pass on hard-gate survivors
+    const rejectedExisting = await evaluateJobsViaClaude(
+      survivors.map((row: Record<string, unknown>) => ({
+        externalId: String(row.external_id || row.id),
+        url: String(row.url || ''),
+        role: String(row.role),
+        company: String(row.company || ''),
+        description: String(row.description),
+        location: String(row.location),
+        work_type: String(row.work_type),
+      })),
+      anthropicKey
+    );
+    for (const row of survivors) {
       const exId = String(row.external_id || row.id);
       if (rejectedExisting.has(exId)) {
         await sql`DELETE FROM job_leads WHERE id=${row.id}`;
         pruned++;
       } else {
-        const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
-        const normalized = normalizeLocation({
-          externalId: '', company: '', role: String(row.role), url: '',
-          location: String(row.location), description: String(row.description),
-          salary: '', date_posted: '', work_type: wt0,
-        });
-        const { score, tier } = scoreJob(String(row.role), normalized.description, normalized.location);
-        await sql`UPDATE job_leads SET score=${score}, tier=${tier}, work_type=${normalized.work_type}, location=${normalized.location} WHERE id=${row.id}`;
+        const { score, tier } = scoreJob(String(row.role), String(row.description), String(row.location));
+        await sql`UPDATE job_leads SET score=${score}, tier=${tier}, work_type=${String(row.work_type)}, location=${String(row.location)} WHERE id=${row.id}`;
       }
     }
 
