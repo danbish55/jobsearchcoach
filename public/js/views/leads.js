@@ -132,6 +132,7 @@ const JobLeads = (() => {
             >
           </label>
           <div class="job-leads-count">${_filteredLeads().length} of ${_leads.length} leads</div>
+          <button class="btn btn-sm job-lead-delete-btn" onclick="JobLeads.removeAllRejected()" title="Permanently remove every rejected lead">Remove All Deleted</button>
         </div>
 
         <div class="job-leads-list" role="table" aria-label="Job leads">
@@ -443,6 +444,23 @@ const JobLeads = (() => {
       _renderBodyOnly();
       _updateCount();
     }
+  }
+
+  async function removeAllRejected() {
+    const rejectedCount = _leads.filter(item => _leadState(item) === 'rejected').length;
+    if (!rejectedCount) {
+      UI.notify('No rejected leads to remove.', 'info');
+      return;
+    }
+    if (!confirm(`Permanently remove all ${rejectedCount} rejected lead${rejectedCount === 1 ? '' : 's'}? This cannot be undone.`)) return;
+    try {
+      const result = await _fetchJSON('/api/jl/delete-rejected', { method: 'POST' });
+      _leads = _leads.filter(item => _leadState(item) !== 'rejected');
+      UI.notify(`Removed ${result.removed ?? rejectedCount} rejected leads.`, 'success');
+    } catch (err) {
+      UI.notify(err.message || 'Could not remove rejected leads.', 'error');
+    }
+    render();
   }
 
   function _bodyHTML() {
@@ -1644,6 +1662,7 @@ Description: ${lead.description || ''}`;
     approveLead,
     rejectLead,
     deleteLead,
+    removeAllRejected,
     __testRecordJscApplication: _recordJscApplication,
   };
 })();
