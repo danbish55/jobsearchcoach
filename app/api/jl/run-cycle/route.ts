@@ -34,6 +34,17 @@ const ROLE_FIT_RE = /\b(analyst|analytics|business intelligence|\bbi\b|data|insi
 // ...but data/consultant alone can still smuggle in engineering roles; reject these outright.
 const ROLE_MISFIT_RE = /\b(nurse|\brn\b|social worker|lmsw|pharmacist|physician|mechanical engineer|electrical engineer|civil engineer|forward deployed|architect|registrar|rail coordinator|care coordinator|welder|technician|driver|therapist|counselor)\b/i;
 
+// Language requirements in the title ("French Language", "Spanish speakers", "Bilingual") —
+// Corinne is English-only.
+const LANGUAGE_TITLE_RE = /\b(french|spanish|german|japanese|mandarin|korean|portuguese|italian|arabic|bilingual)\b/i;
+
+// Federal jobs: "1 year of specialized experience at the GS-12 level" is a senior requirement
+// dressed as entry-level. Entry-level federal grades are GS-5/7/9; reject GS-11 and above.
+const HIGH_GS_GRADE_RE = /\bGS-?(1[1-5])\b/i;
+
+// Non-US postings (remote listings from Canadian/international boards).
+const NON_US_LOCATION_RE = /\b(canada|united kingdom|\buk\b|australia|india|philippines|mexico|brazil|germany|france|ireland|singapore)\b/i;
+
 // Max years of experience required — entry-level only.
 const MAX_EXPERIENCE_YEARS = 1;
 
@@ -548,6 +559,12 @@ export async function POST() {
       if (ROLE_MISFIT_RE.test(job.role)) return false;
       // Senior/experienced titles
       if (SENIOR_TITLE_RE.test(job.role)) return false;
+      // Language requirements in the title
+      if (LANGUAGE_TITLE_RE.test(job.role)) return false;
+      // Federal GS-11+ grades — senior requirements dressed as "1 year of experience"
+      if (HIGH_GS_GRADE_RE.test(job.role) || HIGH_GS_GRADE_RE.test(job.description)) return false;
+      // Non-US postings
+      if (NON_US_LOCATION_RE.test(job.location)) return false;
       // Clearance/firearm — check TITLE and description
       if (CLEARANCE_RE.test(job.role) || CLEARANCE_RE.test(job.description)) return false;
       if (FIREARM_RE.test(job.role) || FIREARM_RE.test(job.description)) return false;
