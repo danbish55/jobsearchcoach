@@ -351,6 +351,9 @@ function normalizeLocation(job: JobResult): JobResult {
 
 // ---------- source fetchers ----------
 
+// Collected per-source fetch errors for the current cycle — surfaced in the response.
+const fetchErrors: Record<string, string> = {};
+
 async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
   const results: JobResult[] = [];
   for (const kw of KEYWORDS) {
@@ -359,7 +362,7 @@ async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
       const res = await fetch(`https://data.usajobs.gov/api/search?Keyword=${encodeURIComponent(kw)}&ResultsPerPage=25&SortField=DatePosted&SortDirection=Desc`, {
         headers: { 'Authorization-Key': apiKey, 'User-Agent': 'contact@example.com', 'Host': 'data.usajobs.gov' },
       });
-      if (!res.ok) continue;
+      if (!res.ok) { fetchErrors['usajobs'] = `HTTP ${res.status} for "${kw}"`; continue; }
       const data = await res.json();
       for (const item of data?.SearchResult?.SearchResultItems ?? []) {
         const pos = item.MatchedObjectDescriptor;
@@ -394,7 +397,7 @@ async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
         if (remoteIndicator === 'Yes') work_type = 'Remote';
         results.push({ externalId: `usajobs-${pos.PositionID}`, company: pos.OrganizationName || 'Federal Agency', role: pos.PositionTitle || '', url: pos.PositionURI || '', location: locationName, description, salary, date_posted, work_type });
       }
-    } catch {}
+    } catch (e) { fetchErrors['usajobs'] = String(e); }
   }
   return results;
 }
@@ -738,7 +741,7 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({ success: true, fetched: deduped.length, inserted, pruned, rescored: existing.length - pruned, sources_used: sourceKeys, funnel });
+    return NextResponse.json({ success: true, fetched: deduped.length, inserted, pruned, rescored: existing.length - pruned, sources_used: sourceKeys, funnel, fetch_errors: fetchErrors });
   } catch (err) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
