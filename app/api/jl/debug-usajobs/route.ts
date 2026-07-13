@@ -4,25 +4,19 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const key = process.env.USA_JOBS_API_KEY || '';
-  const out: Record<string, unknown> = { keyLen: key.length };
-  try {
-    const res = await fetch('https://data.usajobs.gov/api/search?Keyword=data%20analyst&ResultsPerPage=3', {
-      headers: { 'Authorization-Key': key, 'User-Agent': 'contact@example.com', 'Host': 'data.usajobs.gov' },
-    });
-    out.status = res.status;
-    const t = await res.text();
-    try { out.items = (JSON.parse(t)?.SearchResult?.SearchResultItems || []).length; }
-    catch { out.body = t.slice(0, 200); }
-  } catch (e) { out.fetchError = String(e); }
-  // retry without Host header
-  try {
-    const res2 = await fetch('https://data.usajobs.gov/api/search?Keyword=data%20analyst&ResultsPerPage=3', {
-      headers: { 'Authorization-Key': key, 'User-Agent': 'contact@example.com' },
-    });
-    out.statusNoHost = res2.status;
-    const t2 = await res2.text();
-    try { out.itemsNoHost = (JSON.parse(t2)?.SearchResult?.SearchResultItems || []).length; }
-    catch { out.bodyNoHost = t2.slice(0, 200); }
-  } catch (e) { out.fetchErrorNoHost = String(e); }
+  const out: Record<string, unknown>[] = [];
+  for (const kw of ['data analyst', 'business analyst', 'business intelligence analyst']) {
+    const url = `https://data.usajobs.gov/api/search?Keyword=${encodeURIComponent(kw)}&ResultsPerPage=25&SortField=DatePosted&SortDirection=Desc`;
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization-Key': key, 'User-Agent': 'contact@example.com', 'Host': 'data.usajobs.gov' },
+      });
+      const t = await res.text();
+      let items: number | string;
+      try { items = (JSON.parse(t)?.SearchResult?.SearchResultItems || []).length; }
+      catch { items = 'parse-fail: ' + t.slice(0, 120); }
+      out.push({ kw, status: res.status, items });
+    } catch (e) { out.push({ kw, fetchError: String(e) }); }
+  }
   return NextResponse.json(out);
 }
