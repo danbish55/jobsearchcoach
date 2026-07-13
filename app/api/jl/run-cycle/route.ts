@@ -354,6 +354,12 @@ function normalizeLocation(job: JobResult): JobResult {
 // Collected per-source fetch errors for the current cycle — surfaced in the response.
 const fetchErrors: Record<string, string> = {};
 
+// USAJOBS returns some detail fields as string OR array depending on the posting.
+function joinField(v: unknown): string {
+  if (Array.isArray(v)) return v.join(' ');
+  return typeof v === 'string' ? v : '';
+}
+
 async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
   const results: JobResult[] = [];
   for (const kw of KEYWORDS) {
@@ -377,10 +383,10 @@ async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
         const details = pos.UserArea?.Details || {};
         const description = [
           pos.QualificationSummary,
-          (details.MajorDuties   || []).join(' '),
-          (details.Conditions    || []).join(' '),
-          (details.Requirements  || []).join(' '),
-          (details.Evaluations   || []).join(' '),
+          joinField(details.MajorDuties),
+          joinField(details.Conditions),
+          joinField(details.Requirements),
+          joinField(details.Evaluations),
           pos.JobSummary,
           details.ServiceType,
         ].filter(Boolean).join(' ');
