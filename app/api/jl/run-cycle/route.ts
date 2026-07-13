@@ -608,8 +608,11 @@ export async function POST() {
     const sourceKeys = jobs.map(j => j.source);
     const settled = await Promise.all(jobs.map(j => j.run().catch(() => [] as JobResult[])));
     const allJobs: (JobResult & { source: string })[] = [];
+    // Per-source funnel diagnostics: fetched → survived hard gates → survived Claude
+    const funnel: Record<string, { fetched: number; gated: number; claude_ok: number }> = {};
     settled.forEach((list, i) => {
       const source = jobs[i].source;
+      funnel[source] = { fetched: list.length, gated: 0, claude_ok: 0 };
       for (const j of list) {
         // freshness guard — drop anything older than MAX_AGE_DAYS when we have a date
         if (j.date_posted && daysSince(j.date_posted) > MAX_AGE_DAYS) continue;
@@ -660,6 +663,7 @@ export async function POST() {
     };
 
     const preFiltered = deduped.filter(passesHardGates);
+    preFiltered.forEach(j => { if (funnel[j.source]) funnel[j.source].gated++; });
 
     // Claude evaluation: reads every job (full text or via web_search for truncated ones)
     // and makes the final call on experience level, location, and role fit.
@@ -676,6 +680,7 @@ export async function POST() {
     let inserted = 0;
     for (const job of preFiltered) {
       if (rejected.has(job.externalId)) continue;
+      if (funnel[job.source]) funnel[job.source].claude_ok++;
       const { score, tier } = scoreJob(job.role, job.description, job.location);
       try {
         await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier, salary, date_posted, work_type)
@@ -733,7 +738,7 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({ success: true, fetched: deduped.length, inserted, pruned, rescored: existing.length - pruned, sources_used: sourceKeys });
+    return NextResponse.json({ success: true, fetched: deduped.length, inserted, pruned, rescored: existing.length - pruned, sources_used: sourceKeys, funnel });
   } catch (err) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
