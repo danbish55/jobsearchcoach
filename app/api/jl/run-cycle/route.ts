@@ -102,12 +102,19 @@ function minExperienceYears(description: string): number {
 const EXPERIENCE_KEYWORD_RE = /\b([2-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[2-9]\d*\s*years?|at\s+least\s+[2-9]\d*\s*years?|[2-9]\d*\s*or\s+more\s+years?|must\s+have\s+[2-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[2-9]\d*|requires?\s+[2-9]\d*\s*\+?\s*years?|[2-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
 
 function stripHtml(html: string): string {
-  return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+  // Decode common HTML entities first (Greenhouse returns entity-escaped HTML,
+  // so tags arrive as &lt;p&gt; and must be decoded before tag stripping).
+  const decoded = String(html || '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+  return decoded.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
 type EvalJob = { externalId: string; url: string; role: string; company: string; description: string; location: string; work_type: string };
 
 const SCREEN_PROMPT_HEADER = `You are screening job listings for Corinne, a recent USC Marshall MSBA graduate with NO prior professional work experience. She is looking for ENTRY-LEVEL data/business analyst roles. The goal is FEWER, MORE ACCURATE matches — when in doubt, REJECT.
+
+NOTE on federal (USAJOBS) roles: Corinne's master's degree satisfies education-based qualification paths. ACCEPT a federal GS-7 or GS-9 role if it can be qualified via a master's degree / 2 years of graduate education INSTEAD of specialized experience. REJECT it only if prior federal service or specialized work experience is strictly required with no education alternative, or the grade is GS-11+.
 
 REJECT a job if ANY of the following are true:
 - Requires 2 or more years of professional work experience (e.g. "2+ years", "2-3 years", "minimum 2 years", "several years", "proven experience")
