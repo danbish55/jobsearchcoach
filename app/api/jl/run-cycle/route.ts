@@ -161,12 +161,16 @@ async function evaluateChunk(jobs: EvalJob[], apiKey: string): Promise<Set<strin
       // verified), keep full-description jobs (regex gates already vetted them).
       return new Set(jobs.filter(j => j.description.length < TRUNCATED).map(j => j.externalId));
     }
-    const parsed: { id: string; reject: boolean }[] = JSON.parse(match[0]);
+    const parsed: { id: string; reject: boolean; reason?: string }[] = JSON.parse(match[0]);
     const rejected = new Set(parsed.filter(r => r.reject).map(r => r.id));
+    for (const r of parsed) if (r.reject) claudeRejects[r.id] = r.reason || 'no reason given';
     // Any job Claude didn't return a verdict for and that is truncated → reject (unverified).
     const answered = new Set(parsed.map(r => r.id));
     for (const j of jobs) {
-      if (!answered.has(j.externalId) && j.description.length < TRUNCATED) rejected.add(j.externalId);
+      if (!answered.has(j.externalId) && j.description.length < TRUNCATED) {
+        rejected.add(j.externalId);
+        claudeRejects[j.externalId] = 'no verdict returned; truncated = unverified';
+      }
     }
     return rejected;
   } catch {
@@ -353,6 +357,8 @@ function normalizeLocation(job: JobResult): JobResult {
 
 // Collected per-source fetch errors for the current cycle — surfaced in the response.
 const fetchErrors: Record<string, string> = {};
+// Claude's reject reasons for this cycle — surfaced in the response for diagnostics.
+const claudeRejects: Record<string, string> = {};
 
 // USAJOBS returns some detail fields as string OR array depending on the posting.
 function joinField(v: unknown): string {
@@ -576,6 +582,9 @@ async function fetchRemotive(): Promise<JobResult[]> {
 
 export async function POST() {
   try {
+    // Reset per-cycle diagnostics (module state survives warm serverless invocations)
+    for (const k of Object.keys(fetchErrors)) delete fetchErrors[k];
+    for (const k of Object.keys(claudeRejects)) delete claudeRejects[k];
     const sql = db();
 
     await sql`CREATE TABLE IF NOT EXISTS job_sources (key TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT false, api_key TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ DEFAULT NOW())`;
@@ -747,7 +756,7 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({ success: true, fetched: deduped.length, inserted, pruned, rescored: existing.length - pruned, sources_used: sourceKeys, funnel, fetch_errors: fetchErrors });
+    return NextResponse.json({ success: true, fetched: deduped.length, inserted, pruned, rescored: existing.length - pruned, sources_used: sourceKeys, funnel, fetch_errors: fetchErrors, claude_rejects: claudeRejects });
   } catch (err) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
