@@ -703,9 +703,11 @@ export async function POST() {
     );
 
     let inserted = 0;
+    const insertedThisCycle = new Set<string>();
     for (const job of preFiltered) {
       if (rejected.has(job.externalId)) continue;
       if (funnel[job.source]) funnel[job.source].claude_ok++;
+      insertedThisCycle.add(job.externalId);
       const { score, tier } = scoreJob(job.role, job.description, job.location);
       try {
         await sql`INSERT INTO job_leads (source, external_id, company, role, url, location, description, score, tier, salary, date_posted, work_type)
@@ -725,6 +727,8 @@ export async function POST() {
     let pruned = 0;
     const survivors: typeof existing = [];
     for (const row of existing) {
+      // Jobs accepted in THIS cycle already passed both gates and Claude — don't re-judge them.
+      if (insertedThisCycle.has(String(row.external_id))) continue;
       const wt0 = String(row.work_type) || detectWorkType(String(row.location), String(row.description));
       const normalized = normalizeLocation({
         externalId: '', company: '', role: String(row.role), url: '',
