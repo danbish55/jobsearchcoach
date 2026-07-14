@@ -565,6 +565,107 @@ async function fetchLever(): Promise<JobResult[]> {
   return results;
 }
 
+// Ashby — free public job-board API, no auth. Popular with newer tech companies.
+const ASHBY_BOARDS = [
+  'notion', 'ramp', 'linear', 'deel', 'openai', 'replit', 'vanta',
+  'mercury', 'zip', 'whatnot', 'clipboardhealth', 'astranis', 'kikoff',
+];
+async function fetchAshby(): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+  await Promise.all(ASHBY_BOARDS.map(async board => {
+    try {
+      const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${board}?includeCompensation=true`, {
+        headers: { 'User-Agent': 'contact@example.com' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const job of data?.jobs ?? []) {
+        if (!ANALYST_TITLE_RE.test(job.title || '')) continue;
+        const location = job.location || '';
+        const description = stripHtml(job.descriptionHtml || job.descriptionPlain || '');
+        const comp = job.compensation?.compensationTierSummary || '';
+        results.push({
+          externalId: `ashby-${board}-${job.id}`,
+          company: board.charAt(0).toUpperCase() + board.slice(1),
+          role: job.title || '', url: job.jobUrl || job.applyUrl || '',
+          location, description, salary: comp,
+          date_posted: job.publishedAt ? String(job.publishedAt).split('T')[0] : '',
+          work_type: job.isRemote ? 'Remote' : detectWorkType(location, description),
+        });
+      }
+    } catch {}
+  }));
+  return results;
+}
+
+// Workable — free public widget API, no auth.
+const WORKABLE_BOARDS = ['tala', 'procoretechnologies', 'liveramp'];
+async function fetchWorkable(): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+  await Promise.all(WORKABLE_BOARDS.map(async board => {
+    try {
+      const res = await fetch(`https://apply.workable.com/api/v1/widget/accounts/${board}?details=true`, {
+        headers: { 'User-Agent': 'contact@example.com' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const job of data?.jobs ?? []) {
+        if (!ANALYST_TITLE_RE.test(job.title || '')) continue;
+        const location = [job.city, job.state, job.country].filter(Boolean).join(', ');
+        const description = stripHtml(job.description || '');
+        results.push({
+          externalId: `workable-${board}-${job.shortcode || job.id}`,
+          company: data?.name || board,
+          role: job.title || '', url: job.url || job.application_url || '',
+          location, description, salary: '',
+          date_posted: job.published_on || '',
+          work_type: /remote/i.test(job.telecommuting ? 'remote' : location) ? 'Remote' : detectWorkType(location, description),
+        });
+      }
+    } catch {}
+  }));
+  return results;
+}
+
+// SmartRecruiters — free public postings API, no auth.
+const SMARTRECRUITERS_BOARDS = ['ServiceNow', 'VISA', 'Experian', 'WesternDigital', 'Blizzard'];
+async function fetchSmartRecruiters(): Promise<JobResult[]> {
+  const results: JobResult[] = [];
+  await Promise.all(SMARTRECRUITERS_BOARDS.map(async board => {
+    try {
+      const res = await fetch(`https://api.smartrecruiters.com/v1/companies/${board}/postings?limit=100`, {
+        headers: { 'User-Agent': 'contact@example.com' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const job of data?.content ?? []) {
+        if (!ANALYST_TITLE_RE.test(job.name || '')) continue;
+        const location = [job.location?.city, job.location?.region, job.location?.country].filter(Boolean).join(', ');
+        // Postings list has no description; fetch detail only for title-matched jobs
+        let description = '';
+        try {
+          const dRes = await fetch(`https://api.smartrecruiters.com/v1/companies/${board}/postings/${job.id}`);
+          if (dRes.ok) {
+            const detail = await dRes.json();
+            const sections = detail?.jobAd?.sections || {};
+            description = stripHtml(Object.values(sections).map((s: unknown) => (s as { text?: string })?.text || '').join(' '));
+          }
+        } catch {}
+        results.push({
+          externalId: `smartrecruiters-${board}-${job.id}`,
+          company: job.company?.name || board,
+          role: job.name || '',
+          url: `https://jobs.smartrecruiters.com/${board}/${job.id}`,
+          location, description, salary: '',
+          date_posted: job.releasedDate ? String(job.releasedDate).split('T')[0] : '',
+          work_type: job.location?.remote ? 'Remote' : detectWorkType(location, description),
+        });
+      }
+    } catch {}
+  }));
+  return results;
+}
+
 // Remotive — free public API, curated remote jobs
 async function fetchRemotive(): Promise<JobResult[]> {
   const results: JobResult[] = [];
@@ -629,6 +730,9 @@ export async function POST() {
     if (isEnabled('remotive', true)) jobs.push({ source: 'remotive', run: () => fetchRemotive() });
     if (isEnabled('greenhouse', true)) jobs.push({ source: 'greenhouse', run: () => fetchGreenhouse() });
     if (isEnabled('lever', true)) jobs.push({ source: 'lever', run: () => fetchLever() });
+    if (isEnabled('ashby', true)) jobs.push({ source: 'ashby', run: () => fetchAshby() });
+    if (isEnabled('workable', true)) jobs.push({ source: 'workable', run: () => fetchWorkable() });
+    if (isEnabled('smartrecruiters', true)) jobs.push({ source: 'smartrecruiters', run: () => fetchSmartRecruiters() });
 
     const sourceKeys = jobs.map(j => j.source);
     const settled = await Promise.all(jobs.map(j => j.run().catch(() => [] as JobResult[])));
