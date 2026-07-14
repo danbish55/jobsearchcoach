@@ -46,7 +46,10 @@ const HIGH_GS_GRADE_RE = /\bGS-?(1[1-5])\b/i;
 const NON_US_LOCATION_RE = /\b(canada|united kingdom|\buk\b|australia|india|philippines|mexico|brazil|germany|france|ireland|singapore)\b/i;
 
 // Max years of experience required — entry-level only.
-const MAX_EXPERIENCE_YEARS = 1;
+// On-site/hybrid: up to 2 years (per spec, local roles are less competitive).
+// Remote: strictly 0-1 (remote roles draw national applicant pools).
+const MAX_EXPERIENCE_ONSITE = 2;
+const MAX_EXPERIENCE_REMOTE = 1;
 
 // Jobs requiring security clearance or firearm eligibility — not applicable to Corinne.
 const CLEARANCE_RE = /\b(top\s*secret|ts\/sci|sci\s+clearance|secret\s+clearance|security\s+clearance|dod\s+clearance|q\s+clearance|sensitive\s+compartmented|classified\s+access|nato\s+secret)\b/i;
@@ -99,7 +102,9 @@ function minExperienceYears(description: string): number {
 }
 
 // Hard-reject if description contains explicit high-experience strings the parser might miss.
-const EXPERIENCE_KEYWORD_RE = /\b([2-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[2-9]\d*\s*years?|at\s+least\s+[2-9]\d*\s*years?|[2-9]\d*\s*or\s+more\s+years?|must\s+have\s+[2-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[2-9]\d*|requires?\s+[2-9]\d*\s*\+?\s*years?|[2-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
+// Hard-reject keyword regexes: remote bar starts at 2+ years, on-site/hybrid at 3+ years.
+const EXPERIENCE_KEYWORD_REMOTE_RE = /\b([2-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[2-9]\d*\s*years?|at\s+least\s+[2-9]\d*\s*years?|[2-9]\d*\s*or\s+more\s+years?|must\s+have\s+[2-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[2-9]\d*|requires?\s+[2-9]\d*\s*\+?\s*years?|[2-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
+const EXPERIENCE_KEYWORD_ONSITE_RE = /\b([3-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[3-9]\d*\s*years?|at\s+least\s+[3-9]\d*\s*years?|[3-9]\d*\s*or\s+more\s+years?|must\s+have\s+[3-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[3-9]\d*|requires?\s+[3-9]\d*\s*\+?\s*years?|[3-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
 
 function stripHtml(html: string): string {
   // Decode common HTML entities first (Greenhouse returns entity-escaped HTML,
@@ -117,8 +122,8 @@ const SCREEN_PROMPT_HEADER = `You are screening job listings for Corinne, a rece
 NOTE on federal (USAJOBS) roles: Corinne's master's degree satisfies education-based qualification paths. ACCEPT a federal GS-7 or GS-9 role if it can be qualified via a master's degree / 2 years of graduate education INSTEAD of specialized experience. REJECT it only if prior federal service or specialized work experience is strictly required with no education alternative, or the grade is GS-11+.
 
 REJECT a job if ANY of the following are true:
-- Requires 2 or more years of professional work experience (e.g. "2+ years", "2-3 years", "minimum 2 years", "several years", "proven experience")
-- REMOTE jobs have a STRICTER bar: reject if they require ANY experience beyond 0-1 years or use phrases like "proven experience" or "seasoned"
+- ON-SITE or HYBRID: requires 3 or more years of experience ("3+ years", "3-5 years", "minimum 3 years"). Up to 2 years is ACCEPTABLE for on-site/hybrid roles — "2 years preferred" or "0-2 years" is fine.
+- REMOTE jobs have a STRICTER bar: reject if they require 2 or more years, or use phrases like "proven experience" or "seasoned" (remote roles draw national applicant pools)
 - Title or description indicates a senior, lead, principal, staff, manager, director, experienced, or VP-level role
 - The role is not actually an analytics/business-analysis role (reject nurses, engineers, pharmacists, coordinators of physical operations, etc.)
 - Requires security clearance (top secret, TS/SCI, secret clearance, DOD clearance) — check the TITLE too
@@ -127,7 +132,7 @@ REJECT a job if ANY of the following are true:
 - For truncated descriptions: visit the URL and read the FULL posting before deciding. If you cannot read the posting, REJECT it — never accept a job you could not verify.
 
 ACCEPT a job ONLY if:
-- It is genuinely entry-level (0-1 year experience, or no experience stated) — for remote, 0-1 years strictly
+- It is genuinely early-career: 0-2 years for on-site/hybrid, 0-1 years for remote (or no experience stated)
 - Title is an analytics role: data analyst, business analyst, BI analyst, operations analyst, reporting analyst, data coordinator, product analyst, insights analyst, or close variant
 - Location passes the rule above (remote passes automatically)
 
@@ -785,8 +790,9 @@ export async function POST() {
       }
       // Experience regex on longer descriptions (truncated ones are verified by Claude)
       if (job.description.length >= 600) {
-        if (minExperienceYears(job.description) > MAX_EXPERIENCE_YEARS) return false;
-        if (EXPERIENCE_KEYWORD_RE.test(job.description)) return false;
+        const isRemote = job.work_type === 'Remote';
+        if (minExperienceYears(job.description) > (isRemote ? MAX_EXPERIENCE_REMOTE : MAX_EXPERIENCE_ONSITE)) return false;
+        if ((isRemote ? EXPERIENCE_KEYWORD_REMOTE_RE : EXPERIENCE_KEYWORD_ONSITE_RE).test(job.description)) return false;
       }
       return true;
     };
