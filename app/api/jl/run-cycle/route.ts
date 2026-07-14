@@ -599,7 +599,7 @@ async function fetchAshby(): Promise<JobResult[]> {
 }
 
 // Workable — free public widget API, no auth.
-const WORKABLE_BOARDS = ['tala', 'procoretechnologies', 'liveramp'];
+const WORKABLE_BOARDS = ['tala'];
 async function fetchWorkable(): Promise<JobResult[]> {
   const results: JobResult[] = [];
   await Promise.all(WORKABLE_BOARDS.map(async board => {
@@ -633,7 +633,7 @@ async function fetchSmartRecruiters(): Promise<JobResult[]> {
   const results: JobResult[] = [];
   await Promise.all(SMARTRECRUITERS_BOARDS.map(async board => {
     try {
-      const res = await fetch(`https://api.smartrecruiters.com/v1/companies/${board}/postings?limit=100`, {
+      const res = await fetch(`https://api.smartrecruiters.com/v1/companies/${board}/postings?q=analyst&limit=100`, {
         headers: { 'User-Agent': 'contact@example.com' },
       });
       if (!res.ok) return;
