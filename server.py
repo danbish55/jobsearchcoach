@@ -246,6 +246,230 @@ def _read_config_file(path):
         return {}
 
 
+# ── Apify / LinkedIn Radar ─────────────────────────────────────────────────
+
+_APIFY_ACTOR = 'curious_coder~linkedin-jobs-scraper'
+_APIFY_BASE  = 'https://api.apify.com/v2'
+
+
+def _default_apify_config():
+    return {
+        'role_keyword': 'Data Analyst',
+        'min_results': 50,
+        'score_excellent_threshold': 90,
+        'score_strong_threshold': 70,
+        'titles': {
+            'tier1': [
+                'Entry Level Data Analyst', 'Junior Data Analyst', 'Associate Data Analyst',
+                'Data Analyst', 'Data Coordinator', 'Business Intelligence Analyst',
+                'Junior Business Analyst', 'Associate Business Analyst', 'Business Analyst',
+                'Business Systems Analyst',
+            ],
+            'tier2': [
+                'Product Analyst', 'Associate Product Analyst', 'Operations Analyst',
+                'Associate Operations Analyst', 'Reporting Analyst', 'Research Analyst',
+                'Compliance Analyst', 'Data Operations Specialist',
+                'Data Visualization Analyst', 'Analytics Engineer',
+            ],
+            'tier3': [
+                'Operations Specialist', 'Analytics Consultant', 'Technology Consultant',
+            ],
+        },
+        'skills': {
+            'tier1': ['SQL', 'Python', 'Tableau', 'statistical analysis', 'data visualization'],
+            'tier2': ['Power BI', 'Excel', 'machine learning', 'data modeling', 'ETL', 'business intelligence'],
+            'tier3': ['database management', 'optimization', 'requirements analysis', 'systems analysis', 'A/B test', 'forecasting'],
+        },
+        'keywords': {
+            'tier1': ['new grad', 'recent graduate', 'no experience required'],
+            'tier2': ['entry level', '0-2 years', '0 to 2 years', '1-2 years', 'junior', 'associate'],
+            'tier3': ["master's preferred", 'MSBA', 'MBA', 'advanced degree'],
+        },
+        'locations': {
+            'tier1': [
+                'West Hollywood', 'Silver Lake', 'Los Feliz', 'Koreatown', 'Hollywood',
+                'Century City', 'Brentwood', 'Westwood', 'Beverly Hills', 'Culver City',
+                'Santa Monica', 'Playa Vista', 'Marina del Rey', 'Venice', 'El Segundo',
+                'Manhattan Beach', 'Hermosa Beach', 'Redondo Beach', 'Torrance', 'Hawthorne',
+                'Inglewood', 'Burbank', 'Glendale', 'Pasadena', 'Alhambra', 'San Gabriel',
+                'Arcadia', 'Studio City', 'Sherman Oaks', 'Encino', 'North Hollywood',
+                'Van Nuys', 'Long Beach', 'Downey', 'Carson', 'Los Angeles',
+                'Irvine', 'Anaheim', 'Orange County', 'Costa Mesa', 'Newport Beach',
+                'Huntington Beach', 'Fullerton', 'Brea', 'Santa Ana', 'Garden Grove',
+                'San Diego', 'La Jolla', 'Chula Vista', 'Carlsbad', 'Oceanside',
+                'Escondido', 'Del Mar', 'Encinitas', 'El Cajon', 'National City',
+            ],
+            'tier2': [
+                'Dallas', 'Fort Worth', 'DFW', 'Plano', 'Irving', 'Frisco', 'McKinney', 'Arlington',
+                'Austin', 'Round Rock',
+                'Denver', 'Boulder', 'Aurora', 'Lakewood',
+                'Seattle', 'Bellevue', 'Redmond', 'Kirkland', 'Tacoma',
+                'Salt Lake City', 'Provo', 'Sandy',
+                'Portland', 'Beaverton', 'Hillsboro',
+                'Houston', 'Sugar Land', 'The Woodlands', 'Katy',
+                'St. Louis', 'Saint Louis',
+            ],
+            'tier3': ['Las Vegas', 'Henderson', 'Summerlin'],
+        },
+        'scoring': {
+            'skills_max': 40,
+            'experience_max': 30,
+            'trajectory_max': 20,
+            'preference_max': 10,
+            'title_tier1_pts': 20,
+            'title_tier2_pts': 12,
+            'title_tier3_pts': 5,
+            'skill_tier1_weight': 10,
+            'skill_tier2_weight': 6,
+            'skill_tier3_weight': 3,
+            'keyword_tier1_pts': 30,
+            'keyword_tier2_pts': 28,
+            'keyword_tier3_bonus': 5,
+            'location_remote_pts': 8,
+            'location_tier1_pts': 9,
+            'location_tier2_pts': 7,
+            'location_tier3_pts': 5,
+            'location_ambiguous_pts': 2,
+            'location_non_preferred_pts': -15,
+        },
+    }
+
+
+def _deep_merge(base, override):
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def _score_apify_job(item, cfg):
+    titles_cfg    = cfg.get('titles', {})
+    skills_cfg    = cfg.get('skills', {})
+    keywords_cfg  = cfg.get('keywords', {})
+    locations_cfg = cfg.get('locations', {})
+    scoring       = cfg.get('scoring', {})
+
+    desc      = (item.get('description') or '').lower()
+    title     = (item.get('title') or '').lower()
+    location  = (item.get('location') or '').lower()
+    seniority = (item.get('seniorityLevel') or '').lower()
+
+    # ── Skills (max 40 pts) ──────────────────────────────────────────────
+    skills_max     = int(scoring.get('skills_max', 40))
+    w1             = int(scoring.get('skill_tier1_weight', 10))
+    w2             = int(scoring.get('skill_tier2_weight', 6))
+    w3             = int(scoring.get('skill_tier3_weight', 3))
+    matched_skills = []
+    matched_weight = 0
+    total_possible = 0
+    for skill in skills_cfg.get('tier1', []):
+        total_possible += w1
+        if skill.lower() in desc:
+            matched_weight += w1
+            matched_skills.append(skill)
+    for skill in skills_cfg.get('tier2', []):
+        total_possible += w2
+        if skill.lower() in desc:
+            matched_weight += w2
+            matched_skills.append(skill)
+    for skill in skills_cfg.get('tier3', []):
+        total_possible += w3
+        if skill.lower() in desc:
+            matched_weight += w3
+            matched_skills.append(skill)
+    if total_possible:
+        skills_score = min(skills_max, round((matched_weight / total_possible) * skills_max * 1.6))
+    else:
+        skills_score = 0
+
+    # ── Experience (max 30 pts) ──────────────────────────────────────────
+    exp_max = int(scoring.get('experience_max', 30))
+    kw1 = [k.lower() for k in keywords_cfg.get('tier1', [])]
+    kw2 = [k.lower() for k in keywords_cfg.get('tier2', [])]
+    kw3 = [k.lower() for k in keywords_cfg.get('tier3', [])]
+    if any(k in desc for k in kw1):
+        exp_score = int(scoring.get('keyword_tier1_pts', 30))
+    elif any(k in desc for k in kw2):
+        exp_score = int(scoring.get('keyword_tier2_pts', 28))
+    else:
+        exp_score = 22
+    if seniority in ('entry level', 'entry-level', 'internship'):
+        exp_score = min(exp_score + 3, exp_max)
+    if any(k in desc for k in kw3):
+        exp_score = min(exp_score + int(scoring.get('keyword_tier3_bonus', 5)), exp_max)
+    exp_score = min(exp_score, exp_max)
+
+    # ── Trajectory (max 20 pts) ──────────────────────────────────────────
+    traj_max = int(scoring.get('trajectory_max', 20))
+    t1 = [t.lower() for t in titles_cfg.get('tier1', [])]
+    t2 = [t.lower() for t in titles_cfg.get('tier2', [])]
+    t3 = [t.lower() for t in titles_cfg.get('tier3', [])]
+    if any(t in title for t in t1):
+        traj_score = int(scoring.get('title_tier1_pts', 20))
+    elif any(t in title for t in t2):
+        traj_score = int(scoring.get('title_tier2_pts', 12))
+    elif any(t in title for t in t3):
+        traj_score = int(scoring.get('title_tier3_pts', 5))
+    else:
+        traj_score = 5
+
+    # ── Preference / location (max 10 pts) ──────────────────────────────
+    pref_max     = int(scoring.get('preference_max', 10))
+    remote_terms = ['remote', 'hybrid', 'wfh', 'work from home', 'telework', 'telecommute', 'virtual']
+    is_remote    = any(s in location for s in remote_terms) or any(s in desc for s in remote_terms)
+    if is_remote:
+        pref_score = int(scoring.get('location_remote_pts', 8))
+    else:
+        loc1 = [l.lower() for l in locations_cfg.get('tier1', [])]
+        loc2 = [l.lower() for l in locations_cfg.get('tier2', [])]
+        loc3 = [l.lower() for l in locations_cfg.get('tier3', [])]
+        if any(l in location for l in loc1):
+            pref_score = int(scoring.get('location_tier1_pts', 9))
+        elif any(l in location for l in loc2):
+            pref_score = int(scoring.get('location_tier2_pts', 7))
+        elif any(l in location for l in loc3):
+            pref_score = int(scoring.get('location_tier3_pts', 5))
+        elif not location.strip() or location.strip() in ('united states', 'us', 'usa'):
+            pref_score = int(scoring.get('location_ambiguous_pts', 2))
+        else:
+            pref_score = int(scoring.get('location_non_preferred_pts', -15))
+    salary = str(item.get('salary') or '').strip()
+    if salary and salary.lower() not in ('null', 'none', ''):
+        pref_score = min(pref_score + 1, pref_max)
+    pref_score = min(pref_score, pref_max)
+
+    # ── Total ─────────────────────────────────────────────────────────────
+    total  = max(0, min(100, skills_score + exp_score + traj_score + pref_score))
+    job_id = str(item.get('id') or '')
+    link   = item.get('link') or item.get('jobUrl') or ''
+    url    = f'https://www.linkedin.com/jobs/view/{job_id}' if job_id else link
+
+    return {
+        'id':              job_id,
+        'title':           item.get('title') or '',
+        'company':         item.get('company') or '',
+        'location':        item.get('location') or '',
+        'url':             url,
+        'salary':          salary or None,
+        'applicantsCount': item.get('applicantsCount'),
+        'seniorityLevel':  item.get('seniorityLevel') or '',
+        'employmentType':  item.get('employmentType') or '',
+        'postedAt':        item.get('postedAt') or '',
+        'description':     (item.get('description') or '')[:4000],
+        'score':           total,
+        'score_breakdown': {
+            'skills':     skills_score,
+            'experience': exp_score,
+            'trajectory': traj_score,
+            'preference': pref_score,
+        },
+        'skills_matched': matched_skills,
+    }
+
+
 def _status_payload(bundled, user, cfg, server_port=None):
     install_id = str(bundled.get('install_build_id') or '').strip()
     api_key = str(user.get('anthropic_api_key') or cfg.get('anthropic_api_key') or '').strip()
@@ -540,6 +764,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._open_folder()
         elif path == '/api/resumes/count':
             self._resume_count()
+        elif path == '/api/apify/output':
+            self._apify_output()
+        elif path == '/api/apify/config':
+            self._apify_config_get()
         elif path == '/oauth2callback':
             self._oauth_callback(urlparse(self.path).query)
         else:
@@ -584,6 +812,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._extract_resume(body)
         elif path == '/api/claude':
             self._claude_proxy(body)
+        elif path == '/api/apify/run':
+            self._apify_run()
+        elif path == '/api/apify/state':
+            self._apify_state(body)
+        elif path == '/api/apify/delete':
+            self._apify_delete(body)
+        elif path == '/api/apify/config':
+            self._apify_config_save(body)
         else:
             self.send_response(404)
             self.end_headers()
@@ -3071,6 +3307,156 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(err_body)
         except Exception as e:
             self._json({'error': str(e)}, 500)
+
+    # ── Apify / LinkedIn Radar methods ────────────────────────────────────
+
+    def _apify_data_dir(self):
+        path = os.path.join(BASE_DIR, 'data')
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _apify_scored_path(self):
+        return os.path.join(self._apify_data_dir(), 'apify_scored.json')
+
+    def _apify_states_path(self):
+        return os.path.join(self._apify_data_dir(), 'apify_states.json')
+
+    def _apify_load_states(self):
+        path = self._apify_states_path()
+        if not os.path.exists(path):
+            return {}
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _apify_save_states(self, states):
+        with open(self._apify_states_path(), 'w', encoding='utf-8') as f:
+            json.dump(states, f, indent=2)
+
+    def _apify_load_scored(self):
+        path = self._apify_scored_path()
+        if not os.path.exists(path):
+            return []
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    def _apify_output(self):
+        try:
+            jobs   = self._apify_load_scored()
+            states = self._apify_load_states()
+            for job in jobs:
+                job['approval_state'] = states.get(str(job.get('id') or ''), 'pending_review')
+            self._json(jobs)
+        except Exception as exc:
+            self._json({'error': str(exc)}, 500)
+
+    def _apify_config_get(self):
+        cfg        = load_config()
+        apify_cfg  = cfg.get('apify_config') or {}
+        token_raw  = str(cfg.get('apify_token') or '').strip()
+        self._json({
+            'ok':        True,
+            'has_token': bool(token_raw),
+            'config':    _deep_merge(_default_apify_config(), apify_cfg),
+        })
+
+    def _apify_config_save(self, body):
+        updates = {}
+        token = str(body.get('apify_token') or '').strip()
+        if token and token != '***':
+            updates['apify_token'] = token
+        incoming = body.get('apify_config')
+        if isinstance(incoming, dict):
+            current = load_config().get('apify_config') or {}
+            updates['apify_config'] = _deep_merge(current, incoming)
+        if updates:
+            save_config(updates)
+        self._json({'ok': True})
+
+    def _apify_run(self):
+        import datetime
+        cfg       = load_config()
+        token     = str(cfg.get('apify_token') or '').strip()
+        if not token:
+            self._json({'ok': False, 'error': 'Apify token not configured. Add it in Settings → LinkedIn Radar.'}, 400)
+            return
+        apify_cfg = _deep_merge(_default_apify_config(), cfg.get('apify_config') or {})
+        role      = str(apify_cfg.get('role_keyword') or 'Data Analyst').strip()
+        count     = int(apify_cfg.get('min_results') or 50)
+        li_url    = (
+            f'https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote(role)}'
+            f'&location=United+States&f_E=2&f_JT=F&position=1&pageNum=0'
+        )
+        try:
+            actor_url = f'{_APIFY_BASE}/acts/{_APIFY_ACTOR}/runs?waitForFinish=300'
+            payload   = json.dumps({'urls': [li_url], 'count': count, 'scrapeCompany': False}).encode('utf-8')
+            req       = urllib.request.Request(
+                actor_url, data=payload, method='POST',
+                headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+            )
+            with urllib.request.urlopen(req, timeout=320) as resp:
+                run_data = json.loads(resp.read().decode('utf-8'))
+            dataset_id = (run_data.get('data') or {}).get('defaultDatasetId') or ''
+            if not dataset_id:
+                raise ValueError('No dataset ID returned from Apify run.')
+            items_url = f'{_APIFY_BASE}/datasets/{dataset_id}/items?limit={count + 100}'
+            req2 = urllib.request.Request(
+                items_url, headers={'Authorization': f'Bearer {token}'},
+            )
+            with urllib.request.urlopen(req2, timeout=60) as resp2:
+                items = json.loads(resp2.read().decode('utf-8'))
+            if not isinstance(items, list):
+                raise ValueError('Unexpected Apify response format.')
+            scored = [_score_apify_job(item, apify_cfg) for item in items]
+            scored.sort(key=lambda x: x.get('score', 0), reverse=True)
+            with open(self._apify_scored_path(), 'w', encoding='utf-8') as f:
+                json.dump(scored, f, indent=2)
+            self._json({
+                'ok':         True,
+                'count':      len(scored),
+                'dataset_id': dataset_id,
+                'fetched_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            })
+        except urllib.error.HTTPError as exc:
+            err_body = exc.read().decode('utf-8', errors='ignore')
+            try:
+                msg = json.loads(err_body).get('error', {}).get('message') or err_body
+            except Exception:
+                msg = err_body[:500]
+            self._json({'ok': False, 'error': f'Apify API error {exc.code}: {msg}'}, 500)
+        except Exception as exc:
+            self._json({'ok': False, 'error': str(exc)}, 500)
+
+    def _apify_state(self, body):
+        lead_id = str(body.get('lead_id') or '').strip()
+        state   = str(body.get('state') or '').strip()
+        if not lead_id or state not in ('approved', 'rejected', 'pending_review'):
+            self._json({'ok': False, 'error': 'lead_id and valid state required'}, 400)
+            return
+        states = self._apify_load_states()
+        states[lead_id] = state
+        self._apify_save_states(states)
+        self._json({'ok': True, 'lead_id': lead_id, 'state': state})
+
+    def _apify_delete(self, body):
+        lead_id = str(body.get('lead_id') or '').strip()
+        if not lead_id:
+            self._json({'ok': False, 'error': 'lead_id required'}, 400)
+            return
+        scored = [j for j in self._apify_load_scored() if str(j.get('id') or '') != lead_id]
+        with open(self._apify_scored_path(), 'w', encoding='utf-8') as f:
+            json.dump(scored, f, indent=2)
+        states = self._apify_load_states()
+        states.pop(lead_id, None)
+        self._apify_save_states(states)
+        self._json({'ok': True})
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
