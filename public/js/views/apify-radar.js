@@ -1,82 +1,75 @@
 /* LinkedIn Radar view — powered by Apify */
 const ApifyRadar = (() => {
-  let _jobs         = [];
-  let _filterText   = '';
-  let _filterState  = 'all';
-  let _scraping     = false;
-  let _lastFetchAt  = null;
-  let _cache        = null;
-  let _cacheKey     = '';
+  let _jobs        = [];
+  let _filterText  = '';
+  let _filterState = 'all';
+  let _sortBy      = 'score';
+  let _sortDir     = 'desc';
+  let _scraping    = false;
+  let _cache       = null;
+  let _cacheKey    = '';
+  let _resizing    = null;
+  const _colWidths = {};   // col key → saved px width (survives re-renders)
 
-  // ── Styles ──────────────────────────────────────────────────────────────
+  // ── Styles ───────────────────────────────────────────────────────────────
 
   function _ensureStyles() {
     if (document.getElementById('apify-radar-style')) return;
-    const style = document.createElement('style');
-    style.id = 'apify-radar-style';
-    style.textContent = `
+    const s = document.createElement('style');
+    s.id = 'apify-radar-style';
+    s.textContent = `
+
+      /* ── Layout ── */
       #apify-radar-content .ar-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 18px;
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
       }
-      #apify-radar-content .ar-title { font-size: 20px; font-weight: 700; }
+      #apify-radar-content .ar-title  { font-size: 20px; font-weight: 700; }
       #apify-radar-content .ar-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
       #apify-radar-content .ar-controls {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-        margin-bottom: 14px;
+        display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px;
       }
       #apify-radar-content .ar-search {
-        flex: 1;
-        min-width: 180px;
-        max-width: 320px;
-        padding: 6px 10px;
-        border-radius: 6px;
+        flex: 1; min-width: 180px; max-width: 320px;
+        padding: 6px 10px; border-radius: 6px;
         border: 1px solid var(--border);
-        background: var(--card-bg);
-        color: var(--text);
-        font-size: 13px;
+        background: var(--card-bg); color: var(--text); font-size: 13px;
       }
       #apify-radar-content .ar-filter-btn {
-        padding: 5px 12px;
-        border-radius: 6px;
-        border: 1px solid var(--border);
-        background: transparent;
-        color: var(--text-muted);
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.15s;
+        padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+        background: transparent; color: var(--text-muted); font-size: 12px;
+        cursor: pointer; transition: all 0.15s;
       }
       #apify-radar-content .ar-filter-btn.active {
-        background: var(--accent);
-        color: #fff;
-        border-color: var(--accent);
+        background: var(--accent); color: #fff; border-color: var(--accent);
       }
       #apify-radar-content .ar-count {
-        font-size: 12px;
-        color: var(--text-muted);
-        margin-left: auto;
-        white-space: nowrap;
+        font-size: 12px; color: var(--text-muted); margin-left: auto; white-space: nowrap;
       }
+
+      /* ── Table wrapper — scrolls both axes; sticky header lives here ── */
       #apify-radar-content .ar-table-wrap {
-        overflow-x: auto;
+        overflow: auto;
+        max-height: calc(100vh - 210px);
         border-radius: 8px;
         border: 1px solid var(--border);
       }
+
+      /* ── Table ── */
       #apify-radar-content .ar-table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: collapse;
         font-size: 13px;
-        min-width: 820px;
+        min-width: 1100px;
       }
+
+      /* ── Sticky header ── */
       #apify-radar-content .ar-table th {
-        background: rgba(255,255,255,0.04);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #1e1e1e;          /* matches app dark bg exactly */
         padding: 9px 10px;
         text-align: left;
         font-size: 11px;
@@ -84,111 +77,153 @@ const ApifyRadar = (() => {
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-muted);
-        border-bottom: 1px solid var(--border);
+        border-bottom: 2px solid var(--border);
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+        user-select: none;
       }
+      body.light #apify-radar-content .ar-table th {
+        background: #f2f2f2;          /* matches app light bg exactly */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      }
+
+      /* ── Sortable header cells ── */
+      #apify-radar-content .ar-table th.ar-sortable { cursor: pointer; }
+      #apify-radar-content .ar-table th.ar-sortable:hover { color: var(--gold, #ffc107); }
+      #apify-radar-content .ar-table th.ar-col-active { color: var(--text); }
+      #apify-radar-content .ar-sort-arrow { margin-left: 3px; font-size: 10px; opacity: 0.9; }
+
+      /* ── Column resize handle ── */
+      #apify-radar-content .ar-col-resize {
+        position: absolute;
+        right: 0; top: 0; bottom: 0;
+        width: 5px;
+        cursor: col-resize;
+        z-index: 11;
+      }
+      #apify-radar-content .ar-col-resize:hover,
+      #apify-radar-content .ar-col-resize:active {
+        background: rgba(255,204,0,0.35);
+      }
+      /* Each th needs relative so the resize handle positions inside it */
+      #apify-radar-content .ar-table th { position: relative; }
+
+      /* ── Body rows ── */
       #apify-radar-content .ar-table td {
-        padding: 9px 10px;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
         vertical-align: middle;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
       }
       #apify-radar-content .ar-table tr:last-child td { border-bottom: 0; }
-      #apify-radar-content .ar-table tr.ar-row-excellent { background: rgba(46,204,113,0.07); }
-      #apify-radar-content .ar-table tr.ar-row-strong   { background: rgba(255,204,0,0.05); }
-      #apify-radar-content .ar-table tr.ar-row-approved { opacity: 0.7; }
-      #apify-radar-content .ar-table tr.ar-row-rejected { opacity: 0.4; }
 
+      /* ── 1. Alternating rows — ledger style ── */
+      #apify-radar-content .ar-table tbody tr:nth-child(odd)  { background: transparent; }
+      #apify-radar-content .ar-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.028); }
+
+      /* Score-highlight rows: slightly different shade on even to keep ledger rhythm */
+      #apify-radar-content .ar-table tbody tr.ar-row-garnet:nth-child(odd)  { background: rgba(153,0,0,0.12); }
+      #apify-radar-content .ar-table tbody tr.ar-row-garnet:nth-child(even) { background: rgba(153,0,0,0.18); }
+      #apify-radar-content .ar-table tbody tr.ar-row-gold:nth-child(odd)    { background: rgba(255,204,0,0.05); }
+      #apify-radar-content .ar-table tbody tr.ar-row-gold:nth-child(even)   { background: rgba(255,204,0,0.09); }
+
+      #apify-radar-content .ar-table tbody tr.ar-row-approved { opacity: 0.65; }
+      #apify-radar-content .ar-table tbody tr.ar-row-rejected { opacity: 0.35; }
+      #apify-radar-content .ar-table tbody tr.ar-row-applied  { opacity: 0.55; }
+
+      body.light #apify-radar-content .ar-table td { border-bottom-color: rgba(0,0,0,0.05); }
+      body.light #apify-radar-content .ar-table tbody tr:nth-child(even)           { background: rgba(0,0,0,0.03); }
+      body.light #apify-radar-content .ar-table tbody tr.ar-row-garnet:nth-child(odd)  { background: rgba(153,0,0,0.06); }
+      body.light #apify-radar-content .ar-table tbody tr.ar-row-garnet:nth-child(even) { background: rgba(153,0,0,0.10); }
+      body.light #apify-radar-content .ar-table tbody tr.ar-row-gold:nth-child(odd)    { background: rgba(180,130,0,0.06); }
+      body.light #apify-radar-content .ar-table tbody tr.ar-row-gold:nth-child(even)   { background: rgba(180,130,0,0.10); }
+
+      /* ── 2. Score pills — USC Garnet & Gold ── */
       #apify-radar-content .ar-score-pill {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-weight: 700;
-        font-size: 12px;
-        font-variant-numeric: tabular-nums;
-        min-width: 36px;
-        text-align: center;
+        display: inline-block; padding: 2px 8px; border-radius: 10px;
+        font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums;
+        min-width: 36px; text-align: center;
       }
-      #apify-radar-content .ar-score-pill.excellent { background: rgba(46,204,113,0.22); color: #2ecc71; }
-      #apify-radar-content .ar-score-pill.strong    { background: rgba(255,204,0,0.18);  color: #ffc107; }
-      #apify-radar-content .ar-score-pill.moderate  { background: rgba(255,255,255,0.07); color: var(--text-muted); }
+      /* ≥75 — USC Garnet */
+      #apify-radar-content .ar-score-pill.garnet {
+        background: rgba(153,0,0,0.38); color: #FF9999;
+        border: 1px solid rgba(153,0,0,0.6);
+      }
+      /* ≥60 — USC Gold */
+      #apify-radar-content .ar-score-pill.gold {
+        background: rgba(255,204,0,0.18); color: #FFCC00;
+        border: 1px solid rgba(255,204,0,0.35);
+      }
+      /* <60 — Neutral */
+      #apify-radar-content .ar-score-pill.moderate {
+        background: rgba(255,255,255,0.07); color: var(--text-muted);
+        border: 1px solid transparent;
+      }
+      body.light #apify-radar-content .ar-score-pill.garnet {
+        background: rgba(153,0,0,0.1); color: #8B0000; border-color: rgba(153,0,0,0.3);
+      }
+      body.light #apify-radar-content .ar-score-pill.gold {
+        background: rgba(180,130,0,0.12); color: #7A5800; border-color: rgba(180,130,0,0.3);
+      }
+      body.light #apify-radar-content .ar-score-pill.moderate {
+        background: rgba(0,0,0,0.05); color: var(--text-muted); border-color: transparent;
+      }
 
+      /* ── State pills ── */
       #apify-radar-content .ar-state-pill {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        display: inline-block; padding: 2px 8px; border-radius: 10px;
+        font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
       }
       #apify-radar-content .ar-state-pill.pending  { background: rgba(255,255,255,0.07); color: var(--text-muted); }
-      #apify-radar-content .ar-state-pill.approved { background: rgba(46,204,113,0.18); color: #2ecc71; }
-      #apify-radar-content .ar-state-pill.rejected { background: rgba(231,76,60,0.18);  color: #e74c3c; }
+      #apify-radar-content .ar-state-pill.approved { background: rgba(46,204,113,0.18);  color: #2ecc71; }
+      #apify-radar-content .ar-state-pill.rejected { background: rgba(231,76,60,0.18);   color: #e74c3c; }
+      #apify-radar-content .ar-state-pill.applied  { background: rgba(52,152,219,0.18);  color: #3498db; }
 
+      /* ── Cell content styles ── */
       #apify-radar-content .ar-job-title a {
-        color: var(--text);
-        text-decoration: none;
-        font-weight: 600;
+        color: var(--text); text-decoration: none; font-weight: 600;
       }
-      #apify-radar-content .ar-job-title a:hover { color: var(--gold); text-decoration: underline; }
-      #apify-radar-content .ar-company  { color: var(--text-muted); font-size: 12px; }
-      #apify-radar-content .ar-location { color: var(--text-muted); font-size: 12px; }
-      #apify-radar-content .ar-actions  { display: flex; gap: 5px; flex-wrap: nowrap; }
-      #apify-radar-content .ar-btn {
-        padding: 3px 9px;
-        border-radius: 5px;
-        border: 1px solid var(--border);
-        background: transparent;
-        color: var(--text-muted);
-        font-size: 11px;
-        cursor: pointer;
-        transition: all 0.15s;
-        white-space: nowrap;
-      }
-      #apify-radar-content .ar-btn:hover       { border-color: var(--gold); color: var(--gold); }
-      #apify-radar-content .ar-btn.approve:hover { border-color: #2ecc71; color: #2ecc71; }
-      #apify-radar-content .ar-btn.reject:hover  { border-color: #e74c3c; color: #e74c3c; }
-      #apify-radar-content .ar-btn.active-approve { border-color: #2ecc71; color: #2ecc71; background: rgba(46,204,113,0.1); }
-      #apify-radar-content .ar-btn.active-reject  { border-color: #e74c3c; color: #e74c3c; background: rgba(231,76,60,0.1); }
+      #apify-radar-content .ar-job-title a:hover { color: var(--gold, #ffc107); text-decoration: underline; }
+      #apify-radar-content .ar-muted  { color: var(--text-muted); font-size: 12px; }
+      #apify-radar-content .ar-salary { font-size: 12px; color: #2ecc71; }
+      #apify-radar-content .ar-posted { font-size: 12px; color: var(--text-muted); }
+      #apify-radar-content .ar-fire   { margin-left: 3px; }
 
-      #apify-radar-content .ar-fire { margin-left: 4px; }
+      /* ── Action buttons ── */
+      #apify-radar-content .ar-actions { display: flex; gap: 4px; flex-wrap: nowrap; }
+      #apify-radar-content .ar-btn {
+        padding: 3px 8px; border-radius: 5px;
+        border: 1px solid var(--border); background: transparent;
+        color: var(--text-muted); font-size: 11px; cursor: pointer;
+        transition: all 0.15s; white-space: nowrap;
+      }
+      #apify-radar-content .ar-btn:hover           { border-color: var(--gold, #ffc107); color: var(--gold, #ffc107); }
+      #apify-radar-content .ar-btn.approve:hover   { border-color: #2ecc71; color: #2ecc71; }
+      #apify-radar-content .ar-btn.reject:hover    { border-color: #e74c3c; color: #e74c3c; }
+      #apify-radar-content .ar-btn.apply-btn:hover { border-color: #3498db; color: #3498db; }
+      #apify-radar-content .ar-btn.active-approve  { border-color: #2ecc71; color: #2ecc71; background: rgba(46,204,113,0.1); }
+      #apify-radar-content .ar-btn.active-reject   { border-color: #e74c3c; color: #e74c3c; background: rgba(231,76,60,0.1); }
+      #apify-radar-content .ar-btn.active-apply    { border-color: #3498db; color: #3498db; background: rgba(52,152,219,0.1); }
+
+      /* ── Empty / spinner ── */
       #apify-radar-content .ar-empty {
-        text-align: center;
-        padding: 60px 20px;
-        color: var(--text-muted);
-        font-size: 15px;
+        text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 15px;
       }
-      #apify-radar-content .ar-empty-sub {
-        font-size: 12px;
-        margin-top: 8px;
-        color: var(--text-muted);
-        opacity: 0.7;
-      }
+      #apify-radar-content .ar-empty-sub { font-size: 12px; margin-top: 8px; opacity: 0.7; }
       #apify-radar-content .ar-scrape-spinner {
-        display: inline-block;
-        width: 12px; height: 12px;
-        border: 2px solid rgba(255,255,255,0.3);
-        border-top-color: var(--text);
-        border-radius: 50%;
-        animation: ar-spin 0.7s linear infinite;
-        vertical-align: middle;
-        margin-right: 5px;
+        display: inline-block; width: 12px; height: 12px;
+        border: 2px solid rgba(255,255,255,0.3); border-top-color: var(--text);
+        border-radius: 50%; animation: ar-spin 0.7s linear infinite;
+        vertical-align: middle; margin-right: 5px;
       }
       @keyframes ar-spin { to { transform: rotate(360deg); } }
       #apify-radar-content .ar-rank { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-      #apify-radar-content .ar-salary { font-size: 12px; color: #2ecc71; }
-      #apify-radar-content .ar-posted { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
-      #apify-radar-content .ar-applicants { font-variant-numeric: tabular-nums; font-size: 12px; }
-      #apify-radar-content .ar-breakdown-tip {
-        font-size: 11px; color: var(--text-muted); cursor: help;
-        border-bottom: 1px dashed var(--text-muted);
-      }
-      body.light #apify-radar-content .ar-table th { background: rgba(0,0,0,0.04); }
-      body.light #apify-radar-content .ar-table td { border-bottom-color: rgba(0,0,0,0.06); }
-      body.light #apify-radar-content .ar-table tr.ar-row-excellent { background: rgba(46,204,113,0.06); }
-      body.light #apify-radar-content .ar-table tr.ar-row-strong   { background: rgba(255,204,0,0.06); }
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(s);
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -208,12 +243,13 @@ const ApifyRadar = (() => {
         </div>
       </div>
       <div class="ar-controls">
-        <input class="ar-search" id="ar-search" type="text" placeholder="Search title, company, location…"
-          oninput="ApifyRadar.applyFilter()" value="">
+        <input class="ar-search" id="ar-search" type="text"
+          placeholder="Search title, company, location…" oninput="ApifyRadar.applyFilter()">
         <button class="ar-filter-btn active" id="ar-f-all"      onclick="ApifyRadar.setStateFilter('all')">All</button>
         <button class="ar-filter-btn"        id="ar-f-pending"  onclick="ApifyRadar.setStateFilter('pending_review')">Pending</button>
         <button class="ar-filter-btn"        id="ar-f-approved" onclick="ApifyRadar.setStateFilter('approved')">Approved</button>
         <button class="ar-filter-btn"        id="ar-f-rejected" onclick="ApifyRadar.setStateFilter('rejected')">Rejected</button>
+        <button class="ar-filter-btn"        id="ar-f-applied"  onclick="ApifyRadar.setStateFilter('applied')">Applied</button>
         <span class="ar-count" id="ar-count"></span>
       </div>
       <div id="ar-body"></div>`;
@@ -227,22 +263,14 @@ const ApifyRadar = (() => {
       if (!resp.ok) throw new Error(data.error || 'Load failed');
       let jobs = Array.isArray(data) ? data : [];
 
-      // On Vercel the server returns []; fall back to cached localStorage results.
       if (!jobs.length) {
-        try {
-          const saved = localStorage.getItem('jsc_apify_jobs');
-          if (saved) jobs = JSON.parse(saved);
-        } catch {}
+        try { const s = localStorage.getItem('jsc_apify_jobs'); if (s) jobs = JSON.parse(s); } catch {}
       }
 
-      // Apply localStorage approval states on top of server state.
       const localStates = _loadLocalStates();
-      jobs.forEach(job => {
-        job.approval_state = localStates[job.id] || job.approval_state || 'pending_review';
-      });
+      jobs.forEach(j => { j.approval_state = localStates[j.id] || j.approval_state || 'pending_review'; });
 
       _jobs = jobs;
-      _lastFetchAt = jobs.length ? 'cached' : null;
       _renderBody();
     } catch (err) {
       _setSubtitle('Could not load jobs — ' + err.message);
@@ -252,16 +280,19 @@ const ApifyRadar = (() => {
   }
 
   function _renderBody() {
-    const filtered = _filteredJobs();
+    const filtered = _filteredAndSorted();
     _updateSubtitle(filtered.length);
     _renderJobTable(filtered);
   }
 
-  function _filteredJobs() {
-    const key = `${_filterText}|${_filterState}`;
+  // ── Filtering & sorting ──────────────────────────────────────────────────
+
+  function _filteredAndSorted() {
+    const key = `${_filterText}|${_filterState}|${_sortBy}|${_sortDir}`;
     if (key === _cacheKey && _cache) return _cache;
+
     const text = _filterText.toLowerCase();
-    const result = _jobs.filter(job => {
+    let result = _jobs.filter(job => {
       if (_filterState !== 'all' && job.approval_state !== _filterState) return false;
       if (!text) return true;
       return (
@@ -270,23 +301,61 @@ const ApifyRadar = (() => {
         (job.location || '').toLowerCase().includes(text)
       );
     });
-    _cache    = result;
+
+    result = result.slice().sort((a, b) => {
+      let va = _sortVal(a, _sortBy);
+      let vb = _sortVal(b, _sortBy);
+      if (_sortDir === 'asc') { const t = va; va = vb; vb = t; }
+      if (va === vb) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return va < vb ? -1 : 1;
+    });
+
+    _cache = result;
     _cacheKey = key;
     return result;
   }
 
+  function _sortVal(job, col) {
+    switch (col) {
+      case 'score':          return job.score ?? 0;
+      case 'title':          return (job.title    || '').toLowerCase();
+      case 'company':        return (job.company  || '').toLowerCase();
+      case 'location':       return (job.location || '').toLowerCase();
+      case 'employmentType': return (job.employmentType  || '').toLowerCase();
+      case 'seniorityLevel': return (job.seniorityLevel  || '').toLowerCase();
+      case 'salary':         return (job.salary   || '');
+      case 'applicantsCount': return job.applicantsCount ?? -1;
+      case 'postedAt':       return job.postedAt  || '';
+      case 'approval_state': return job.approval_state || '';
+      default:               return job.score ?? 0;
+    }
+  }
+
+  function sortBy(col) {
+    if (_sortBy === col) {
+      _sortDir = _sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      _sortBy  = col;
+      _sortDir = (col === 'score' || col === 'applicantsCount') ? 'desc' : 'asc';
+    }
+    _invalidateCache();
+    _renderBody();
+  }
+
   function _invalidateCache() { _cache = null; _cacheKey = ''; }
 
+  // ── Subtitle ─────────────────────────────────────────────────────────────
+
   function _updateSubtitle(visibleCount) {
-    const total = _jobs.length;
-    if (!total) {
-      _setSubtitle('No jobs loaded yet. Click Re-Scrape to fetch from LinkedIn.');
-      return;
-    }
+    const total    = _jobs.length;
+    if (!total) { _setSubtitle('No jobs loaded yet. Click Re-Scrape to fetch from LinkedIn.'); return; }
     const pending  = _jobs.filter(j => j.approval_state === 'pending_review').length;
     const approved = _jobs.filter(j => j.approval_state === 'approved').length;
+    const applied  = _jobs.filter(j => j.approval_state === 'applied').length;
     _setSubtitle(
-      `${total} jobs · ${pending} pending · ${approved} approved · Showing ${visibleCount}`
+      `${total} jobs · ${pending} pending · ${approved} approved · ${applied} applied · Showing ${visibleCount}`
     );
     const countEl = document.getElementById('ar-count');
     if (countEl) countEl.textContent = `${visibleCount} of ${total}`;
@@ -297,6 +366,20 @@ const ApifyRadar = (() => {
     if (el) el.textContent = text;
   }
 
+  // ── Table rendering ──────────────────────────────────────────────────────
+
+  function _thHTML(col, label, defaultW) {
+    const w        = _colWidths[col] ? _colWidths[col] + 'px' : defaultW;
+    const isActive = _sortBy === col;
+    const arrow    = isActive ? (` <span class="ar-sort-arrow">${_sortDir === 'desc' ? '↓' : '↑'}</span>`) : '';
+    return `<th class="ar-sortable${isActive ? ' ar-col-active' : ''}"
+        data-col="${col}" style="width:${w};min-width:${w}"
+        onclick="ApifyRadar.sortBy('${col}')">
+      ${_esc(label)}${arrow}
+      <span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)"></span>
+    </th>`;
+  }
+
   function _renderJobTable(filtered) {
     const body = document.getElementById('ar-body');
     if (!body) return;
@@ -304,125 +387,133 @@ const ApifyRadar = (() => {
       body.innerHTML = `<div class="ar-empty">No jobs match your filters.<div class="ar-empty-sub">Try a different search or state filter.</div></div>`;
       return;
     }
+
+    const header = `
+      <thead>
+        <tr>
+          <th style="width:36px;min-width:36px">#<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_rank"></span></th>
+          ${_thHTML('score',          'Score',      '62px')}
+          ${_thHTML('title',          'Job Title',  '220px')}
+          ${_thHTML('company',        'Company',    '130px')}
+          ${_thHTML('location',       'Location',   '140px')}
+          ${_thHTML('employmentType', 'Type',       '90px')}
+          ${_thHTML('seniorityLevel', 'Level',      '90px')}
+          ${_thHTML('salary',         'Salary',     '110px')}
+          ${_thHTML('applicantsCount','Applicants', '85px')}
+          ${_thHTML('postedAt',       'Posted',     '80px')}
+          ${_thHTML('approval_state', 'Status',     '80px')}
+          <th style="width:155px;min-width:155px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
+        </tr>
+      </thead>`;
+
     const rows = filtered.map((job, idx) => _jobRowHTML(job, idx + 1)).join('');
     body.innerHTML = `
       <div class="ar-table-wrap">
-        <table class="ar-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Score</th>
-              <th>Job Title</th>
-              <th>Company</th>
-              <th>Location</th>
-              <th>Type</th>
-              <th>Level</th>
-              <th>Salary</th>
-              <th>Applicants</th>
-              <th>Posted</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="ar-tbody">${rows}</tbody>
-        </table>
+        <table class="ar-table">${header}<tbody>${rows}</tbody></table>
       </div>`;
   }
 
   function _jobRowHTML(job, rank) {
-    const score   = job.score || 0;
-    const state   = job.approval_state || 'pending_review';
-    const bd      = job.score_breakdown || {};
+    const score = job.score || 0;
+    const state = job.approval_state || 'pending_review';
+    const bd    = job.score_breakdown || {};
+    const id    = _esc(job.id);
 
-    const scoreCls = score >= 90 ? 'excellent' : score >= 70 ? 'strong' : 'moderate';
-    const rowCls   = [
-      score >= 90 ? 'ar-row-excellent' : score >= 70 ? 'ar-row-strong' : '',
-      state === 'approved' ? 'ar-row-approved' : state === 'rejected' ? 'ar-row-rejected' : '',
+    // 2. USC Garnet/Gold breakpoints: ≥75 garnet, ≥60 gold, else moderate
+    const pillCls = score >= 75 ? 'garnet' : score >= 60 ? 'gold' : 'moderate';
+    const rowCls  = [
+      score >= 75 ? 'ar-row-garnet' : score >= 60 ? 'ar-row-gold' : '',
+      state === 'approved' ? 'ar-row-approved' : state === 'rejected' ? 'ar-row-rejected' : state === 'applied' ? 'ar-row-applied' : '',
     ].filter(Boolean).join(' ');
 
-    const stateCls   = state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : 'pending';
-    const stateLabel = state === 'approved' ? 'Approved' : state === 'rejected' ? 'Rejected' : 'Pending';
+    const stateCls   = { approved: 'approved', rejected: 'rejected', applied: 'applied' }[state] || 'pending';
+    const stateLabel = { approved: 'Approved', rejected: 'Rejected', applied: 'Applied' }[state]  || 'Pending';
 
     const applicants = job.applicantsCount != null ? job.applicantsCount : '—';
     const fire       = (job.applicantsCount || 0) >= 200 ? '<span class="ar-fire" title="200+ applicants">🔥</span>' : '';
-
-    const salary  = job.salary  ? `<span class="ar-salary">${_esc(job.salary)}</span>` : '<span style="color:var(--text-muted)">—</span>';
-    const posted  = _formatPosted(job.postedAt);
-    const title   = job.url
-      ? `<a href="${_esc(job.url)}" target="_blank" rel="noopener">${_esc(job.title || 'Untitled')}</a>`
+    const salary     = job.salary ? `<span class="ar-salary">${_esc(job.salary)}</span>` : '<span class="ar-muted">—</span>';
+    const posted     = _formatPosted(job.postedAt);
+    const titleLink  = job.url
+      ? `<a href="${_esc(job.url)}" target="_blank" rel="noopener" title="${_esc(job.title || '')}">${_esc(job.title || 'Untitled')}</a>`
       : _esc(job.title || 'Untitled');
 
     const tipText = `Skills ${bd.skills||0} · Exp ${bd.experience||0} · Title ${bd.trajectory||0} · Pref ${bd.preference||0}`;
 
     const approveActive = state === 'approved' ? 'active-approve' : '';
     const rejectActive  = state === 'rejected' ? 'active-reject'  : '';
+    const applyActive   = state === 'applied'  ? 'active-apply'   : '';
 
-    return `<tr class="${rowCls}" id="ar-row-${_esc(job.id)}">
+    return `<tr class="${rowCls}">
       <td class="ar-rank">${rank}</td>
-      <td>
-        <span class="ar-score-pill ${scoreCls}" title="${tipText}">${score}</span>
-      </td>
-      <td class="ar-job-title">${title}</td>
-      <td class="ar-company">${_esc(job.company || '—')}</td>
-      <td class="ar-location">${_esc(job.location || '—')}</td>
-      <td style="font-size:12px;color:var(--text-muted)">${_esc(job.employmentType || '—')}</td>
-      <td style="font-size:12px;color:var(--text-muted)">${_esc(job.seniorityLevel || '—')}</td>
+      <td><span class="ar-score-pill ${pillCls}" title="${tipText}">${score}</span></td>
+      <td class="ar-job-title" title="${_esc(job.title || '')}">${titleLink}</td>
+      <td class="ar-muted"    title="${_esc(job.company  || '')}">${_esc(job.company  || '—')}</td>
+      <td class="ar-muted"    title="${_esc(job.location || '')}">${_esc(job.location || '—')}</td>
+      <td class="ar-muted">${_esc(job.employmentType || '—')}</td>
+      <td class="ar-muted">${_esc(job.seniorityLevel  || '—')}</td>
       <td>${salary}</td>
-      <td class="ar-applicants">${applicants}${fire}</td>
+      <td style="font-variant-numeric:tabular-nums;font-size:12px">${applicants}${fire}</td>
       <td class="ar-posted">${posted}</td>
       <td><span class="ar-state-pill ${stateCls}">${stateLabel}</span></td>
       <td class="ar-actions">
-        <button class="ar-btn approve ${approveActive}" onclick="ApifyRadar.approveJob('${_esc(job.id)}')" title="Approve">✓</button>
-        <button class="ar-btn reject ${rejectActive}"  onclick="ApifyRadar.rejectJob('${_esc(job.id)}')"  title="Reject">✗</button>
-        <button class="ar-btn"                         onclick="ApifyRadar.deleteJob('${_esc(job.id)}')"  title="Delete">🗑</button>
+        <button class="ar-btn approve ${approveActive}" onclick="ApifyRadar.approveJob('${id}')" title="Approve">✓</button>
+        <button class="ar-btn reject  ${rejectActive}"  onclick="ApifyRadar.rejectJob('${id}')"  title="Reject">✗</button>
+        <button class="ar-btn apply-btn ${applyActive}" onclick="ApifyRadar.applyJob('${id}')"   title="Open &amp; mark Applied">Apply</button>
+        <button class="ar-btn"                          onclick="ApifyRadar.deleteJob('${id}')"  title="Delete">🗑</button>
       </td>
     </tr>`;
   }
 
-  // ── localStorage helpers ─────────────────────────────────────────────────
+  // ── Column resize ─────────────────────────────────────────────────────────
 
-  function _loadLocalStates() {
-    try { return JSON.parse(localStorage.getItem('jsc_apify_states') || '{}'); } catch { return {}; }
+  function startColResize(e, handle) {
+    e.stopPropagation(); // prevent sort click
+    const th = handle.closest('th');
+    if (!th) return;
+    _resizing = { th, startX: e.clientX, startW: th.offsetWidth };
+    document.addEventListener('mousemove', _onResizeMove);
+    document.addEventListener('mouseup',   _onResizeEnd);
+    e.preventDefault();
   }
 
-  function _saveLocalState(jobId, state) {
-    const states = _loadLocalStates();
-    if (state === 'pending_review') {
-      delete states[jobId];
-    } else {
-      states[jobId] = state;
+  function _onResizeMove(e) {
+    if (!_resizing) return;
+    const w = Math.max(50, _resizing.startW + (e.clientX - _resizing.startX));
+    _resizing.th.style.width    = w + 'px';
+    _resizing.th.style.minWidth = w + 'px';
+  }
+
+  function _onResizeEnd() {
+    if (_resizing) {
+      const col = _resizing.th.dataset.col;
+      if (col) _colWidths[col] = _resizing.th.offsetWidth;
     }
-    try { localStorage.setItem('jsc_apify_states', JSON.stringify(states)); } catch {}
+    _resizing = null;
+    document.removeEventListener('mousemove', _onResizeMove);
+    document.removeEventListener('mouseup',   _onResizeEnd);
   }
 
-  function _saveJobsToLocalStorage() {
-    try { localStorage.setItem('jsc_apify_jobs', JSON.stringify(_jobs)); } catch {}
-  }
+  // ── State transitions ─────────────────────────────────────────────────────
 
-  // ── State transitions ────────────────────────────────────────────────────
+  async function approveJob(jobId) { await _transition(jobId, 'approved'); }
+  async function rejectJob(jobId)  { await _transition(jobId, 'rejected'); }
 
-  async function approveJob(jobId) {
-    await _transition(jobId, 'approved');
-  }
-
-  async function rejectJob(jobId) {
-    await _transition(jobId, 'rejected');
+  async function applyJob(jobId) {
+    const job = _jobs.find(j => j.id === jobId);
+    if (!job) return;
+    if (job.url) window.open(job.url, '_blank', 'noopener');
+    if (job.approval_state !== 'applied') await _transition(jobId, 'applied');
   }
 
   async function _transition(jobId, newState) {
     const job = _jobs.find(j => j.id === jobId);
     if (!job) return;
-
-    const nextState   = job.approval_state === newState ? 'pending_review' : newState;
+    const nextState = job.approval_state === newState ? 'pending_review' : newState;
     job.approval_state = nextState;
     _invalidateCache();
     _renderBody();
-
-    // Always persist state locally so it survives page reloads on Vercel.
     _saveLocalState(jobId, nextState);
     _saveJobsToLocalStorage();
-
-    // Best-effort server sync (local server only; Vercel stub returns ok:true).
     try {
       await fetch('/api/apify/state', {
         method: 'POST',
@@ -433,30 +524,39 @@ const ApifyRadar = (() => {
   }
 
   async function deleteJob(jobId) {
-    const prevJobs = [..._jobs];
     _jobs = _jobs.filter(j => j.id !== jobId);
     _invalidateCache();
     _renderBody();
     _saveJobsToLocalStorage();
-
-    // Remove from localStorage state map too.
     const states = _loadLocalStates();
     delete states[jobId];
     try { localStorage.setItem('jsc_apify_states', JSON.stringify(states)); } catch {}
-
-    // Best-effort server sync.
     try {
       await fetch('/api/apify/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: jobId }),
       });
-    } catch {
-      // On error, restore and notify only if we got a negative response.
-    }
+    } catch {}
   }
 
-  // ── Re-Scrape (polling) ──────────────────────────────────────────────────
+  // ── localStorage helpers ──────────────────────────────────────────────────
+
+  function _loadLocalStates() {
+    try { return JSON.parse(localStorage.getItem('jsc_apify_states') || '{}'); } catch { return {}; }
+  }
+
+  function _saveLocalState(jobId, state) {
+    const s = _loadLocalStates();
+    if (state === 'pending_review') { delete s[jobId]; } else { s[jobId] = state; }
+    try { localStorage.setItem('jsc_apify_states', JSON.stringify(s)); } catch {}
+  }
+
+  function _saveJobsToLocalStorage() {
+    try { localStorage.setItem('jsc_apify_jobs', JSON.stringify(_jobs)); } catch {}
+  }
+
+  // ── Re-Scrape (polling) ───────────────────────────────────────────────────
 
   function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -475,43 +575,30 @@ const ApifyRadar = (() => {
       const startResp = await fetch('/api/apify/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          role_keyword: cfg.role_keyword || 'Data Analyst',
-          min_results:  cfg.min_results  || 50,
-        }),
+        body: JSON.stringify({ token, role_keyword: cfg.role_keyword || 'Data Analyst', min_results: cfg.min_results || 50 }),
       });
       const startData = await startResp.json();
       if (!startResp.ok || startData.ok === false) throw new Error(startData.error || 'Failed to start scrape');
 
       const { runId } = startData;
-
-      // Poll every 15 s — Apify scrapes typically take 2–4 minutes.
       if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping LinkedIn (may take a few minutes)…';
       _setSubtitle('Scraping LinkedIn via Apify — please wait…');
 
-      for (let attempt = 0; attempt < 28; attempt++) {
+      for (let i = 0; i < 28; i++) {
         await _sleep(15000);
-
         const pollUrl  = `/api/apify/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`;
         const pollResp = await fetch(pollUrl);
         const pollData = await pollResp.json();
-
         if (!pollResp.ok || pollData.ok === false) throw new Error(pollData.error || 'Poll error');
 
         if (pollData.status === 'running') {
-          const elapsed = Math.round((attempt + 1) * 15 / 60 * 10) / 10;
-          _setSubtitle(`Scraping LinkedIn — ${elapsed} min elapsed, waiting for Apify…`);
+          _setSubtitle(`Scraping LinkedIn — ${Math.round((i + 1) * 15 / 60 * 10) / 10} min elapsed…`);
           continue;
         }
-
         if (pollData.status === 'succeeded') {
           const scored = pollData.jobs || [];
-          // Overlay any existing approval states.
           const localStates = _loadLocalStates();
-          scored.forEach(job => {
-            job.approval_state = localStates[job.id] || 'pending_review';
-          });
+          scored.forEach(j => { j.approval_state = localStates[j.id] || 'pending_review'; });
           _jobs = scored;
           _invalidateCache();
           _saveJobsToLocalStorage();
@@ -519,11 +606,9 @@ const ApifyRadar = (() => {
           UI.notify(`Scraped ${scored.length} jobs from LinkedIn`, 'success');
           return;
         }
-
-        throw new Error(`Apify run ended with status: ${pollData.status || 'unknown'}`);
+        throw new Error(`Apify run ended: ${pollData.status || 'unknown'}`);
       }
-
-      throw new Error('Scrape timed out after 7 minutes. Try again — Apify may be busy.');
+      throw new Error('Scrape timed out after 7 minutes. Try again.');
     } catch (err) {
       UI.notify('Scrape failed: ' + err.message, 'error');
       _setSubtitle('Scrape failed — ' + err.message);
@@ -533,11 +618,10 @@ const ApifyRadar = (() => {
     }
   }
 
-  // ── Filters ──────────────────────────────────────────────────────────────
+  // ── Filters ───────────────────────────────────────────────────────────────
 
   function applyFilter() {
-    const input = document.getElementById('ar-search');
-    _filterText = (input ? input.value : '') || '';
+    _filterText = (document.getElementById('ar-search')?.value || '');
     _invalidateCache();
     _renderBody();
   }
@@ -545,23 +629,21 @@ const ApifyRadar = (() => {
   function setStateFilter(state) {
     _filterState = state;
     _invalidateCache();
-    ['all', 'pending_review', 'approved', 'rejected'].forEach(s => {
-      const id  = s === 'pending_review' ? 'ar-f-pending' : `ar-f-${s}`;
-      const btn = document.getElementById(id);
+    ['all', 'pending_review', 'approved', 'rejected', 'applied'].forEach(s => {
+      const btn = document.getElementById(s === 'pending_review' ? 'ar-f-pending' : `ar-f-${s}`);
       if (btn) btn.classList.toggle('active', s === state);
     });
     _renderBody();
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   function _formatPosted(raw) {
     if (!raw) return '—';
     const s = String(raw).trim();
     if (/ago|hour|day|week|month/i.test(s)) return s;
     const d = new Date(s);
-    if (Number.isNaN(d.getTime())) return s;
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
   function _esc(str) {
@@ -570,10 +652,10 @@ const ApifyRadar = (() => {
 
   return {
     render,
-    approveJob,
-    rejectJob,
-    deleteJob,
+    approveJob, rejectJob, applyJob, deleteJob,
     reScrape,
+    sortBy,
+    startColResize,
     applyFilter,
     setStateFilter,
   };

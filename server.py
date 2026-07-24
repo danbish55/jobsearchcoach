@@ -330,7 +330,7 @@ def _default_apify_config():
             'location_tier2_pts': 7,
             'location_tier3_pts': 5,
             'location_ambiguous_pts': 2,
-            'location_non_preferred_pts': -15,
+            'location_non_preferred_pts': 0,
         },
     }
 

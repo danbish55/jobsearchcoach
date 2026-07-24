@@ -10,7 +10,7 @@ const SCORING = {
   skill_tier1_weight: 10, skill_tier2_weight: 6, skill_tier3_weight: 3,
   keyword_tier1_pts: 30, keyword_tier2_pts: 28, keyword_tier3_bonus: 5,
   location_remote_pts: 8, location_tier1_pts: 9, location_tier2_pts: 7,
-  location_tier3_pts: 5, location_ambiguous_pts: 2, location_non_preferred_pts: -15,
+  location_tier3_pts: 5, location_ambiguous_pts: 2, location_non_preferred_pts: 0,
 };
 
 const DEFAULT_TITLES = {
