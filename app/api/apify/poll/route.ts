@@ -11,6 +11,10 @@ const SCORING = {
   keyword_tier1_pts: 30, keyword_tier2_pts: 28, keyword_tier3_bonus: 5,
   location_remote_pts: 8, location_tier1_pts: 9, location_tier2_pts: 7,
   location_tier3_pts: 5, location_ambiguous_pts: 2, location_non_preferred_pts: 0,
+  exp_default_pts: 10,
+  senior_title_penalty: 15,
+  exp_3yr_penalty: 6, exp_4yr_penalty: 12, exp_5yr_penalty: 18, exp_7yr_penalty: 25,
+  min_score_threshold: 40,
 };
 
 const DEFAULT_TITLES = {
@@ -77,7 +81,7 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   } else if (kw2.some(k => desc.includes(k))) {
     expScore = SCORING.keyword_tier2_pts;
   } else {
-    expScore = 22;
+    expScore = SCORING.exp_default_pts;
   }
   if (['entry level', 'entry-level', 'internship'].includes(seniority)) {
     expScore = Math.min(expScore + 3, SCORING.experience_max);
@@ -85,7 +89,16 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   if (kw3.some(k => desc.includes(k))) {
     expScore = Math.min(expScore + SCORING.keyword_tier3_bonus, SCORING.experience_max);
   }
-  expScore = Math.min(expScore, SCORING.experience_max);
+  // Penalize explicit year requirements (match "N+ years" or "N-M years")
+  const plusYears  = desc.match(/\b(\d+)\s*\+\s*years?\b/);
+  const rangeYears = desc.match(/\b(\d+)\s*[-–]\s*\d+\s*years?\b/);
+  const minYears   = plusYears  ? parseInt(plusYears[1])  :
+                     rangeYears ? parseInt(rangeYears[1]) : 0;
+  if      (minYears >= 7) expScore -= SCORING.exp_7yr_penalty;
+  else if (minYears >= 5) expScore -= SCORING.exp_5yr_penalty;
+  else if (minYears >= 4) expScore -= SCORING.exp_4yr_penalty;
+  else if (minYears >= 3) expScore -= SCORING.exp_3yr_penalty;
+  expScore = Math.max(0, Math.min(expScore, SCORING.experience_max));
 
   // Trajectory (max 20)
   let trajScore: number;
@@ -97,6 +110,10 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
     trajScore = SCORING.title_tier3_pts;
   } else {
     trajScore = 5;
+  }
+  // Penalize senior/leadership titles
+  if (/\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b/.test(title)) {
+    trajScore -= SCORING.senior_title_penalty;
   }
 
   // Preference (max 10)
@@ -181,6 +198,7 @@ export async function GET(req: Request) {
     const items = await itemsResp.json() as Record<string, unknown>[];
     const scored = (Array.isArray(items) ? items : [])
       .map(item => scoreJob(item))
+      .filter(j => j.score >= SCORING.min_score_threshold)
       .sort((a, b) => b.score - a.score);
 
     return NextResponse.json({ ok: true, status: 'succeeded', jobs: scored, count: scored.length });

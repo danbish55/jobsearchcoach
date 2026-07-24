@@ -325,6 +325,13 @@ def _default_apify_config():
             'keyword_tier1_pts': 30,
             'keyword_tier2_pts': 28,
             'keyword_tier3_bonus': 5,
+            'exp_default_pts': 10,
+            'senior_title_penalty': 15,
+            'exp_3yr_penalty': 6,
+            'exp_4yr_penalty': 12,
+            'exp_5yr_penalty': 18,
+            'exp_7yr_penalty': 25,
+            'min_score_threshold': 40,
             'location_remote_pts': 8,
             'location_tier1_pts': 9,
             'location_tier2_pts': 7,
@@ -395,12 +402,21 @@ def _score_apify_job(item, cfg):
     elif any(k in desc for k in kw2):
         exp_score = int(scoring.get('keyword_tier2_pts', 28))
     else:
-        exp_score = 22
+        exp_score = int(scoring.get('exp_default_pts', 10))
     if seniority in ('entry level', 'entry-level', 'internship'):
         exp_score = min(exp_score + 3, exp_max)
     if any(k in desc for k in kw3):
         exp_score = min(exp_score + int(scoring.get('keyword_tier3_bonus', 5)), exp_max)
-    exp_score = min(exp_score, exp_max)
+    # Penalize explicit year requirements
+    import re as _re
+    plus_m  = _re.search(r'\b(\d+)\s*\+\s*years?\b', desc)
+    range_m = _re.search(r'\b(\d+)\s*[-–]\s*\d+\s*years?\b', desc)
+    min_yrs = int(plus_m.group(1)) if plus_m else (int(range_m.group(1)) if range_m else 0)
+    if   min_yrs >= 7: exp_score -= int(scoring.get('exp_7yr_penalty', 25))
+    elif min_yrs >= 5: exp_score -= int(scoring.get('exp_5yr_penalty', 18))
+    elif min_yrs >= 4: exp_score -= int(scoring.get('exp_4yr_penalty', 12))
+    elif min_yrs >= 3: exp_score -= int(scoring.get('exp_3yr_penalty', 6))
+    exp_score = max(0, min(exp_score, exp_max))
 
     # ── Trajectory (max 20 pts) ──────────────────────────────────────────
     traj_max = int(scoring.get('trajectory_max', 20))
@@ -415,6 +431,9 @@ def _score_apify_job(item, cfg):
         traj_score = int(scoring.get('title_tier3_pts', 5))
     else:
         traj_score = 5
+    # Penalize senior/leadership titles
+    if _re.search(r'\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b', title):
+        traj_score -= int(scoring.get('senior_title_penalty', 15))
 
     # ── Preference / location (max 10 pts) ──────────────────────────────
     pref_max     = int(scoring.get('preference_max', 10))
@@ -3414,7 +3433,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 items = json.loads(resp2.read().decode('utf-8'))
             if not isinstance(items, list):
                 raise ValueError('Unexpected Apify response format.')
+            min_threshold = int((apify_cfg.get('scoring') or {}).get('min_score_threshold', 40))
             scored = [_score_apify_job(item, apify_cfg) for item in items]
+            scored = [j for j in scored if j.get('score', 0) >= min_threshold]
             scored.sort(key=lambda x: x.get('score', 0), reverse=True)
             with open(self._apify_scored_path(), 'w', encoding='utf-8') as f:
                 json.dump(scored, f, indent=2)
