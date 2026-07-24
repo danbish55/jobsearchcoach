@@ -33,8 +33,8 @@ const DEFAULT_KEYWORDS = {
 };
 const DEFAULT_LOCATIONS = {
   tier1: ['west hollywood','silver lake','los feliz','koreatown','hollywood','century city','brentwood','westwood','beverly hills','culver city','santa monica','playa vista','marina del rey','venice','el segundo','manhattan beach','hermosa beach','redondo beach','torrance','hawthorne','inglewood','burbank','glendale','pasadena','alhambra','san gabriel','arcadia','studio city','sherman oaks','encino','north hollywood','van nuys','long beach','downey','carson','los angeles','irvine','anaheim','orange county','costa mesa','newport beach','huntington beach','fullerton','brea','santa ana','garden grove','san diego','la jolla','chula vista','carlsbad','oceanside','escondido','del mar','encinitas','el cajon','national city'],
-  tier2: ['dallas','fort worth','dfw','plano','irving','frisco','mckinney','arlington','austin','round rock','denver','boulder','aurora','lakewood','seattle','bellevue','redmond','kirkland','tacoma','salt lake city','provo','sandy','portland','beaverton','hillsboro','houston','sugar land','the woodlands','katy','st. louis','saint louis'],
-  tier3: ['las vegas','henderson','summerlin'],
+  tier2: ['dallas','fort worth','dfw','plano','irving','frisco','mckinney','arlington','austin','round rock','denver','boulder','aurora','lakewood','seattle','bellevue','redmond','kirkland','tacoma','salt lake city','provo','sandy','portland','beaverton','hillsboro','houston','sugar land','the woodlands','katy','st. louis','saint louis','phoenix','scottsdale','tempe','mesa','chandler','gilbert','peoria','kansas city','overland park','lenexa','olathe'],
+  tier3: ['las vegas','henderson','summerlin','north las vegas','enterprise'],
 };
 
 interface ScoredJob {

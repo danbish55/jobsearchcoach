@@ -440,6 +440,11 @@ const Settings = (() => {
           ${_apifyTagFieldHTML('locations_tier2', 'Tier 2 (7 pts)', 'Dallas, Denver, Seattle…')}
           ${_apifyTagFieldHTML('locations_tier3', 'Tier 3 (5 pts)', 'Las Vegas, Henderson…')}
 
+          <!-- Search Cities -->
+          <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 4px">Search Cities</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Cities queried by the Google Jobs scraper. Each city generates its own search pass. Add or remove to control coverage.</div>
+          ${_apifyTagFieldHTML('search_cities', 'Cities', 'Los Angeles CA, Dallas TX…')}
+
           <!-- Advanced weights -->
           <div style="margin-top:18px">
             <button type="button" onclick="Settings.toggleSection('ar-advanced-scoring')"
@@ -1044,9 +1049,19 @@ const Settings = (() => {
         skills:    { tier1: [...(apifyConfigDraft?.skills_tier1    || [])], tier2: [...(apifyConfigDraft?.skills_tier2    || [])], tier3: [...(apifyConfigDraft?.skills_tier3    || [])] },
         keywords:  { tier1: [...(apifyConfigDraft?.keywords_tier1  || [])], tier2: [...(apifyConfigDraft?.keywords_tier2  || [])], tier3: [...(apifyConfigDraft?.keywords_tier3  || [])] },
         locations: { tier1: [...(apifyConfigDraft?.locations_tier1 || [])], tier2: [...(apifyConfigDraft?.locations_tier2 || [])], tier3: [...(apifyConfigDraft?.locations_tier3 || [])] },
+        search_cities: [...(apifyConfigDraft?.search_cities || [])],
         scoring,
       },
     };
+
+    // Persist runtime config to localStorage so the scraper picks it up immediately
+    const localCfg = {};
+    try { Object.assign(localCfg, JSON.parse(localStorage.getItem('jsc_apify_cfg') || '{}')); } catch {}
+    localCfg.role_keyword  = body.apify_config.role_keyword;
+    localCfg.min_results   = body.apify_config.min_results;
+    localCfg.search_cities = body.apify_config.search_cities;
+    localStorage.setItem('jsc_apify_cfg', JSON.stringify(localCfg));
+
     try {
       const resp   = await fetch('/api/apify/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const result = await resp.json().catch(() => ({}));
@@ -1083,6 +1098,13 @@ const Settings = (() => {
         scoring:         Object.assign({}, cfg.scoring || {}),
       };
 
+      // search_cities lives in localStorage (runtime config), not the API config
+      let localApifyCfg = {};
+      try { localApifyCfg = JSON.parse(localStorage.getItem('jsc_apify_cfg') || '{}'); } catch {}
+      apifyConfigDraft.search_cities = localApifyCfg.search_cities?.length
+        ? [...localApifyCfg.search_cities]
+        : [...(cfg.search_cities || ['Los Angeles CA','Dallas TX','Houston TX','Austin TX','Denver CO','Salt Lake City UT','Portland OR','Phoenix AZ','Las Vegas NV','St. Louis MO','Kansas City MO'])];
+
       // Populate simple inputs
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
 
@@ -1106,7 +1128,7 @@ const Settings = (() => {
       });
 
       // Re-render all tag lists
-      const tagKeys = ['titles_tier1','titles_tier2','titles_tier3','skills_tier1','skills_tier2','skills_tier3','keywords_tier1','keywords_tier2','keywords_tier3','locations_tier1','locations_tier2','locations_tier3'];
+      const tagKeys = ['titles_tier1','titles_tier2','titles_tier3','skills_tier1','skills_tier2','skills_tier3','keywords_tier1','keywords_tier2','keywords_tier3','locations_tier1','locations_tier2','locations_tier3','search_cities'];
       tagKeys.forEach(k => _apifyRenderTagList(k));
     } catch {}
   }

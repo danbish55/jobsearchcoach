@@ -18,6 +18,10 @@ export async function POST(req: Request) {
     }
 
     const maxResults = Math.min(Number(body.min_results) || 50, 100);
+    const roleKw = String(body.role_keyword || 'entry level data analyst').trim();
+    const searchCities: string[] = Array.isArray(body.searchCities) && body.searchCities.length
+      ? body.searchCities
+      : ['Los Angeles CA','Dallas TX','Houston TX','Austin TX','Denver CO','Salt Lake City UT','Portland OR','Phoenix AZ','Las Vegas NV','St. Louis MO','Kansas City MO'];
 
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -26,7 +30,7 @@ export async function POST(req: Request) {
 
     // Pass 1a: LinkedIn + Indeed, US-wide with salary filter (catches national remote + posted-pay roles)
     const liUsPayload = {
-      searchTerm: 'entry level data analyst',
+      searchTerm: roleKw,
       location: 'United States',
       sites: ['linkedin', 'indeed'],
       maxResults,
@@ -37,7 +41,7 @@ export async function POST(req: Request) {
 
     // Pass 1b: LinkedIn + Indeed, LA-targeted, no salary filter (catches local listings that don't post pay)
     const liLaPayload = {
-      searchTerm: 'entry level data analyst',
+      searchTerm: roleKw,
       location: 'Los Angeles, CA',
       sites: ['linkedin', 'indeed'],
       maxResults,
@@ -46,9 +50,9 @@ export async function POST(req: Request) {
       countryIndeed: 'usa',
     };
 
-    // Pass 2: Google Jobs — aggregates Glassdoor, Greenhouse, Lever, direct company ATS pages
+    // Pass 2: Google Jobs — one query per search city, aggregates Glassdoor, Greenhouse, Lever, ATS pages
     const googlePayload = {
-      queries: ['entry level data analyst Los Angeles'],
+      queries: searchCities.map(city => `${roleKw} ${city}`),
       countryCode: 'us',
       datePosted: 'week',
       jobType: ['FULLTIME'],

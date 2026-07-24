@@ -22,9 +22,10 @@ const DEFAULT_CONFIG = {
   },
   locations: {
     tier1: ['West Hollywood','Silver Lake','Los Feliz','Koreatown','Hollywood','Century City','Brentwood','Westwood','Beverly Hills','Culver City','Santa Monica','Playa Vista','Marina del Rey','Venice','El Segundo','Manhattan Beach','Hermosa Beach','Redondo Beach','Torrance','Hawthorne','Inglewood','Burbank','Glendale','Pasadena','Alhambra','San Gabriel','Arcadia','Studio City','Sherman Oaks','Encino','North Hollywood','Van Nuys','Long Beach','Downey','Carson','Los Angeles','Irvine','Anaheim','Orange County','Costa Mesa','Newport Beach','Huntington Beach','Fullerton','Brea','Santa Ana','Garden Grove','San Diego','La Jolla','Chula Vista','Carlsbad','Oceanside','Escondido','Del Mar','Encinitas','El Cajon','National City'],
-    tier2: ['Dallas','Fort Worth','DFW','Plano','Irving','Frisco','McKinney','Arlington','Austin','Round Rock','Denver','Boulder','Aurora','Lakewood','Seattle','Bellevue','Redmond','Kirkland','Tacoma','Salt Lake City','Provo','Sandy','Portland','Beaverton','Hillsboro','Houston','Sugar Land','The Woodlands','Katy','St. Louis','Saint Louis'],
-    tier3: ['Las Vegas','Henderson','Summerlin'],
+    tier2: ['Dallas','Fort Worth','DFW','Plano','Irving','Frisco','McKinney','Arlington','Austin','Round Rock','Denver','Boulder','Aurora','Lakewood','Seattle','Bellevue','Redmond','Kirkland','Tacoma','Salt Lake City','Provo','Sandy','Portland','Beaverton','Hillsboro','Houston','Sugar Land','The Woodlands','Katy','St. Louis','Saint Louis','Phoenix','Scottsdale','Tempe','Mesa','Chandler','Gilbert','Peoria','Kansas City','Overland Park','Lenexa','Olathe'],
+    tier3: ['Las Vegas','Henderson','Summerlin','North Las Vegas','Enterprise'],
   },
+  search_cities: ['Los Angeles CA','Dallas TX','Houston TX','Austin TX','Denver CO','Salt Lake City UT','Portland OR','Phoenix AZ','Las Vegas NV','St. Louis MO','Kansas City MO'],
   scoring: {
     skills_max: 40, experience_max: 30, trajectory_max: 20, preference_max: 10,
     title_tier1_pts: 20, title_tier2_pts: 12, title_tier3_pts: 5,

@@ -852,10 +852,13 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
       let cfg = {};
       try { cfg = JSON.parse(localStorage.getItem('jsc_apify_cfg') || '{}'); } catch {}
 
+      const searchCities = Array.isArray(cfg.search_cities) && cfg.search_cities.length
+        ? cfg.search_cities
+        : ['Los Angeles CA','Dallas TX','Houston TX','Austin TX','Denver CO','Salt Lake City UT','Portland OR','Phoenix AZ','Las Vegas NV','St. Louis MO','Kansas City MO'];
       const startResp = await fetch('/api/apify/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, role_keyword: cfg.role_keyword || 'Data Analyst', min_results: cfg.min_results || 50 }),
+        body: JSON.stringify({ token, role_keyword: cfg.role_keyword || 'Data Analyst', min_results: cfg.min_results || 50, searchCities }),
       });
       const startData = await startResp.json();
       if (!startResp.ok || startData.ok === false) throw new Error(startData.error || 'Failed to start scrape');
