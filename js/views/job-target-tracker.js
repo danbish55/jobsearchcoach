@@ -101,51 +101,73 @@ const JobTargetTracker = (() => {
     el.innerHTML = `
       <style>
         .jtt-shell { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
-        .jtt-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; }
-        .jtt-title  { font-size: 22px; font-weight: 700; color: var(--text); }
-        .jtt-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-        .jtt-callout { background: rgba(157,34,53,0.07); border-left: 3px solid #9D2235; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+
+        /* ── Hero: quote + context ── */
+        .jtt-hero { display: flex; gap: 18px; align-items: stretch; margin-bottom: 20px; }
+        .jtt-hero-quote { flex: 0 0 44%; background: #9D2235; border-radius: 10px; padding: 22px 20px; display: flex; align-items: center; justify-content: center; }
+        .jtt-hero-quote p { color: #fff; font-weight: 700; font-style: italic; font-size: 17px; line-height: 1.45; text-align: center; margin: 0; }
+        .jtt-hero-context { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+        .jtt-context-title { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; }
+        .jtt-context-body  { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0; }
+        .jtt-context-body li { margin-bottom: 3px; }
 
         .jtt-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
         .jtt-search  { flex: 1; min-width: 160px; max-width: 260px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); font-size: 13px; }
         .jtt-filter  { padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--card-bg); color: var(--text-muted); transition: all 140ms; }
         .jtt-filter:hover, .jtt-filter.active { border-color: #9D2235; color: #9D2235; background: rgba(157,34,53,0.07); }
-        .jtt-no-cookie { padding: 10px 14px; background: rgba(245,158,11,0.1); border: 1px solid #f59e0b; border-radius: 8px; font-size: 12px; color: var(--text-muted); }
+        .jtt-no-cookie { padding: 10px 14px; background: rgba(245,158,11,0.1); border: 1px solid #f59e0b; border-radius: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
         .jtt-no-cookie a { color: #f59e0b; font-weight: 600; cursor: pointer; }
 
         .jtt-tier { margin-bottom: 24px; }
-        .jtt-tier-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); background: var(--card-bg); }
+        .jtt-tier-header { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); background: var(--card-bg); }
         .jtt-tier-label  { font-size: 13px; font-weight: 700; color: var(--text); }
         .jtt-tier-badge  { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; color: #fff; }
         .jtt-tier-desc   { font-size: 12px; color: var(--text-muted); margin-left: auto; }
 
         .jtt-table  { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; overflow: hidden; }
-        .jtt-row    { display: grid; grid-template-columns: 3px 1fr 120px 80px 100px auto; align-items: center; gap: 0; border-bottom: 1px solid var(--border); background: var(--card-bg); transition: background 140ms; }
+
+        /* ── Company row: single tight line ── */
+        .jtt-row    { display: grid; grid-template-columns: 3px 1fr 88px auto; align-items: center; gap: 0; border-bottom: 1px solid var(--border); background: var(--card-bg); transition: background 140ms; }
         .jtt-row:last-child { border-bottom: none; }
         .jtt-row:hover  { background: var(--card-hover); }
         .jtt-row.hidden { display: none; }
-        .jtt-tier-stripe { align-self: stretch; min-height: 48px; }
-        .jtt-row-main   { display: flex; flex-direction: column; justify-content: center; padding: 10px 12px; min-width: 0; }
-        .jtt-co-name    { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .jtt-co-meta    { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .jtt-co-location { padding: 10px 8px; font-size: 11px; color: var(--text-muted); }
-        .jtt-co-status  { padding: 10px 8px; }
+        .jtt-tier-stripe { align-self: stretch; min-height: 36px; }
+        .jtt-row-main   { display: flex; align-items: baseline; gap: 6px; padding: 8px 10px; min-width: 0; flex-wrap: wrap; }
+        .jtt-co-name    { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+        .jtt-co-sep     { font-size: 11px; color: var(--border); flex-shrink: 0; }
+        .jtt-co-meta    { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .jtt-co-loc     { font-size: 10px; color: var(--text-muted); opacity: 0.75; white-space: nowrap; flex-shrink: 0; }
+        .jtt-co-status  { padding: 4px 6px; }
         .jtt-status-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; white-space: nowrap; }
-        .jtt-co-actions { padding: 8px 10px 8px 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-        .jtt-btn        { font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 140ms; text-decoration: none; display: inline-block; }
+        .jtt-co-actions { padding: 4px 8px 4px 2px; display: flex; gap: 5px; align-items: center; justify-content: flex-end; }
+        .jtt-btn        { font-size: 11px; font-weight: 600; padding: 3px 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 140ms; text-decoration: none; display: inline-block; }
         .jtt-btn:hover  { border-color: var(--gold); color: var(--gold); }
         .jtt-btn.alumni { border-color: #0A66C2; color: #0A66C2; }
         .jtt-btn.alumni:hover { background: rgba(10,102,194,0.08); }
         .jtt-btn.alumni.scanning { opacity: 0.6; cursor: default; }
         .jtt-btn.warm   { background: rgba(34,197,94,0.12); border-color: #22c55e; color: #22c55e; }
 
-        .jtt-alumni-panel { border-bottom: 1px solid var(--border); background: rgba(10,102,194,0.04); padding: 12px 14px 12px 20px; display: none; }
+        /* ── Scraped jobs sub-rows ── */
+        .jtt-jobs-panel { display: none; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.015); }
+        .jtt-jobs-panel.has-jobs { display: block; }
+        .jtt-job-row    { display: flex; align-items: center; gap: 10px; padding: 5px 12px 5px 26px; border-top: 1px solid var(--border); font-size: 11px; }
+        .jtt-job-row:first-child { border-top: none; }
+        .jtt-job-title  { font-weight: 600; color: var(--text); flex-shrink: 0; }
+        .jtt-job-salary { color: #22c55e; font-weight: 600; flex-shrink: 0; }
+        .jtt-job-site   { color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+        .jtt-job-sep    { color: var(--border); flex-shrink: 0; }
+        .jtt-job-link   { color: #0A66C2; text-decoration: none; flex-shrink: 0; margin-left: auto; }
+        .jtt-job-link:hover { text-decoration: underline; }
+        .jtt-jobs-header { padding: 4px 12px 4px 26px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); opacity: 0.7; }
+
+        /* ── Alumni panel ── */
+        .jtt-alumni-panel { border-bottom: 1px solid var(--border); background: rgba(10,102,194,0.04); padding: 10px 14px 10px 20px; display: none; }
         .jtt-alumni-panel.open { display: block; }
-        .jtt-alumni-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .jtt-alumni-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
         .jtt-alumni-title  { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0A66C2; }
         .jtt-alumni-meta   { font-size: 11px; color: var(--text-muted); margin-left: auto; }
         .jtt-alumni-rescan { font-size: 11px; color: #0A66C2; cursor: pointer; font-weight: 600; }
-        .jtt-alumni-list   { display: flex; flex-direction: column; gap: 6px; }
+        .jtt-alumni-list   { display: flex; flex-direction: column; gap: 5px; }
         .jtt-alumni-person { display: flex; align-items: center; gap: 10px; font-size: 12px; }
         .jtt-alumni-name   { font-weight: 600; color: var(--text); }
         .jtt-alumni-hl     { color: var(--text-muted); font-size: 11px; }
@@ -156,8 +178,8 @@ const JobTargetTracker = (() => {
         .jtt-alumni-link:hover { text-decoration: underline; }
         .jtt-alumni-empty  { font-size: 12px; color: var(--text-muted); font-style: italic; }
 
-        .jtt-add-row { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px dashed var(--border); flex-wrap: wrap; }
-        .jtt-add-row input, .jtt-add-row select { padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text); font-size: 12px; }
+        .jtt-add-row { display: flex; gap: 8px; align-items: center; padding: 8px 14px; border-top: 1px dashed var(--border); flex-wrap: wrap; }
+        .jtt-add-row input, .jtt-add-row select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text); font-size: 12px; }
         .jtt-add-row input { flex: 1; min-width: 100px; }
 
         .jtt-chat-card { margin-top: 24px; }
@@ -167,14 +189,20 @@ const JobTargetTracker = (() => {
       </style>
 
       <div class="jtt-shell">
-        <div class="jtt-header">
-          <div>
-            <div class="jtt-title">Job Target Tracker</div>
-            <div class="jtt-subtitle">LA-area targets sorted by realistic comp. Work Tier 1 first, hardest.</div>
+
+        <div class="jtt-hero">
+          <div class="jtt-hero-quote">
+            <p>“70% of jobs are never publicly posted. Use alumni connections to create a warm path before applying cold.”</p>
+          </div>
+          <div class="jtt-hero-context">
+            <p class="jtt-context-title">Your LA-Area Target List</p>
+            <ul class="jtt-context-body">
+              <li>These are the Greater Los Angeles companies most likely to value a USC/Eller MIS background — sorted by realistic entry-level comp.</li>
+              <li>Tier 1 is where you apply first and hardest. Tier 3 is year-two move territory.</li>
+              <li>Use the Alumni button to find USC Marshall and Eller grads already at each company — a warm intro beats a cold application every time.</li>
+            </ul>
           </div>
         </div>
-
-        <div class="jtt-callout">70% of jobs are never publicly posted. Use alumni connections to create a warm path before applying cold.</div>
 
         ${_cookieWarningHTML()}
 
@@ -253,14 +281,18 @@ const JobTargetTracker = (() => {
       : hasScan      ? `👥 ${alumniCount} found`
       : '👥 Alumni';
 
+    const matchedJobs = _jobsForCompany(company.name);
+
     return `
       <div class="jtt-row" data-tier="${tier}" data-name="${_escAttr(company.name.toLowerCase())}" id="jtt-row-${_rowId(company.name)}">
         <div class="jtt-tier-stripe" style="background:${color}"></div>
         <div class="jtt-row-main">
-          <div class="jtt-co-name">${_esc(company.name)}</div>
-          <div class="jtt-co-meta">${_esc(company.note)}</div>
+          <span class="jtt-co-name">${_esc(company.name)}</span>
+          <span class="jtt-co-sep">·</span>
+          <span class="jtt-co-meta">${_esc(company.note)}</span>
+          <span class="jtt-co-sep">·</span>
+          <span class="jtt-co-loc">${_esc(company.location)}</span>
         </div>
-        <div class="jtt-co-location">${_esc(company.location)}</div>
         <div class="jtt-co-status">
           <span class="jtt-status-pill" style="${statusStyle}"
             onclick="JobTargetTracker.cycleStatus('${_escAttr(company.name)}')"
@@ -271,13 +303,12 @@ const JobTargetTracker = (() => {
             ? `<button class="jtt-btn alumni ${isScanning ? 'scanning' : ''}" ${isScanning ? 'disabled' : ''}
                 onclick="JobTargetTracker.scanAlumni('${_escAttr(company.name)}')">${alumniLabel}</button>`
             : ''}
-          <button class="jtt-btn ${warm ? 'warm' : ''}" onclick="JobTargetTracker.toggleWarm('${_escAttr(company.name)}')" title="${warm ? 'Warm path — click to clear' : 'Mark as warm path'}">
-            ${warm ? '🔥 Warm' : '🤝'}
-          </button>
+          <button class="jtt-btn ${warm ? 'warm' : ''}" onclick="JobTargetTracker.toggleWarm('${_escAttr(company.name)}')" title="${warm ? 'Warm path — click to clear' : 'Mark as warm path'}">${warm ? '🔥' : '🤝'}</button>
           <a class="jtt-btn" href="${_escAttr(liUrl)}" target="_blank" rel="noopener" title="LinkedIn Jobs">LI</a>
-          <a class="jtt-btn" href="${_escAttr(company.careers)}" target="_blank" rel="noopener" title="Careers page">Careers</a>
+          <a class="jtt-btn" href="${_escAttr(company.careers)}" target="_blank" rel="noopener" title="Careers page">↗</a>
         </div>
       </div>
+      ${matchedJobs.length ? _jobsPanelHTML(matchedJobs) : ''}
       <div class="jtt-alumni-panel ${isExpanded && hasScan ? 'open' : ''}" id="jtt-alumni-${_rowId(company.name)}">
         ${hasScan ? _alumniPanelInnerHTML(company.name, cache) : ''}
       </div>`;
@@ -285,6 +316,36 @@ const JobTargetTracker = (() => {
 
   function _rowId(name) {
     return name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  }
+
+  function _jobsForCompany(name) {
+    let jobs = [];
+    try { jobs = JSON.parse(localStorage.getItem('jsc_apify_jobs') || '[]'); } catch {}
+    const needle = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return jobs.filter(j => {
+      const co = String(j.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return co.includes(needle) || needle.includes(co.slice(0, 6));
+    }).slice(0, 5); // cap at 5 per company
+  }
+
+  function _jobsPanelHTML(jobs) {
+    const siteLabel = { linkedin: 'LI', indeed: 'IN', glassdoor: 'GD', google: 'GO', zip_recruiter: 'ZR' };
+    const rows = jobs.map(j => {
+      const salary = j.salary ? `<span class="jtt-job-salary">${_esc(j.salary)}</span><span class="jtt-job-sep">·</span>` : '';
+      const site   = siteLabel[j.site] || j.site || '';
+      const link   = j.urlDirect || j.url || '';
+      return `<div class="jtt-job-row">
+        <span class="jtt-job-title">${_esc(j.title)}</span>
+        <span class="jtt-job-sep">·</span>
+        ${salary}
+        <span class="jtt-job-site">${_esc(site)}</span>
+        ${link ? `<a class="jtt-job-link" href="${_escAttr(link)}" target="_blank" rel="noopener">Apply →</a>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="jtt-jobs-panel has-jobs">
+      <div class="jtt-jobs-header">Open Roles from Last Scrape</div>
+      ${rows}
+    </div>`;
   }
 
   function _alumniPanelInnerHTML(name, cache) {
