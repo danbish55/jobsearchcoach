@@ -306,7 +306,7 @@ const ApifyRadar = (() => {
     result = result.slice().sort((a, b) => {
       let va = _sortVal(a, _sortBy);
       let vb = _sortVal(b, _sortBy);
-      if (_sortDir === 'asc') { const t = va; va = vb; vb = t; }
+      if (_sortDir === 'desc') { const t = va; va = vb; vb = t; }
       if (va === vb) return 0;
       if (va == null) return 1;
       if (vb == null) return -1;
