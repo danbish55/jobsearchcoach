@@ -34,7 +34,6 @@ const DEFAULT_CONFIG = {
     location_tier3_pts: 5, location_ambiguous_pts: 2, location_non_preferred_pts: 0,
     exp_default_pts: 22,
     senior_title_penalty: 15,
-    exp_3yr_penalty: 6, exp_4yr_penalty: 12, exp_5yr_penalty: 18, exp_7yr_penalty: 25,
     min_score_threshold: 30,
   },
 };

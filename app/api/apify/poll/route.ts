@@ -13,7 +13,6 @@ const SCORING = {
   location_tier3_pts: 5, location_ambiguous_pts: 2, location_non_preferred_pts: 0,
   exp_default_pts: 22,
   senior_title_penalty: 15,
-  exp_3yr_penalty: 6, exp_4yr_penalty: 12, exp_5yr_penalty: 18, exp_7yr_penalty: 25,
   min_score_threshold: 30,
 };
 
@@ -89,16 +88,7 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   if (kw3.some(k => desc.includes(k))) {
     expScore = Math.min(expScore + SCORING.keyword_tier3_bonus, SCORING.experience_max);
   }
-  // Penalize explicit year requirements (match "N+ years" or "N-M years")
-  const plusYears  = desc.match(/\b(\d+)\s*\+\s*years?\b/);
-  const rangeYears = desc.match(/\b(\d+)\s*[-–]\s*\d+\s*years?\b/);
-  const minYears   = plusYears  ? parseInt(plusYears[1])  :
-                     rangeYears ? parseInt(rangeYears[1]) : 0;
-  if      (minYears >= 7) expScore -= SCORING.exp_7yr_penalty;
-  else if (minYears >= 5) expScore -= SCORING.exp_5yr_penalty;
-  else if (minYears >= 4) expScore -= SCORING.exp_4yr_penalty;
-  else if (minYears >= 3) expScore -= SCORING.exp_3yr_penalty;
-  expScore = Math.max(0, Math.min(expScore, SCORING.experience_max));
+  expScore = Math.min(expScore, SCORING.experience_max);
 
   // Trajectory (max 20)
   let trajScore: number;
@@ -147,7 +137,7 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   return {
     id: jobId, title: String(item.title || ''), company: String(item.companyName || item.company || ''),
     location: String(item.location || ''), url, salary: salary || null,
-    applicantsCount: typeof item.applicantsCount === 'number' ? item.applicantsCount : null,
+    applicantsCount: item.applicantsCount != null ? (parseInt(String(item.applicantsCount)) || null) : null,
     seniorityLevel: String(item.seniorityLevel || ''), employmentType: String(item.employmentType || ''),
     postedAt: String(item.postedAt || ''),
     description: String(item.description || item.descriptionHtml || item.jobDescription || item.jobDescriptionText || '').replace(/<[^>]*>/g, ' ').substring(0, 4000),
@@ -155,6 +145,20 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
     score_breakdown: { skills: skillsScore, experience: expScore, trajectory: trajScore, preference: prefScore },
     skills_matched: matchedSkills, approval_state: 'pending_review',
   };
+}
+
+const EXCLUDED_SENIORITIES = ['mid-senior level', 'senior level', 'director', 'executive', 'management'];
+
+function isExcluded(job: ScoredJob): boolean {
+  if (EXCLUDED_SENIORITIES.some(s => job.seniorityLevel.toLowerCase().includes(s))) return true;
+  if (job.description) {
+    const d = job.description.toLowerCase();
+    const plus  = d.match(/\b(\d+)\s*\+\s*years?\b/);
+    const range = d.match(/\b(\d+)\s*[-–]\s*\d+\s*years?\b/);
+    const min   = plus ? parseInt(plus[1]) : range ? parseInt(range[1]) : 0;
+    if (min >= 3) return true;
+  }
+  return false;
 }
 
 export async function GET(req: Request) {
@@ -198,6 +202,7 @@ export async function GET(req: Request) {
     const items = await itemsResp.json() as Record<string, unknown>[];
     const scored = (Array.isArray(items) ? items : [])
       .map(item => scoreJob(item))
+      .filter(j => !isExcluded(j))
       .filter(j => j.score >= SCORING.min_score_threshold)
       .sort((a, b) => b.score - a.score);
 
