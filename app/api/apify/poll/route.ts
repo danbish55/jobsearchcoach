@@ -194,19 +194,35 @@ function scoreGoogleJob(item: Record<string, unknown>): ScoredJob {
   const rawMin = typeof item.salaryMin === 'number' ? item.salaryMin * mult : null;
   const rawMax = typeof item.salaryMax === 'number' ? item.salaryMax * mult : null;
 
-  // Derive board badge from postedVia ("LinkedIn", "Indeed", "Glassdoor", ...)
-  const via  = String(item.postedVia || '').toLowerCase();
+  // postedVia or via — field name varies by actor version
+  const via  = String(item.postedVia || item.via || '').toLowerCase();
   const site = via.includes('linkedin')     ? 'linkedin'
              : via.includes('indeed')       ? 'indeed'
              : via.includes('glassdoor')    ? 'glassdoor'
              : via.includes('ziprecruiter') ? 'zip_recruiter'
              : 'google';
 
-  // Best apply URL — gio21 uses applyOptions[].link (not .url or .applicationLink)
-  const applyOptions = Array.isArray(item.applyOptions) ? item.applyOptions as Record<string, unknown>[] : [];
-  const bestUrl = applyOptions.length
-    ? String(applyOptions[0]?.link || applyOptions[0]?.url || applyOptions[0]?.applicationLink || '')
-    : String(item.url || item.jobUrl || '');
+  // Build the best URL: cast wide across every field gio21 might populate
+  const applyOptions  = Array.isArray(item.applyOptions)  ? item.applyOptions  as Record<string, unknown>[] : [];
+  const relatedLinks  = Array.isArray(item.relatedLinks)  ? item.relatedLinks  as Record<string, unknown>[] : [];
+
+  const directUrl = String(
+    applyOptions[0]?.link          ||   // primary gio21 field
+    applyOptions[0]?.url           ||
+    applyOptions[0]?.applicationLink ||
+    item.url                       ||   // root-level Google canonical URL
+    item.jobUrl                    ||
+    item.link                      ||
+    relatedLinks[0]?.link          ||   // sometimes populated when applyOptions is empty
+    ''
+  );
+
+  // Last resort: a Google Jobs search for this title+company always lets the user find the posting
+  const title   = String(item.title       || '').trim();
+  const company = String(item.companyName || '').trim();
+  const bestUrl = directUrl || (title
+    ? `https://www.google.com/search?q=${encodeURIComponent(company ? `${title} ${company}` : title)}&ibp=htl;jobs`
+    : '');
 
   return scoreJob({
     title:           item.title,

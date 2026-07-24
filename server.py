@@ -3452,14 +3452,26 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             mult    = 2080 if period == 'HOUR' else 12 if period == 'MONTH' else 1
             sal_min = item['salaryMin'] * mult if isinstance(item.get('salaryMin'), (int, float)) else None
             sal_max = item['salaryMax'] * mult if isinstance(item.get('salaryMax'), (int, float)) else None
-            via     = str(item.get('postedVia') or '').lower()
-            site    = ('linkedin'    if 'linkedin'     in via else
-                       'indeed'      if 'indeed'       in via else
-                       'glassdoor'   if 'glassdoor'    in via else
+            via     = str(item.get('postedVia') or item.get('via') or '').lower()
+            site    = ('linkedin'      if 'linkedin'     in via else
+                       'indeed'        if 'indeed'       in via else
+                       'glassdoor'     if 'glassdoor'    in via else
                        'zip_recruiter' if 'ziprecruiter' in via else
                        'google')
-            opts    = item.get('applyOptions') or []
-            best_url = str((opts[0].get('link') or opts[0].get('url') or opts[0].get('applicationLink') or '') if opts else (item.get('url') or item.get('jobUrl') or ''))
+            opts         = item.get('applyOptions') or []
+            related      = item.get('relatedLinks') or []
+            direct_url   = (
+                (opts[0].get('link') or opts[0].get('url') or opts[0].get('applicationLink') or '') if opts
+                else (item.get('url') or item.get('jobUrl') or item.get('link') or
+                      (related[0].get('link') or '') if related else '')
+            )
+            _t = str(item.get('title') or '').strip()
+            _c = str(item.get('companyName') or '').strip()
+            import urllib.parse as _up
+            best_url     = direct_url or (
+                'https://www.google.com/search?q=' + _up.quote(f'{_t} {_c}' if _c else _t) + '&ibp=htl;jobs'
+                if _t else ''
+            )
             return {
                 'title':           item.get('title'),
                 'company':         item.get('companyName'),
