@@ -192,7 +192,7 @@ export async function GET(req: Request) {
     if (!token) return NextResponse.json({ ok: false, error: 'Missing token' }, { status: 400 });
 
     // Check run status via run ID (works with any actor ID)
-    const runResp = await fetch(`${APIFY_BASE}/runs/${runId}`, {
+    const runResp = await fetch(`${APIFY_BASE}/actor-runs/${runId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const runData = await runResp.json();
