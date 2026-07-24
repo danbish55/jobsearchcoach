@@ -16,11 +16,10 @@ export async function POST(req: Request) {
 
     const payload = {
       searchTerm: 'entry level data analyst',
-      googleSearchTerm: 'entry level data analyst jobs United States',
+      googleSearchTerm: 'entry level data analyst jobs',
       location: 'United States',
-      sites: ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter', 'bayt', 'bdjobs', 'naukri'],
+      sites: ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter'],
       maxResults,
-      // hoursOld removed: appears to cause non-LI/IN boards to return 0 results
       enforceAnnualSalary: true,
       descriptionFormat: 'markdown',
       countryIndeed: 'usa',

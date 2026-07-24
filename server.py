@@ -3417,9 +3417,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'searchTerm': 'entry level data analyst',
                 'googleSearchTerm': 'entry level data analyst jobs United States',
                 'location': 'United States',
-                'sites': ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter', 'bayt', 'bdjobs', 'naukri'],
+                'sites': ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter'],
                 'maxResults': count,
-                # hoursOld removed: causes non-LI/IN boards to return 0 results
                 'enforceAnnualSalary': True,
                 'descriptionFormat': 'markdown',
                 'countryIndeed': 'usa',

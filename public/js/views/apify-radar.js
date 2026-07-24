@@ -286,9 +286,6 @@ const ApifyRadar = (() => {
         <span class="ar-board-legend-item"><span class="ar-board-badge gd">GD</span> Glassdoor</span>
         <span class="ar-board-legend-item"><span class="ar-board-badge go">GO</span> Google Jobs</span>
         <span class="ar-board-legend-item"><span class="ar-board-badge zr">ZR</span> ZipRecruiter</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge by">BY</span> Bayt</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge bd">BD</span> BDJobs</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge nk">NK</span> Naukri</span>
       </div>
       <div id="ar-body"></div>`;
     _loadJobs();
