@@ -337,17 +337,33 @@ const Settings = (() => {
         <div class="settings-section">
           ${_sectionHeaderHTML('linkedin-alumni', 'LinkedIn Alumni')}
           <div id="linkedin-alumni-panel" style="display:none">
-          <div class="setting-row">
-            <span class="setting-label">li_at Cookie</span>
+          <div class="setting-row" style="align-items:flex-start">
+            <span class="setting-label" style="padding-top:4px">Session Cookie</span>
             <div class="setting-control">
-              <input id="li-cookie" type="password" placeholder="Paste your LinkedIn li_at cookie value" autocomplete="off" style="font-family:monospace;font-size:12px">
-              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">
-                In Chrome: open LinkedIn → F12 → Application → Cookies → linkedin.com → copy the <strong>li_at</strong> value.<br>
-                This is stored locally and used only to find USC/Eller alumni at your target companies.
+              <p style="font-size:13px;color:var(--text);margin:0 0 12px">
+                This lets the app find USC Marshall and Eller alumni at your target companies — one click per company instead of searching manually.
+                The cookie is stored only on this device and never sent anywhere except the alumni scraper.
+              </p>
+
+              <div style="background:var(--card-hover);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">How to get it — takes about 30 seconds</div>
+                <ol style="font-size:13px;color:var(--text);line-height:1.8;margin:0;padding-left:18px">
+                  <li>Open <strong>LinkedIn.com</strong> in Chrome and make sure you're logged in.</li>
+                  <li>Press <strong>F12</strong> to open Developer Tools. (Or right-click anywhere → Inspect.)</li>
+                  <li>Click the <strong>Application</strong> tab at the top of the panel that opened. <em style="color:var(--text-muted)">(If you don't see it, click the &rsaquo;&rsaquo; arrow to find more tabs.)</em></li>
+                  <li>In the left sidebar, expand <strong>Cookies</strong> and click <strong>https://www.linkedin.com</strong>.</li>
+                  <li>In the table, find the row named <strong>li_at</strong>.</li>
+                  <li>Click on that row, then <strong>double-click the Value column</strong> to select the whole value. Copy it (Ctrl+C).</li>
+                  <li>Paste it into the box below and click Save.</li>
+                </ol>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:10px">⚠️ The cookie expires every few weeks. If alumni scanning stops working, just repeat these steps to refresh it.</div>
               </div>
-              <div style="margin-top:8px">
+
+              <input id="li-cookie" type="password" placeholder="Paste the li_at value here…" autocomplete="off" style="font-family:monospace;font-size:12px;width:100%;margin-bottom:8px">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <button class="btn btn-primary btn-sm" onclick="Settings.saveLinkedInCookie()">Save Cookie</button>
-                <span id="li-cookie-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
+                <button class="btn btn-ghost btn-sm" id="li-test-btn" onclick="Settings.testLinkedInCookie()">Test Connection</button>
+                <span id="li-cookie-status" style="font-size:12px;color:var(--text-muted)"></span>
               </div>
             </div>
           </div>
@@ -528,8 +544,41 @@ const Settings = (() => {
     if (!val) { UI.notify('Paste your li_at cookie value first', 'error'); return; }
     Storage.set('linkedin_li_at', val);
     const status = document.getElementById('li-cookie-status');
-    if (status) { status.textContent = '✓ Saved'; status.style.color = 'var(--success)'; }
+    if (status) { status.textContent = '✓ Saved — click Test Connection to verify it works.'; status.style.color = 'var(--success)'; }
     UI.notify('LinkedIn cookie saved', 'success');
+  }
+
+  async function testLinkedInCookie() {
+    const cookie = Storage.get('linkedin_li_at', '') || document.getElementById('li-cookie')?.value.trim();
+    const status = document.getElementById('li-cookie-status');
+    const btn    = document.getElementById('li-test-btn');
+    if (!cookie) { UI.notify('Save a cookie first', 'error'); return; }
+    if (status) { status.textContent = 'Testing…'; status.style.color = 'var(--text-muted)'; }
+    if (btn)    btn.disabled = true;
+    try {
+      const resp = await fetch('/api/apify/alumni/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cookie,
+          token: 'APIFY_TOKEN_REMOVED',
+          schools: ['https://www.linkedin.com/school/usc-marshall-school-of-business/'],
+          maxAlumni: 1,
+        }),
+      });
+      const data = await resp.json();
+      if (data.ok && data.runId) {
+        if (status) { status.textContent = '✓ Cookie is valid — LinkedIn accepted it.'; status.style.color = 'var(--success)'; }
+        UI.notify('LinkedIn cookie is working!', 'success');
+      } else {
+        throw new Error(data.error || 'Rejected by LinkedIn');
+      }
+    } catch (err) {
+      if (status) { status.textContent = `✗ ${err.message} — try refreshing the cookie.`; status.style.color = 'var(--danger)'; }
+      UI.notify('Cookie test failed — it may be expired', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   }
 
   async function saveApiKey() {
@@ -1208,6 +1257,7 @@ const Settings = (() => {
     saveParentEmails,
     saveGaugeGoals,
     saveLinkedInCookie,
+    testLinkedInCookie,
     saveApiKey,
     connectDrive,
     disconnectDrive,
