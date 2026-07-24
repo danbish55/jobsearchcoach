@@ -135,6 +135,7 @@ const App = (() => {
       case 'jobs':      Jobs.render(); break;
       case 'resources': Resources.render(); break;
       case 'leads':     JobLeads.render(); break;
+      case 'apify-radar': ApifyRadar.render(); break;
       case 'report':    Report.render(); break;
       case 'settings':  Settings.render(); break;
       case 'mission-discussion': MissionDiscussion.render(); break;

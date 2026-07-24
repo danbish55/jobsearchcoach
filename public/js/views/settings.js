@@ -134,6 +134,29 @@ const Settings = (() => {
   ];
 
   let candidateProfileDraft = null;
+  let apifyConfigDraft      = null;
+
+  const APIFY_SCORING_FIELDS = [
+    { key: 'skills_max',                 label: 'Skills max pts',          defaultValue: 40  },
+    { key: 'experience_max',             label: 'Experience max pts',      defaultValue: 30  },
+    { key: 'trajectory_max',             label: 'Trajectory max pts',      defaultValue: 20  },
+    { key: 'preference_max',             label: 'Preference max pts',      defaultValue: 10  },
+    { key: 'title_tier1_pts',            label: 'Title Tier 1 pts',        defaultValue: 20  },
+    { key: 'title_tier2_pts',            label: 'Title Tier 2 pts',        defaultValue: 12  },
+    { key: 'title_tier3_pts',            label: 'Title Tier 3 pts',        defaultValue:  5  },
+    { key: 'skill_tier1_weight',         label: 'Skill Tier 1 weight',     defaultValue: 10  },
+    { key: 'skill_tier2_weight',         label: 'Skill Tier 2 weight',     defaultValue:  6  },
+    { key: 'skill_tier3_weight',         label: 'Skill Tier 3 weight',     defaultValue:  3  },
+    { key: 'keyword_tier1_pts',          label: 'Keyword Tier 1 pts',      defaultValue: 30  },
+    { key: 'keyword_tier2_pts',          label: 'Keyword Tier 2 pts',      defaultValue: 28  },
+    { key: 'keyword_tier3_bonus',        label: 'Keyword Tier 3 bonus',    defaultValue:  5  },
+    { key: 'location_remote_pts',        label: 'Remote/hybrid pts',       defaultValue:  8  },
+    { key: 'location_tier1_pts',         label: 'Location Tier 1 pts',     defaultValue:  9  },
+    { key: 'location_tier2_pts',         label: 'Location Tier 2 pts',     defaultValue:  7  },
+    { key: 'location_tier3_pts',         label: 'Location Tier 3 pts',     defaultValue:  5  },
+    { key: 'location_ambiguous_pts',     label: 'Ambiguous location pts',  defaultValue:  2  },
+    { key: 'location_non_preferred_pts', label: 'Non-preferred penalty',   defaultValue: -15 },
+  ];
 
   function render() {
     const status = Config.get() || {};
@@ -318,6 +341,98 @@ const Settings = (() => {
           </div>
           <div style="margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="Settings.saveApiKey()">Update API Key</button>
+          </div>
+          </div>
+        </div>
+
+        <!-- LinkedIn Radar -->
+        <div class="settings-section">
+          ${_sectionHeaderHTML('linkedin-radar', 'LinkedIn Radar')}
+          <div id="linkedin-radar-panel" style="display:none">
+
+          <div class="setting-row">
+            <span class="setting-label">Apify Token</span>
+            <div class="setting-control">
+              <input id="ar-apify-token" type="password" placeholder="apify_api_…" autocomplete="off" style="font-family:monospace;font-size:12px">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="ar-token-status">Leave blank to keep the current token.</div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Role Keyword</span>
+            <div class="setting-control">
+              <input id="ar-role-keyword" type="text" placeholder="Data Analyst">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">LinkedIn search keyword</div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Min Results</span>
+            <div class="setting-control" style="max-width:110px">
+              <input id="ar-min-results" type="number" min="10" max="200" placeholder="50">
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Excellent ≥</span>
+            <div class="setting-control" style="max-width:110px">
+              <input id="ar-score-excellent" type="number" min="1" max="100" placeholder="90">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Green row threshold</div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Strong ≥</span>
+            <div class="setting-control" style="max-width:110px">
+              <input id="ar-score-strong" type="number" min="1" max="100" placeholder="70">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Amber row threshold</div>
+            </div>
+          </div>
+
+          <div style="margin:20px 0 16px;padding:14px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.03);font-size:12px;line-height:1.7;color:var(--text-muted)">
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">How Scoring Works</div>
+            <p style="margin:0 0 6px">Each job is scored 0–100 across four categories. <strong style="color:var(--text)">Tiers</strong> assign different weights to core vs. adjacent matches within each category.</p>
+            <ul style="margin:8px 0 0 16px;padding:0;display:flex;flex-direction:column;gap:6px">
+              <li><strong style="color:var(--text)">Skills (40 pts max)</strong> — Tier 1 skills score higher per match; Tier 2 and 3 progressively less. Total scales with breadth.</li>
+              <li><strong style="color:var(--text)">Experience (30 pts max)</strong> — Tier 1 keywords ("new grad") = 30 pts. Tier 2 ("entry level") = 28 pts. Tier 3 keywords (MSBA/master's) add a +5 bonus.</li>
+              <li><strong style="color:var(--text)">Role Trajectory (20 pts max)</strong> — Tier 1 title = 20 pts, Tier 2 = 12 pts, Tier 3 = 5 pts. No match = 5 pts.</li>
+              <li><strong style="color:var(--text)">Preference (10 pts max)</strong> — Remote/hybrid = 8 pts. Tier 1 cities = 9 pts, Tier 2 = 7 pts, Tier 3 = 5 pts. Non-preferred location = −15 pts. Salary listed adds +1.</li>
+            </ul>
+          </div>
+
+          <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:16px 0 8px">Job Titles</div>
+          ${_apifyTagFieldHTML('titles_tier1', 'Tier 1 (20 pts)', 'Data Analyst, Business Analyst…')}
+          ${_apifyTagFieldHTML('titles_tier2', 'Tier 2 (12 pts)', 'Product Analyst, Reporting Analyst…')}
+          ${_apifyTagFieldHTML('titles_tier3', 'Tier 3 (5 pts)', 'Operations Specialist…')}
+
+          <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 8px">Skills</div>
+          ${_apifyTagFieldHTML('skills_tier1', 'Tier 1 (10 pts each)', 'SQL, Python, Tableau…')}
+          ${_apifyTagFieldHTML('skills_tier2', 'Tier 2 (6 pts each)', 'Power BI, Excel, machine learning…')}
+          ${_apifyTagFieldHTML('skills_tier3', 'Tier 3 (3 pts each)', 'database management, A/B test…')}
+
+          <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 8px">Experience Keywords</div>
+          ${_apifyTagFieldHTML('keywords_tier1', 'Tier 1 (30 pts)', 'new grad, recent graduate…')}
+          ${_apifyTagFieldHTML('keywords_tier2', 'Tier 2 (28 pts)', 'entry level, 0-2 years…')}
+          ${_apifyTagFieldHTML('keywords_tier3', 'Tier 3 (+5 bonus)', "master's preferred, MSBA…")}
+
+          <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 8px">Locations</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Remote/hybrid jobs bypass location scoring entirely (+8 pts regardless of city).</div>
+          ${_apifyTagFieldHTML('locations_tier1', 'Tier 1 (9 pts)', 'Los Angeles, Santa Monica, Irvine, San Diego…')}
+          ${_apifyTagFieldHTML('locations_tier2', 'Tier 2 (7 pts)', 'Dallas, Denver, Seattle…')}
+          ${_apifyTagFieldHTML('locations_tier3', 'Tier 3 (5 pts)', 'Las Vegas, Henderson…')}
+
+          <div style="margin-top:18px">
+            <button type="button" onclick="Settings.toggleSection('ar-advanced-scoring')"
+              style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);cursor:pointer;text-align:left">
+              <span style="font-size:13px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em">Advanced Scoring Weights</span>
+              <span id="ar-advanced-scoring-chevron" style="color:var(--gold);font-size:16px;line-height:1;transition:transform 0.2s ease;transform:rotate(-90deg)">v</span>
+            </button>
+            <div id="ar-advanced-scoring-panel" style="display:none;border:1px solid var(--border);border-top:0;border-radius:0 0 8px 8px;padding:14px 12px">
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Exact point values used during scoring. Defaults work well for most searches.</div>
+              ${_apifyScoringWeightFieldsHTML()}
+            </div>
+          </div>
+
+          <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="Settings.saveApifySettings()">Save LinkedIn Radar Settings</button>
+            <span id="ar-settings-error" style="font-size:12px;color:var(--danger)"></span>
+            <span id="ar-settings-ok" style="font-size:12px;color:var(--success)"></span>
           </div>
           </div>
         </div>
@@ -718,6 +833,7 @@ const Settings = (() => {
     if (sourcesResult.status === 'fulfilled' && sourcesResult.value.ok && sourcesResult.value.data?.ok !== false) {
       _applyJobSources(sourcesResult.value.data);
     }
+    _loadApifySettings();
   }
 
   function _applyCandidateProfile(profile) {
@@ -812,6 +928,161 @@ const Settings = (() => {
       draft.scoring_weights[field.key] = Number.isFinite(savedValue) ? savedValue : field.defaultValue;
     });
     return draft;
+  }
+
+  // ── Apify / LinkedIn Radar ────────────────────────────────────────────────
+
+  function handleApifyTagKey(event, key) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const input  = event.target;
+    const values = _splitTags(input.value);
+    if (!values.length) return;
+    const current    = apifyConfigDraft?.[key] || [];
+    const normalized = new Set(current.map(v => v.toLowerCase()));
+    values.forEach(value => {
+      if (!normalized.has(value.toLowerCase())) { current.push(value); normalized.add(value.toLowerCase()); }
+    });
+    if (apifyConfigDraft) apifyConfigDraft[key] = current;
+    input.value = '';
+    _apifyRenderTagList(key);
+  }
+
+  function removeApifyTag(key, index) {
+    const current = apifyConfigDraft?.[key] || [];
+    current.splice(index, 1);
+    if (apifyConfigDraft) apifyConfigDraft[key] = current;
+    _apifyRenderTagList(key);
+  }
+
+  function _apifyRenderTagList(key) {
+    const list = document.getElementById(`apify-${key}-list`);
+    if (list) list.innerHTML = _apifyTagListHTML(key);
+  }
+
+  function _apifyTagListHTML(key) {
+    const values = apifyConfigDraft?.[key] || [];
+    if (!values.length) {
+      return `<span style="font-size:12px;color:var(--text-muted);font-style:italic">No tags yet</span>`;
+    }
+    return values.map((value, index) => `
+      <span class="tag">
+        <span>${_esc(value)}</span>
+        <button type="button" class="tag-remove" onclick="Settings.removeApifyTag('${key}', ${index})"
+          style="background:none;border:0;padding:0" aria-label="Remove">&times;</button>
+      </span>`).join('');
+  }
+
+  function _apifyTagFieldHTML(key, label, placeholder) {
+    return `<div class="setting-row" style="align-items:flex-start">
+      <span class="setting-label" style="padding-top:8px">${_esc(label)}</span>
+      <div class="setting-control">
+        <div id="apify-${key}-list" class="tag-list" style="margin-top:0">${_apifyTagListHTML(key)}</div>
+        <input id="apify-${key}-input" type="text" placeholder="${_esc(placeholder)}"
+          onkeydown="Settings.handleApifyTagKey(event, '${key}')" style="margin-top:8px">
+      </div>
+    </div>`;
+  }
+
+  function _apifyScoringWeightFieldsHTML() {
+    return APIFY_SCORING_FIELDS.map(field => {
+      const val = apifyConfigDraft?.scoring?.[field.key] ?? field.defaultValue;
+      return `<div class="setting-row">
+        <span class="setting-label">${_esc(field.label)}</span>
+        <div class="setting-control" style="max-width:110px">
+          <input id="ar-scoring-${field.key}" type="number" value="${_esc(val)}">
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function saveApifySettings() {
+    const errEl = document.getElementById('ar-settings-error');
+    const okEl  = document.getElementById('ar-settings-ok');
+    if (errEl) errEl.textContent = '';
+    if (okEl)  okEl.textContent  = '';
+
+    const token = (document.getElementById('ar-apify-token')?.value || '').trim();
+    const scoring = {};
+    APIFY_SCORING_FIELDS.forEach(field => {
+      const val = Number(document.getElementById(`ar-scoring-${field.key}`)?.value);
+      scoring[field.key] = Number.isFinite(val) ? val : field.defaultValue;
+    });
+
+    const body = {
+      apify_config: {
+        role_keyword:              (document.getElementById('ar-role-keyword')?.value   || '').trim(),
+        min_results:               Number(document.getElementById('ar-min-results')?.value)  || 50,
+        score_excellent_threshold: Number(document.getElementById('ar-score-excellent')?.value) || 90,
+        score_strong_threshold:    Number(document.getElementById('ar-score-strong')?.value)    || 70,
+        titles:    { tier1: [...(apifyConfigDraft?.titles_tier1    || [])], tier2: [...(apifyConfigDraft?.titles_tier2    || [])], tier3: [...(apifyConfigDraft?.titles_tier3    || [])] },
+        skills:    { tier1: [...(apifyConfigDraft?.skills_tier1    || [])], tier2: [...(apifyConfigDraft?.skills_tier2    || [])], tier3: [...(apifyConfigDraft?.skills_tier3    || [])] },
+        keywords:  { tier1: [...(apifyConfigDraft?.keywords_tier1  || [])], tier2: [...(apifyConfigDraft?.keywords_tier2  || [])], tier3: [...(apifyConfigDraft?.keywords_tier3  || [])] },
+        locations: { tier1: [...(apifyConfigDraft?.locations_tier1 || [])], tier2: [...(apifyConfigDraft?.locations_tier2 || [])], tier3: [...(apifyConfigDraft?.locations_tier3 || [])] },
+        scoring,
+      },
+    };
+    if (token) body.apify_token = token;
+
+    try {
+      const resp   = await fetch('/api/apify/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || result.ok === false) throw new Error(result.error || 'Save failed');
+      if (token) {
+        const tokenInput = document.getElementById('ar-apify-token');
+        if (tokenInput) tokenInput.value = '';
+        const statusEl = document.getElementById('ar-token-status');
+        if (statusEl) statusEl.textContent = '✓ Token saved. Leave blank to keep it.';
+      }
+      if (okEl) { okEl.textContent = '✓ Saved'; setTimeout(() => { if (okEl) okEl.textContent = ''; }, 3000); }
+      UI.notify('LinkedIn Radar settings saved', 'success');
+    } catch (err) {
+      if (errEl) errEl.textContent = err.message;
+      UI.notify('Save failed', 'error');
+    }
+  }
+
+  async function _loadApifySettings() {
+    try {
+      const resp = await fetch('/api/apify/config');
+      if (!resp.ok) return;
+      const payload = await resp.json();
+      if (!payload.ok) return;
+      const cfg = payload.config || {};
+
+      apifyConfigDraft = {
+        titles_tier1:    [...(cfg.titles?.tier1    || [])],
+        titles_tier2:    [...(cfg.titles?.tier2    || [])],
+        titles_tier3:    [...(cfg.titles?.tier3    || [])],
+        skills_tier1:    [...(cfg.skills?.tier1    || [])],
+        skills_tier2:    [...(cfg.skills?.tier2    || [])],
+        skills_tier3:    [...(cfg.skills?.tier3    || [])],
+        keywords_tier1:  [...(cfg.keywords?.tier1  || [])],
+        keywords_tier2:  [...(cfg.keywords?.tier2  || [])],
+        keywords_tier3:  [...(cfg.keywords?.tier3  || [])],
+        locations_tier1: [...(cfg.locations?.tier1 || [])],
+        locations_tier2: [...(cfg.locations?.tier2 || [])],
+        locations_tier3: [...(cfg.locations?.tier3 || [])],
+        scoring:         Object.assign({}, cfg.scoring || {}),
+      };
+
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      set('ar-role-keyword',    cfg.role_keyword || 'Data Analyst');
+      set('ar-min-results',     cfg.min_results  || 50);
+      set('ar-score-excellent', cfg.score_excellent_threshold || 90);
+      set('ar-score-strong',    cfg.score_strong_threshold    || 70);
+
+      const statusEl = document.getElementById('ar-token-status');
+      if (statusEl) statusEl.textContent = payload.has_token ? '✓ Token saved. Leave blank to keep it.' : 'No token saved yet.';
+
+      APIFY_SCORING_FIELDS.forEach(field => {
+        const el = document.getElementById(`ar-scoring-${field.key}`);
+        if (el) el.value = apifyConfigDraft.scoring[field.key] ?? field.defaultValue;
+      });
+
+      const tagKeys = ['titles_tier1','titles_tier2','titles_tier3','skills_tier1','skills_tier2','skills_tier3','keywords_tier1','keywords_tier2','keywords_tier3','locations_tier1','locations_tier2','locations_tier3'];
+      tagKeys.forEach(k => _apifyRenderTagList(k));
+    } catch {}
   }
 
   function _tagFieldHTML(field) {
@@ -969,6 +1240,9 @@ const Settings = (() => {
     toggleSection,
     handleTagKey,
     removeProfileTag,
+    handleApifyTagKey,
+    removeApifyTag,
+    saveApifySettings,
     resetScoringWeight,
     saveJobSearchProfile,
     saveJobSources,
