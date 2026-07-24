@@ -3414,10 +3414,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         try:
             actor_url = f'{_APIFY_BASE}/acts/{_APIFY_ACTOR}/runs?waitForFinish=300'
             payload   = json.dumps({
-                'searchTerm': role,
+                'searchTerm': 'entry level data analyst',
                 'location': 'United States',
                 'sites': ['linkedin', 'indeed', 'glassdoor'],
                 'maxResults': count,
+                'hoursOld': 144,
                 'enforceAnnualSalary': True,
                 'descriptionFormat': 'markdown',
                 'jobType': 'fulltime',

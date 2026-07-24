@@ -15,10 +15,11 @@ export async function POST(req: Request) {
     const maxResults = Math.min(Number(body.min_results) || 50, 100);
 
     const payload = {
-      searchTerm,
+      searchTerm: 'entry level data analyst',
       location: 'United States',
       sites: ['linkedin', 'indeed', 'glassdoor'],
       maxResults,
+      hoursOld: 144,
       enforceAnnualSalary: true,
       descriptionFormat: 'markdown',
       jobType: 'fulltime',

@@ -223,6 +223,27 @@ const ApifyRadar = (() => {
       }
       @keyframes ar-spin { to { transform: rotate(360deg); } }
       #apify-radar-content .ar-rank { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+      /* ── Board source badges ── */
+      #apify-radar-content .ar-board-badge {
+        display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+        padding: 2px 5px; border-radius: 4px; color: #fff; vertical-align: middle;
+        line-height: 1.4; white-space: nowrap;
+      }
+      #apify-radar-content .ar-board-badge.li  { background: #0A66C2; }
+      #apify-radar-content .ar-board-badge.in  { background: #003A9B; }
+      #apify-radar-content .ar-board-badge.gd  { background: #0CAA41; }
+      #apify-radar-content .ar-board-badge.unknown { background: #888; }
+
+      /* ── Board legend strip ── */
+      #apify-radar-content .ar-board-legend {
+        display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+        font-size: 12px; color: var(--text-muted);
+        margin-bottom: 10px;
+      }
+      #apify-radar-content .ar-board-legend-item {
+        display: flex; align-items: center; gap: 5px;
+      }
     `;
     document.head.appendChild(s);
   }
@@ -252,6 +273,12 @@ const ApifyRadar = (() => {
         <button class="ar-filter-btn"        id="ar-f-rejected" onclick="ApifyRadar.setStateFilter('rejected')">Rejected</button>
         <button class="ar-filter-btn"        id="ar-f-applied"  onclick="ApifyRadar.setStateFilter('applied')">Applied</button>
         <span class="ar-count" id="ar-count"></span>
+      </div>
+      <div class="ar-board-legend">
+        <span style="font-weight:600">Sources:</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge li">LI</span> LinkedIn</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge in">IN</span> Indeed</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge gd">GD</span> Glassdoor</span>
       </div>
       <div id="ar-body"></div>`;
     _loadJobs();
@@ -369,6 +396,14 @@ const ApifyRadar = (() => {
 
   // ── Table rendering ──────────────────────────────────────────────────────
 
+  function _boardBadge(site) {
+    const s = (site || '').toLowerCase();
+    if (s === 'linkedin')   return '<span class="ar-board-badge li"  title="LinkedIn">LI</span>';
+    if (s === 'indeed')     return '<span class="ar-board-badge in"  title="Indeed">IN</span>';
+    if (s === 'glassdoor')  return '<span class="ar-board-badge gd"  title="Glassdoor">GD</span>';
+    return s ? `<span class="ar-board-badge unknown" title="${_esc(site)}">${_esc(site.substring(0,2).toUpperCase())}</span>` : '<span class="ar-muted">—</span>';
+  }
+
   function _thHTML(col, label, defaultW) {
     const w        = _colWidths[col] ? _colWidths[col] + 'px' : defaultW;
     const isActive = _sortBy === col;
@@ -394,6 +429,7 @@ const ApifyRadar = (() => {
         <tr>
           <th style="width:36px;min-width:36px">#<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_rank"></span></th>
           ${_thHTML('score',          'Score',      '62px')}
+          <th style="width:44px;min-width:44px;text-align:center">Src</th>
           ${_thHTML('title',          'Job Title',  '220px')}
           ${_thHTML('company',        'Company',    '130px')}
           ${_thHTML('location',       'Location',   '140px')}
@@ -447,6 +483,7 @@ const ApifyRadar = (() => {
     return `<tr class="${rowCls}">
       <td class="ar-rank">${rank}</td>
       <td><span class="ar-score-pill ${pillCls}" title="${tipText}">${score}</span></td>
+      <td style="text-align:center">${_boardBadge(job.site)}</td>
       <td class="ar-job-title" title="${_esc(job.title || '')}">${titleLink}</td>
       <td class="ar-muted"    title="${_esc(job.company  || '')}">${_esc(job.company  || '—')}</td>
       <td class="ar-muted"    title="${_esc(job.location || '')}">${_esc(job.location || '—')}</td>
