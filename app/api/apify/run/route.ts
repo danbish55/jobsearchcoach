@@ -9,7 +9,7 @@ const APIFY_BASE   = 'https://api.apify.com/v2';
 export async function POST(req: Request) {
   try {
     const body  = await req.json().catch(() => ({}));
-    const token = String(body.token || process.env.APIFY_TOKEN || '').trim();
+    const token = String(body.token || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
     if (!token) {
       return NextResponse.json(
         { ok: false, error: 'Apify token not found. Save it in Settings → Job Board Scraper first.' },
@@ -24,8 +24,8 @@ export async function POST(req: Request) {
       'Content-Type': 'application/json',
     };
 
-    // Actor 1: LinkedIn + Indeed (openclawai only reliably returns these two)
-    const liPayload = {
+    // Pass 1a: LinkedIn + Indeed, US-wide with salary filter (catches national remote + posted-pay roles)
+    const liUsPayload = {
       searchTerm: 'entry level data analyst',
       location: 'United States',
       sites: ['linkedin', 'indeed'],
@@ -35,40 +35,54 @@ export async function POST(req: Request) {
       countryIndeed: 'usa',
     };
 
-    // Actor 2: Google Jobs — aggregates from Glassdoor, Greenhouse, Lever, direct company ATS pages, and more
+    // Pass 1b: LinkedIn + Indeed, LA-targeted, no salary filter (catches local listings that don't post pay)
+    const liLaPayload = {
+      searchTerm: 'entry level data analyst',
+      location: 'Los Angeles, CA',
+      sites: ['linkedin', 'indeed'],
+      maxResults,
+      enforceAnnualSalary: false,
+      descriptionFormat: 'markdown',
+      countryIndeed: 'usa',
+    };
+
+    // Pass 2: Google Jobs — aggregates Glassdoor, Greenhouse, Lever, direct company ATS pages
     const googlePayload = {
-      queries: ['entry level data analyst'],
+      queries: ['entry level data analyst Los Angeles'],
       countryCode: 'us',
       datePosted: 'week',
       jobType: ['FULLTIME'],
       maxItems: maxResults,
     };
 
-    // Start both actors in parallel
-    const [liResp, googleResp] = await Promise.all([
-      fetch(`${APIFY_BASE}/acts/${LI_IN_ACTOR}/runs`,  { method: 'POST', headers, body: JSON.stringify(liPayload) }),
+    // Start all three in parallel
+    const [liUsResp, liLaResp, googleResp] = await Promise.all([
+      fetch(`${APIFY_BASE}/acts/${LI_IN_ACTOR}/runs`, { method: 'POST', headers, body: JSON.stringify(liUsPayload) }),
+      fetch(`${APIFY_BASE}/acts/${LI_IN_ACTOR}/runs`, { method: 'POST', headers, body: JSON.stringify(liLaPayload) }),
       fetch(`${APIFY_BASE}/acts/${GOOGLE_ACTOR}/runs`, { method: 'POST', headers, body: JSON.stringify(googlePayload) }),
     ]);
 
-    const liData     = await liResp.json();
+    const liUsData   = await liUsResp.json();
+    const liLaData   = await liLaResp.json();
     const googleData = await googleResp.json();
 
-    if (!liResp.ok) {
-      const msg = liData?.error?.message || JSON.stringify(liData);
-      return NextResponse.json({ ok: false, error: `LI/IN actor error ${liResp.status}: ${msg}` }, { status: 500 });
+    if (!liUsResp.ok) {
+      const msg = liUsData?.error?.message || JSON.stringify(liUsData);
+      return NextResponse.json({ ok: false, error: `LI/IN (US) actor error ${liUsResp.status}: ${msg}` }, { status: 500 });
     }
 
-    const runId = liData?.data?.id || '';
+    const runId = liUsData?.data?.id || '';
     if (!runId) {
-      return NextResponse.json({ ok: false, error: 'No run ID returned from Apify (LI/IN actor).' }, { status: 500 });
+      return NextResponse.json({ ok: false, error: 'No run ID returned from Apify (LI/IN US actor).' }, { status: 500 });
     }
 
-    const googleRunId = googleResp.ok ? (googleData?.data?.id || '') : '';
-    if (!googleResp.ok) {
-      console.warn('[apify/run] Google Jobs actor failed to start:', googleData?.error?.message);
-    }
+    const laRunId     = liLaResp.ok     ? (liLaData?.data?.id    || '') : '';
+    const googleRunId = googleResp.ok   ? (googleData?.data?.id  || '') : '';
 
-    return NextResponse.json({ ok: true, runId, googleRunId, count: maxResults });
+    if (!liLaResp.ok)   console.warn('[apify/run] LI/IN LA actor failed to start:',    liLaData?.error?.message);
+    if (!googleResp.ok) console.warn('[apify/run] Google Jobs actor failed to start:', googleData?.error?.message);
+
+    return NextResponse.json({ ok: true, runId, laRunId, googleRunId, count: maxResults });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

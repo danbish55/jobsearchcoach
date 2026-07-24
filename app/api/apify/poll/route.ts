@@ -278,30 +278,38 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const runId       = searchParams.get('runId')       || '';
+    const laRunId     = searchParams.get('laRunId')     || '';
     const googleRunId = searchParams.get('googleRunId') || '';
-    const token       = String(searchParams.get('token') || process.env.APIFY_TOKEN || '').trim();
+    const token       = String(searchParams.get('token') || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
 
     if (!runId) return NextResponse.json({ ok: false, error: 'Missing runId' }, { status: 400 });
     if (!token) return NextResponse.json({ ok: false, error: 'Missing token' }, { status: 400 });
 
-    // Poll both actors in parallel (Google optional — if no ID, skip it)
-    const checks = await Promise.all([
+    // Poll all three actors in parallel — LA and Google are optional
+    const [liUsCheck, liLaCheck, googleCheck] = await Promise.all([
       checkRun(runId, token),
+      laRunId     ? checkRun(laRunId,     token) : Promise.resolve({ status: 'SUCCEEDED', datasetId: '' }),
       googleRunId ? checkRun(googleRunId, token) : Promise.resolve({ status: 'SUCCEEDED', datasetId: '' }),
     ]);
-    const [liCheck, googleCheck] = checks;
 
     const PENDING = new Set(['RUNNING', 'READY', '']);
-    if (PENDING.has(liCheck.status) || (googleRunId && PENDING.has(googleCheck.status))) {
+    if (
+      PENDING.has(liUsCheck.status) ||
+      (laRunId     && PENDING.has(liLaCheck.status)) ||
+      (googleRunId && PENDING.has(googleCheck.status))
+    ) {
       return NextResponse.json({ ok: true, status: 'running' });
     }
-    if (liCheck.status !== 'SUCCEEDED') {
-      return NextResponse.json({ ok: false, error: `LI/IN run ended: ${liCheck.status}` }, { status: 500 });
+    if (liUsCheck.status !== 'SUCCEEDED') {
+      return NextResponse.json({ ok: false, error: `LI/IN (US) run ended: ${liUsCheck.status}` }, { status: 500 });
     }
 
-    // Fetch datasets in parallel
-    const [liItems, googleItems] = await Promise.all([
-      fetchDataset(liCheck.datasetId, token),
+    // Fetch all three datasets in parallel
+    const [liUsItems, liLaItems, googleItems] = await Promise.all([
+      fetchDataset(liUsCheck.datasetId, token),
+      (laRunId && liLaCheck.status === 'SUCCEEDED' && liLaCheck.datasetId)
+        ? fetchDataset(liLaCheck.datasetId, token)
+        : Promise.resolve([] as Record<string, unknown>[]),
       (googleRunId && googleCheck.status === 'SUCCEEDED' && googleCheck.datasetId)
         ? fetchDataset(googleCheck.datasetId, token)
         : Promise.resolve([] as Record<string, unknown>[]),
@@ -309,7 +317,7 @@ export async function GET(req: Request) {
 
     // Per-site raw counts for debug
     const rawBySite: Record<string, number> = {};
-    for (const item of liItems) {
+    for (const item of [...liUsItems, ...liLaItems]) {
       const s = String(item.site || 'unknown');
       rawBySite[s] = (rawBySite[s] || 0) + 1;
     }
@@ -323,25 +331,27 @@ export async function GET(req: Request) {
       rawBySite[s] = (rawBySite[s] || 0) + 1;
     }
 
-    // Score both sets through the same pipeline
-    const liScored     = liItems.map(item => scoreJob(item));
+    // Score all three sets through the same pipeline
+    const liUsScored  = liUsItems.map(item => scoreJob(item));
+    const liLaScored  = liLaItems.map(item => scoreJob(item));
     const googleScored = googleItems.map(item => scoreGoogleJob(item));
 
     // Merge → exclude seniors → deduplicate → score threshold → sort
-    const merged       = [...liScored, ...googleScored];
-    const afterExcl    = merged.filter(j => !isExcluded(j));
-    const deduped      = deduplicateJobs(afterExcl);
-    const scored       = deduped
+    const merged   = [...liUsScored, ...liLaScored, ...googleScored];
+    const afterExcl = merged.filter(j => !isExcluded(j));
+    const deduped   = deduplicateJobs(afterExcl);
+    const scored    = deduped
       .filter(j => j.score >= SCORING.min_score_threshold)
       .sort((a, b) => b.score - a.score);
 
     const debug = {
-      rawTotal:        liItems.length + googleItems.length,
-      rawLi:           liItems.length,
-      rawGoogle:       googleItems.length,
+      rawTotal:         liUsItems.length + liLaItems.length + googleItems.length,
+      rawLiUs:          liUsItems.length,
+      rawLiLa:          liLaItems.length,
+      rawGoogle:        googleItems.length,
       rawBySite,
-      afterExclusion:  afterExcl.length,
-      afterDedup:      deduped.length,
+      afterExclusion:   afterExcl.length,
+      afterDedup:       deduped.length,
       afterScoreFilter: scored.length,
     };
 
