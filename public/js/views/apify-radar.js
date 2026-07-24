@@ -257,7 +257,7 @@ const ApifyRadar = (() => {
     container.innerHTML = `
       <div class="ar-header">
         <div>
-          <div class="ar-title">LinkedIn Radar</div>
+          <div class="ar-title">Job Board Scraper</div>
           <div class="ar-subtitle" id="ar-subtitle">Loading…</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
