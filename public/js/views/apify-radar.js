@@ -884,7 +884,15 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
           _invalidateCache();
           _saveJobsToLocalStorage();
           _renderBody();
-          UI.notify(`Scraped ${scored.length} jobs from all boards`, 'success');
+          const dbg = pollData.debug || {};
+          const siteBreakdown = Object.entries(dbg.rawBySite || {})
+            .sort((a, b) => b[1] - a[1])
+            .map(([s, n]) => `${s}:${n}`).join('  ');
+          console.log('[JobBoardScraper] debug', dbg);
+          _setSubtitle(
+            `${scored.length} jobs shown · ${dbg.rawTotal || '?'} raw · ${dbg.afterExclusion || '?'} after exclusion · by board: ${siteBreakdown || 'n/a'}`
+          );
+          UI.notify(`Scraped ${scored.length} jobs (${dbg.rawTotal || '?'} raw across all boards)`, 'success');
           return;
         }
         throw new Error(`Apify run ended: ${pollData.status || 'unknown'}`);

@@ -222,13 +222,29 @@ export async function GET(req: Request) {
     }
 
     const items = await itemsResp.json() as Record<string, unknown>[];
-    const scored = (Array.isArray(items) ? items : [])
-      .map(item => scoreJob(item))
-      .filter(j => !isExcluded(j))
+    const allItems = Array.isArray(items) ? items : [];
+
+    // Per-site raw counts (before any filtering)
+    const rawBySite: Record<string, number> = {};
+    for (const item of allItems) {
+      const s = String(item.site || 'unknown');
+      rawBySite[s] = (rawBySite[s] || 0) + 1;
+    }
+
+    const allScored = allItems.map(item => scoreJob(item));
+    const afterExclusion = allScored.filter(j => !isExcluded(j));
+    const scored = afterExclusion
       .filter(j => j.score >= SCORING.min_score_threshold)
       .sort((a, b) => b.score - a.score);
 
-    return NextResponse.json({ ok: true, status: 'succeeded', jobs: scored, count: scored.length });
+    const debug = {
+      rawTotal: allItems.length,
+      rawBySite,
+      afterExclusion: afterExclusion.length,
+      afterScoreFilter: scored.length,
+    };
+
+    return NextResponse.json({ ok: true, status: 'succeeded', jobs: scored, count: scored.length, debug });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
