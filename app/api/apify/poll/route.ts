@@ -145,7 +145,7 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   const url   = jobId ? `https://www.linkedin.com/jobs/view/${jobId}` : link;
 
   return {
-    id: jobId, title: String(item.title || ''), company: String(item.company || ''),
+    id: jobId, title: String(item.title || ''), company: String(item.companyName || item.company || ''),
     location: String(item.location || ''), url, salary: salary || null,
     applicantsCount: typeof item.applicantsCount === 'number' ? item.applicantsCount : null,
     seniorityLevel: String(item.seniorityLevel || ''), employmentType: String(item.employmentType || ''),

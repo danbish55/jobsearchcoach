@@ -469,7 +469,7 @@ def _score_apify_job(item, cfg):
     return {
         'id':              job_id,
         'title':           item.get('title') or '',
-        'company':         item.get('company') or '',
+        'company':         item.get('companyName') or item.get('company') or '',
         'location':        item.get('location') or '',
         'url':             url,
         'salary':          salary or None,
