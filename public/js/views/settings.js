@@ -65,6 +65,18 @@ const Settings = (() => {
 
   const JOB_SOURCE_FIELDS = [
     {
+      key: 'greenhouse',
+      label: 'Greenhouse',
+      description: 'Curated company career boards using the public Greenhouse Job Board API.',
+      requiresKey: false,
+    },
+    {
+      key: 'lever',
+      label: 'Lever',
+      description: 'Curated company career boards using the public Lever postings API.',
+      requiresKey: false,
+    },
+    {
       key: 'usajobs',
       label: 'USAJOBS',
       description: 'Federal analytics and IT roles. Requires a USAJOBS API key.',
@@ -79,43 +91,19 @@ const Settings = (() => {
     {
       key: 'the_muse',
       label: 'The Muse',
-      description: 'Company-focused roles and career content with structured listings. Free, no key.',
-      requiresKey: false,
-    },
-    {
-      key: 'remoteok',
-      label: 'RemoteOK',
-      description: 'All-remote tech and analytics roles. Free public API, no key.',
-      requiresKey: false,
-    },
-    {
-      key: 'remotive',
-      label: 'Remotive',
-      description: 'Curated remote jobs with salary and structured data. Free public API, no key.',
-      requiresKey: false,
-    },
-    {
-      key: 'greenhouse',
-      label: 'Greenhouse',
-      description: 'Per-company career boards (Greenhouse API). Requires a curated company list — not yet wired for general search.',
-      requiresKey: false,
-    },
-    {
-      key: 'lever',
-      label: 'Lever',
-      description: 'Per-company career boards (Lever API). Requires a curated company list — not yet wired for general search.',
+      description: 'Company-focused roles and career content with structured listings.',
       requiresKey: false,
     },
     {
       key: 'indeed_rss',
       label: 'Indeed RSS',
-      description: 'RSS-based search feed. Indeed blocks automated requests; not currently fetched.',
+      description: 'RSS-based search feed. Indeed may block automated requests; status appears after refresh.',
       requiresKey: false,
     },
     {
       key: 'built_in_la',
       label: 'Built In LA',
-      description: 'Los Angeles tech-company listings. Not currently fetched.',
+      description: 'Los Angeles tech-company listings and startup-market leads.',
       requiresKey: false,
     },
   ];
@@ -345,18 +333,32 @@ const Settings = (() => {
           </div>
         </div>
 
-        <!-- LinkedIn Radar -->
+        <!-- LinkedIn Alumni -->
         <div class="settings-section">
-          ${_sectionHeaderHTML('linkedin-radar', 'LinkedIn Radar')}
-          <div id="linkedin-radar-panel" style="display:none">
-
+          ${_sectionHeaderHTML('linkedin-alumni', 'LinkedIn Alumni')}
+          <div id="linkedin-alumni-panel" style="display:none">
           <div class="setting-row">
-            <span class="setting-label">Apify Token</span>
+            <span class="setting-label">li_at Cookie</span>
             <div class="setting-control">
-              <input id="ar-apify-token" type="password" placeholder="apify_api_…" autocomplete="off" style="font-family:monospace;font-size:12px">
-              <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="ar-token-status">Leave blank to keep the current token.</div>
+              <input id="li-cookie" type="password" placeholder="Paste your LinkedIn li_at cookie value" autocomplete="off" style="font-family:monospace;font-size:12px">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">
+                In Chrome: open LinkedIn → F12 → Application → Cookies → linkedin.com → copy the <strong>li_at</strong> value.<br>
+                This is stored locally and used only to find USC/Eller alumni at your target companies.
+              </div>
+              <div style="margin-top:8px">
+                <button class="btn btn-primary btn-sm" onclick="Settings.saveLinkedInCookie()">Save Cookie</button>
+                <span id="li-cookie-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
+              </div>
             </div>
           </div>
+          </div>
+        </div>
+
+        <!-- LinkedIn Radar -->
+        <div class="settings-section">
+          ${_sectionHeaderHTML('linkedin-radar', 'Job Board Scraper')}
+          <div id="linkedin-radar-panel" style="display:none">
+
           <div class="setting-row">
             <span class="setting-label">Role Keyword</span>
             <div class="setting-control">
@@ -385,6 +387,7 @@ const Settings = (() => {
             </div>
           </div>
 
+          <!-- Scoring explanation -->
           <div style="margin:20px 0 16px;padding:14px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.03);font-size:12px;line-height:1.7;color:var(--text-muted)">
             <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">How Scoring Works</div>
             <p style="margin:0 0 6px">Each job is scored 0–100 across four categories. <strong style="color:var(--text)">Tiers</strong> assign different weights to core vs. adjacent matches within each category.</p>
@@ -396,27 +399,32 @@ const Settings = (() => {
             </ul>
           </div>
 
+          <!-- Titles -->
           <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:16px 0 8px">Job Titles</div>
           ${_apifyTagFieldHTML('titles_tier1', 'Tier 1 (20 pts)', 'Data Analyst, Business Analyst…')}
           ${_apifyTagFieldHTML('titles_tier2', 'Tier 2 (12 pts)', 'Product Analyst, Reporting Analyst…')}
           ${_apifyTagFieldHTML('titles_tier3', 'Tier 3 (5 pts)', 'Operations Specialist…')}
 
+          <!-- Skills -->
           <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 8px">Skills</div>
           ${_apifyTagFieldHTML('skills_tier1', 'Tier 1 (10 pts each)', 'SQL, Python, Tableau…')}
           ${_apifyTagFieldHTML('skills_tier2', 'Tier 2 (6 pts each)', 'Power BI, Excel, machine learning…')}
           ${_apifyTagFieldHTML('skills_tier3', 'Tier 3 (3 pts each)', 'database management, A/B test…')}
 
+          <!-- Experience Keywords -->
           <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 8px">Experience Keywords</div>
           ${_apifyTagFieldHTML('keywords_tier1', 'Tier 1 (30 pts)', 'new grad, recent graduate…')}
           ${_apifyTagFieldHTML('keywords_tier2', 'Tier 2 (28 pts)', 'entry level, 0-2 years…')}
           ${_apifyTagFieldHTML('keywords_tier3', 'Tier 3 (+5 bonus)', "master's preferred, MSBA…")}
 
+          <!-- Locations -->
           <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 8px">Locations</div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Remote/hybrid jobs bypass location scoring entirely (+8 pts regardless of city).</div>
           ${_apifyTagFieldHTML('locations_tier1', 'Tier 1 (9 pts)', 'Los Angeles, Santa Monica, Irvine, San Diego…')}
           ${_apifyTagFieldHTML('locations_tier2', 'Tier 2 (7 pts)', 'Dallas, Denver, Seattle…')}
           ${_apifyTagFieldHTML('locations_tier3', 'Tier 3 (5 pts)', 'Las Vegas, Henderson…')}
 
+          <!-- Advanced weights -->
           <div style="margin-top:18px">
             <button type="button" onclick="Settings.toggleSection('ar-advanced-scoring')"
               style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);cursor:pointer;text-align:left">
@@ -430,50 +438,10 @@ const Settings = (() => {
           </div>
 
           <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="Settings.saveApifySettings()">Save LinkedIn Radar Settings</button>
+            <button class="btn btn-primary btn-sm" onclick="Settings.saveApifySettings()">Save Job Board Scraper Settings</button>
             <span id="ar-settings-error" style="font-size:12px;color:var(--danger)"></span>
             <span id="ar-settings-ok" style="font-size:12px;color:var(--success)"></span>
           </div>
-          </div>
-        </div>
-
-        <!-- Google Drive -->
-        <div class="settings-section">
-          ${_sectionHeaderHTML('google-drive-sync', 'Google Drive Sync')}
-          <div id="google-drive-sync-panel" style="display:none">
-          <div class="setting-row">
-            <span class="setting-label">Status</span>
-            <div class="drive-status-badge ${status.has_drive ? 'connected' : 'disconnected'}">
-              ${status.has_drive ? '✓ Connected' : '✗ Not connected'}
-            </div>
-          </div>
-          ${!status.has_drive ? `
-          ${status.google_client_id ? `
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-              Sign in with the Google account where you want to save app data.
-            </div>
-          ` : `
-            <div class="setting-row">
-              <span class="setting-label">Client ID</span>
-              <div class="setting-control">
-                <input id="s-gclient-id" type="text" placeholder="123456789-xxx.apps.googleusercontent.com"
-                  style="font-family:monospace;font-size:12px">
-              </div>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">Client Secret</span>
-              <div class="setting-control">
-                <input id="s-gclient-secret" type="password" placeholder="GOCSPX-..."
-                  style="font-family:monospace;font-size:12px">
-              </div>
-            </div>
-          `}
-          <div style="margin-top:4px">
-            <button class="btn btn-primary btn-sm" onclick="Settings.connectDrive()">Connect Google Drive</button>
-          </div>` : `
-          <div style="margin-top:4px">
-            <button class="btn btn-ghost btn-sm" onclick="Settings.disconnectDrive()">Disconnect Drive</button>
-          </div>`}
           </div>
         </div>
 
@@ -553,6 +521,15 @@ const Settings = (() => {
     if (bandEl) bandEl.innerHTML = Gauges.renderBand();
     Gauges.refreshLiveCounts();
     UI.notify('Gauge goals saved', 'success');
+  }
+
+  function saveLinkedInCookie() {
+    const val = document.getElementById('li-cookie')?.value.trim();
+    if (!val) { UI.notify('Paste your li_at cookie value first', 'error'); return; }
+    Storage.set('linkedin_li_at', val);
+    const status = document.getElementById('li-cookie-status');
+    if (status) { status.textContent = '✓ Saved'; status.style.color = 'var(--success)'; }
+    UI.notify('LinkedIn cookie saved', 'success');
   }
 
   async function saveApiKey() {
@@ -1002,7 +979,6 @@ const Settings = (() => {
     if (errEl) errEl.textContent = '';
     if (okEl)  okEl.textContent  = '';
 
-    const token = (document.getElementById('ar-apify-token')?.value || '').trim();
     const scoring = {};
     APIFY_SCORING_FIELDS.forEach(field => {
       const val = Number(document.getElementById(`ar-scoring-${field.key}`)?.value);
@@ -1011,10 +987,10 @@ const Settings = (() => {
 
     const body = {
       apify_config: {
-        role_keyword:              (document.getElementById('ar-role-keyword')?.value   || '').trim(),
-        min_results:               Number(document.getElementById('ar-min-results')?.value)  || 50,
-        score_excellent_threshold: Number(document.getElementById('ar-score-excellent')?.value) || 90,
-        score_strong_threshold:    Number(document.getElementById('ar-score-strong')?.value)    || 70,
+        role_keyword:               (document.getElementById('ar-role-keyword')?.value   || '').trim(),
+        min_results:                Number(document.getElementById('ar-min-results')?.value)  || 50,
+        score_excellent_threshold:  Number(document.getElementById('ar-score-excellent')?.value) || 90,
+        score_strong_threshold:     Number(document.getElementById('ar-score-strong')?.value)    || 70,
         titles:    { tier1: [...(apifyConfigDraft?.titles_tier1    || [])], tier2: [...(apifyConfigDraft?.titles_tier2    || [])], tier3: [...(apifyConfigDraft?.titles_tier3    || [])] },
         skills:    { tier1: [...(apifyConfigDraft?.skills_tier1    || [])], tier2: [...(apifyConfigDraft?.skills_tier2    || [])], tier3: [...(apifyConfigDraft?.skills_tier3    || [])] },
         keywords:  { tier1: [...(apifyConfigDraft?.keywords_tier1  || [])], tier2: [...(apifyConfigDraft?.keywords_tier2  || [])], tier3: [...(apifyConfigDraft?.keywords_tier3  || [])] },
@@ -1022,23 +998,12 @@ const Settings = (() => {
         scoring,
       },
     };
-    if (token) body.apify_token = token;
-
     try {
       const resp   = await fetch('/api/apify/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const result = await resp.json().catch(() => ({}));
       if (!resp.ok || result.ok === false) throw new Error(result.error || 'Save failed');
-      if (token) {
-        localStorage.setItem('jsc_apify_token', token);
-        const tokenInput = document.getElementById('ar-apify-token');
-        if (tokenInput) tokenInput.value = '';
-        const statusEl = document.getElementById('ar-token-status');
-        if (statusEl) statusEl.textContent = '✓ Token saved. Leave blank to keep it.';
-      }
-      // Persist config locally so reScrape can use it on Vercel
-      try { localStorage.setItem('jsc_apify_cfg', JSON.stringify(body.apify_config)); } catch {}
       if (okEl) { okEl.textContent = '✓ Saved'; setTimeout(() => { if (okEl) okEl.textContent = ''; }, 3000); }
-      UI.notify('LinkedIn Radar settings saved', 'success');
+      UI.notify('Job Board Scraper settings saved', 'success');
     } catch (err) {
       if (errEl) errEl.textContent = err.message;
       UI.notify('Save failed', 'error');
@@ -1069,20 +1034,29 @@ const Settings = (() => {
         scoring:         Object.assign({}, cfg.scoring || {}),
       };
 
+      // Populate simple inputs
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-      set('ar-role-keyword',    cfg.role_keyword || 'Data Analyst');
-      set('ar-min-results',     cfg.min_results  || 50);
+
+      // Pre-fill LinkedIn cookie indicator
+      const savedCookie = Storage.get('linkedin_li_at', '');
+      const cookieStatus = document.getElementById('li-cookie-status');
+      if (cookieStatus && savedCookie) {
+        cookieStatus.textContent = '✓ Cookie saved';
+        cookieStatus.style.color = 'var(--success)';
+      }
+
+      set('ar-role-keyword',   cfg.role_keyword || 'Data Analyst');
+      set('ar-min-results',    cfg.min_results  || 50);
       set('ar-score-excellent', cfg.score_excellent_threshold || 90);
       set('ar-score-strong',    cfg.score_strong_threshold    || 70);
 
-      const statusEl = document.getElementById('ar-token-status');
-      if (statusEl) statusEl.textContent = payload.has_token ? '✓ Token saved. Leave blank to keep it.' : 'No token saved yet.';
-
+      // Scoring weights
       APIFY_SCORING_FIELDS.forEach(field => {
         const el = document.getElementById(`ar-scoring-${field.key}`);
         if (el) el.value = apifyConfigDraft.scoring[field.key] ?? field.defaultValue;
       });
 
+      // Re-render all tag lists
       const tagKeys = ['titles_tier1','titles_tier2','titles_tier3','skills_tier1','skills_tier2','skills_tier3','keywords_tier1','keywords_tier2','keywords_tier3','locations_tier1','locations_tier2','locations_tier3'];
       tagKeys.forEach(k => _apifyRenderTagList(k));
     } catch {}
@@ -1233,6 +1207,7 @@ const Settings = (() => {
     saveProfile,
     saveParentEmails,
     saveGaugeGoals,
+    saveLinkedInCookie,
     saveApiKey,
     connectDrive,
     disconnectDrive,

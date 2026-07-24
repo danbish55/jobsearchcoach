@@ -40,15 +40,28 @@ const WorkflowPages = (() => {
       gaugeId: 'networking',
       title: 'Networking &mdash; General',
       plainTitle: 'Networking - General',
-      why: 'Here is a number worth internalizing: referred candidates are hired at a rate 8 times higher than cold applicants, and over 70% of jobs are filled through networks before they are ever publicly posted. Networking is not a nice-to-have. It is statistically one of the most effective job search activities available to you. General networking covers everyone outside your USC and Eller alumni networks: your MSBA cohort, LinkedIn connections, industry contacts, and anyone else in your professional orbit.',
-      steps: [
-        'Start with your MSBA cohort. Message 2-3 classmates per week to ask where they are interviewing and whether they have any contacts at your target companies.',
-        'Connect with people at your Tier 1 target companies on LinkedIn. Look for second-degree connections first, especially anyone with a USC or U of A connection.',
-        'When you connect, send a personalized note. Never use the default LinkedIn connection message.',
-        'The right ask is never "can you get me a job." It is always "can I have 20 minutes to learn about your experience."',
-        'Example outreach: "Hi [Name] - I came across your profile and your work in [field/company] really caught my attention. I am a recent USC Marshall MSBA grad targeting data analytics roles in LA and would love 20 minutes to hear about your path. Would you be open to a quick call?"',
-        'Follow up once after 7 days if you do not hear back. Then move on.',
-        'Log every networking touch here. Each one counts toward your weekly gauge.',
+      why: 'Referred candidates are hired at 8x the rate of cold applicants, and 70% of jobs are filled through networks before they\'re ever posted. This page covers everyone outside your alumni networks: your MSBA cohort, LinkedIn connections, and any professional contact you can reach.',
+      outreach: [
+        {
+          q: 'Start With Your MSBA Cohort',
+          a: 'Message 2–3 classmates per week to ask where they\'re interviewing and whether they have contacts at your target companies. This is the lowest-friction networking available — they know you, they\'re in the same situation, and they want to help.',
+        },
+        {
+          q: 'Finding People at Target Companies',
+          a: 'Connect with people at your Tier 1 companies on LinkedIn. Look for second-degree connections first, especially anyone with a USC or U of A connection. Always send a personalized note — never use the default LinkedIn message.',
+        },
+        {
+          q: 'The Right Ask',
+          a: 'The ask is never "can you get me a job." It\'s always "can I have 20 minutes to learn about your experience." That framing removes pressure and makes it easy for the other person to say yes.',
+        },
+        {
+          q: 'General Outreach Template',
+          template: 'Hi [Name] — I came across your profile and your work in [field/company] really caught my attention. I\'m a recent USC Marshall MSBA grad targeting data analytics roles in LA and would love 20 minutes to hear about your path. Would you be open to a quick call?',
+        },
+        {
+          q: 'Follow-Up Rule',
+          a: 'Follow up once after 7 days if you don\'t hear back, then move on. One follow-up is professional. Two is pressure.',
+        },
       ],
       prompt: 'Who did you reach out to, what company do they work at, and what did you say?',
       resources: {
@@ -64,24 +77,148 @@ const WorkflowPages = (() => {
       key: 'usc_eller',
       gaugeId: 'usc_eller',
       title: 'USC/Eller Networking',
-      why: 'You have two alumni networks available to you that most job seekers would give anything for: USC Marshall and University of Arizona Eller. The alumni who participate in these networks opted in specifically to hear from recent graduates like you. They are not strangers. They are not people you are imposing on. They signed up because they want to help. This gauge is tracked separately because it is your highest-leverage networking activity and the one most likely to be quietly avoided.',
-      steps: [
-        'USC Marshall: go to marshall.usc.edu and log in with your USC credentials.',
-        'Navigate to alumni mentor matching under Career Services, then search by industry and Los Angeles location.',
-        'Identify 5 alumni whose roles align with your Tier 1 target companies.',
-        'Also search LinkedIn through the USC Marshall School of Business alumni page. Filter by Los Angeles, data or analytics titles, and graduation years 2015-2023.',
-        'USC message: "Hi [Name] - I am a recent USC Marshall MSBA grad targeting data analytics roles in LA, and I came across your profile through the Marshall alumni network. Your work in [their field/company] is exactly the direction I am hoping to move. Would you have 20 minutes for a quick conversation? I would love to hear about your path and what you would look for in a candidate for a role like yours. Thanks so much - Corinne"',
-        'University of Arizona / Eller: go to alumni.arizona.edu and log in with your UA credentials. Search by Los Angeles and business, technology, or analytics fields.',
-        'Also search LinkedIn through the University of Arizona Eller College alumni page using the same filters. MIS graduates are especially worth targeting because the shared major creates immediate common ground.',
-        'Eller message: "Hi [Name] - I am a recent Eller grad (MIS) now finishing my MSBA at USC Marshall, targeting data analytics roles in LA. I found your profile through the Eller alumni network and your path really caught my attention. Would you have 20 minutes for a quick conversation? I would love to hear about your experience and any advice you would have for someone just starting out. Go Cats - Corinne"',
-        'If you do not hear back in 7 days, one follow-up is appropriate and professional.',
+      why: 'Your USC Marshall and Eller alumni networks are opt-in — those people signed up specifically to hear from recent graduates like you. This is your highest-leverage activity and the one most likely to get quietly skipped.',
+      outreach: [
+        {
+          q: 'USC Marshall — Where to Search',
+          a: 'Log in at marshall.usc.edu with your USC credentials. Go to alumni mentor matching under Career Services and search by industry + Los Angeles. Identify 5 alumni whose roles align with your Tier 1 companies. Also filter the USC Marshall alumni page on LinkedIn by Los Angeles, data or analytics titles, and graduation years 2015–2023.',
+        },
+        {
+          q: 'USC Marshall — Message Template',
+          template: 'Hi [Name] — I\'m a recent USC Marshall MSBA grad targeting data analytics roles in LA, and I came across your profile through the Marshall alumni network. Your work in [their field/company] is exactly the direction I\'m hoping to move. Would you have 20 minutes for a quick conversation? I\'d love to hear about your path and what you\'d look for in a candidate for a role like yours. Thanks so much — Corinne',
+        },
+        {
+          q: 'Eller (University of Arizona) — Where to Search',
+          a: 'Log in at alumni.arizona.edu with your UA credentials and search by Los Angeles + business, technology, or analytics. Run the same filters on the Eller College alumni page on LinkedIn. MIS graduates are especially worth targeting — the shared major creates immediate common ground.',
+        },
+        {
+          q: 'Eller — Message Template',
+          template: 'Hi [Name] — I\'m a recent Eller grad (MIS) now finishing my MSBA at USC Marshall, targeting data analytics roles in LA. I found your profile through the Eller alumni network and your path really caught my attention. Would you have 20 minutes for a quick conversation? I\'d love to hear about your experience and any advice you\'d have for someone just starting out. Go Cats — Corinne',
+        },
+        {
+          q: 'Follow-Up Rule',
+          a: 'If you don\'t hear back within 7 days, one follow-up is appropriate and professional. After that, move on.',
+        },
       ],
-      prompt: 'Give me a specific name - who did you reach out to, what school are they from, where do they work, and what did you say?',
+      prompt: 'Give me a specific name — who did you reach out to, what school are they from, where do they work, and what did you say?',
+      events: [
+        {
+          school: 'usc',
+          date: '2026-08-18',
+          time: '2:00–4:00 PM',
+          name: 'Graduate Student Open House',
+          format: 'in-person',
+          location: 'USC Career Center, Student Union 110',
+          priority: 'watch',
+          note: 'Reconnect with Career Center staff. Verify recent-grad eligibility before going.',
+          url: 'https://careers.usc.edu/events/',
+        },
+        {
+          school: 'usc',
+          date: '2026-09-02',
+          time: '1:00–2:00 PM',
+          name: 'Career Fair Prep: Tips from Recruiters',
+          format: 'virtual',
+          priority: 'high',
+          note: 'Elevator pitch, attire, questions to ask — do this before Sep 10.',
+          url: 'https://careers.usc.edu/events/2026/09/02/the-inside-scoop-career-fair-tips-from-recruiters-3/',
+        },
+        {
+          school: 'usc',
+          date: '2026-09-03',
+          time: '2:00–3:00 PM',
+          name: 'Networking Hub: Initiating Outreach',
+          format: 'in-person',
+          location: 'USC Student Union',
+          priority: 'high',
+          note: 'Coffee-chat session on mentors, personal brand, and follow-up. Verify USC ID eligibility.',
+          url: 'https://careers.usc.edu/events/2026/09/03/the-networking-hub-initiating-networking-outreach/',
+        },
+        {
+          school: 'usc',
+          date: '2026-09-03',
+          time: '6:00–7:00 PM',
+          name: 'Trojan Talk: Altman Solon Info Session',
+          format: 'in-person',
+          location: 'USC Student Union',
+          priority: 'critical',
+          note: 'Consulting firm — space capped at 75. Verify Handshake eligibility and register early.',
+          url: 'https://careers.usc.edu/events/2026/09/03/trojan-talk-with-altman-solon-info-session-2/',
+        },
+        {
+          school: 'usc',
+          date: '2026-09-08',
+          time: '9:00 AM–12:30 PM',
+          name: 'Virtual Employer Resume Review',
+          format: 'virtual',
+          priority: 'critical',
+          note: 'Direct recruiter feedback 2 days before the fair — highest-value prep available.',
+          url: 'https://careers.usc.edu/events/2026/09/08/usc-career-center-virtual-employer-resume-review-fall-2026/',
+        },
+        {
+          school: 'usc',
+          date: '2026-09-10',
+          time: '11:00 AM–3:00 PM',
+          name: 'Fall Internship & Career Fair',
+          format: 'in-person',
+          location: 'Trousdale Parkway',
+          priority: 'critical',
+          note: 'Open to recent grads and alumni. Check Handshake for employer list and booth map.',
+          url: 'https://careers.usc.edu/fall-career-fair/',
+        },
+        {
+          school: 'ua',
+          date: '2026-08-26',
+          time: '12:00–3:00 PM',
+          name: 'Wildcat Student Employment & Research Fair',
+          format: 'in-person',
+          location: 'Bear Down Building, Tucson',
+          priority: 'watch',
+          note: 'Part-time positions and undergraduate research — less relevant for full-time search but good for scoping the room.',
+          url: 'https://career.arizona.edu/channels/career-fairs/',
+        },
+        {
+          school: 'ua',
+          date: '2026-09-15',
+          time: '12:00–3:00 PM',
+          name: 'UA All Majors Fair',
+          format: 'in-person',
+          location: 'Bear Down Building, Tucson',
+          priority: 'high',
+          note: 'Full-employer fair across all industries. The day before Eller Expo — stack both.',
+          url: 'https://career.arizona.edu/channels/career-fairs/',
+        },
+        {
+          school: 'ua',
+          date: '2026-09-16',
+          time: '3:00–7:00 PM',
+          name: 'Eller Expo — Fall Career Fair',
+          format: 'in-person',
+          location: 'McClelland Hall, Tucson',
+          priority: 'critical',
+          note: '100+ national employers recruiting for analytics and business roles. Your MIS + MSBA combo stands out here.',
+          url: 'https://eller.arizona.edu/eller-expo',
+        },
+      ],
+      quickLinks: {
+        usc: [
+          { icon: '📅', label: 'Career Events', url: 'https://careers.usc.edu/events/' },
+          { icon: '🤝', label: 'USC Handshake', url: 'https://usc.joinhandshake.com/login' },
+          { icon: '🎓', label: '12Twenty', url: 'https://marshall.12twenty.com/' },
+          { icon: '🔗', label: 'Trojan Network', url: 'https://careers.usc.edu/experiences/trojan-network-find-a-mentor/' },
+        ],
+        ua: [
+          { icon: '📅', label: 'Career Events', url: 'https://eller.arizona.edu/news-events/events' },
+          { icon: '🤝', label: 'UA Handshake', url: 'https://arizona.joinhandshake.com/login' },
+          { icon: '🎓', label: '12Twenty', url: 'https://arizona.12twenty.com/' },
+          { icon: '🐆', label: 'Eller Alumni', url: 'https://eller.arizona.edu/engage/alumni/career-advancement' },
+        ],
+      },
       resources: {
         label: 'Resources — Your Alumni Networks',
         links: [
           { icon: '🔗', label: 'Trojan Network', url: 'https://careers.usc.edu/experiences/trojan-network-find-a-mentor/' },
-          { icon: '🔗', label: 'Marshall Alumni Hub', url: 'https://www.marshall.usc.edu/alumni' },
+          { icon: '🔗', label: 'Marshall Alumni Hub', url: 'https://www.marshall.usc.edu/trojan-network/recruiting/graduate' },
           { icon: '🔗', label: 'Eller Career Lab', url: 'https://eller.arizona.edu/engage/alumni/career-advancement' },
         ],
       },
@@ -165,11 +302,14 @@ const WorkflowPages = (() => {
     const container = document.getElementById(`${viewId}-content`);
     if (!page || !container) return;
 
+    if (viewId === 'workflow-usc-eller') { _uscellerRender(viewId, page, container); return; }
+
     _quoteByView[viewId] = _randomQuote(_quoteByView[viewId]);
     if (!_chatByView[viewId]) _chatByView[viewId] = [];
 
     container.innerHTML = `
       ${_hasHistory(page) ? _followupHistoryStyles() : ''}
+      ${page.outreach ? _faqStyles() : ''}
       <div class="workflow-shell">
         <div class="workflow-topbar">
           <button class="btn btn-ghost btn-sm" onclick="App.navigate('dashboard')">Back to Dashboard</button>
@@ -188,9 +328,9 @@ const WorkflowPages = (() => {
 
         <div class="card workflow-section">
           <div class="card-title">How To Do It</div>
-          <ol class="workflow-steps">
-            ${page.steps.map(step => `<li>${step}</li>`).join('')}
-          </ol>
+          ${page.outreach
+            ? _outreachFaqHTML(page)
+            : `<ol class="workflow-steps">${(page.steps || []).map(step => `<li>${step}</li>`).join('')}</ol>`}
         </div>
 
         ${_resourcesHTML(page.resources)}
@@ -257,6 +397,425 @@ const WorkflowPages = (() => {
       </div>
       <button class="btn btn-gold" onclick="WorkflowPages.submitLog('${viewId}')">Submit</button>`;
   }
+
+  /* ── USC/Eller custom page ─────────────────────────────────────────── */
+
+  function _uscellerRender(viewId, page, container) {
+    _quoteByView[viewId] = _randomQuote(_quoteByView[viewId]);
+    if (!_chatByView[viewId]) _chatByView[viewId] = [];
+
+    container.innerHTML = `
+      ${_followupHistoryStyles()}
+      ${_uscellerStyles()}
+      <div class="workflow-shell">
+        <div class="workflow-topbar">
+          <button class="btn btn-ghost btn-sm" onclick="App.navigate('dashboard')">Back to Dashboard</button>
+          <div class="workflow-title">${page.title}</div>
+        </div>
+
+        <div class="workflow-hero-row">
+          <div class="resume-quote-card workflow-quote-card">
+            <p class="resume-quote-text">&ldquo;${_esc(_quoteByView[viewId])}&rdquo;</p>
+          </div>
+          <div class="card workflow-section">
+            <div class="card-title">Why This Matters</div>
+            <p>${page.why}</p>
+          </div>
+        </div>
+
+        ${_uscellerEventsHTML(page)}
+        ${_uscellerQuickCheckHTML(page)}
+
+        <div class="card workflow-section">
+          <div class="card-title">Alumni Outreach</div>
+          ${_outreachFaqHTML(page)}
+        </div>
+
+        ${_resourcesHTML(page.resources)}
+
+        <div class="card workflow-section">
+          <div class="card-title">Log Your Activity</div>
+          ${_descriptionLogHTML(viewId, page)}
+          <div class="workflow-log-status" id="${viewId}-log-status"></div>
+        </div>
+
+        ${_hasHistory(page) ? _activityHistoryHTML(viewId, page) : ''}
+
+        <div class="card workflow-section workflow-chat-card">
+          <div class="card-title">Ask a Question</div>
+          <div class="workflow-chat-messages" id="${viewId}-chat-messages"></div>
+          <div class="workflow-chat-input-row">
+            <textarea id="${viewId}-chat-input" rows="2" placeholder="Ask about USC/Eller networking, events, outreach..."></textarea>
+            <button class="btn btn-primary workflow-ask-btn" style="color:#fff" onclick="WorkflowPages.ask('${viewId}')">Ask</button>
+          </div>
+        </div>
+      </div>`;
+
+    _renderChat(viewId);
+  }
+
+  function _uscellerStyles() {
+    return _faqStyles() + `<style>
+      .eller-campaign-banner {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        background: rgba(255,204,0,0.07);
+        border: 1px solid var(--gold-border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+      }
+      .eller-campaign-icon { font-size: 22px; line-height: 1; padding-top: 2px; flex-shrink: 0; }
+      .eller-campaign-title { font-size: 13px; font-weight: 800; letter-spacing: 0.06em; color: var(--gold); text-transform: uppercase; margin-bottom: 4px; }
+      .eller-campaign-sub { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+      .eller-events-card .card-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .eller-school-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+        padding: 0 2px;
+      }
+      .eller-events-callink {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .eller-events-callink:hover { color: var(--gold); }
+      .eller-school-label-right { display: flex; align-items: center; gap: 10px; }
+      .eller-refresh-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 14px;
+        color: var(--text-muted);
+        cursor: pointer;
+        line-height: 1;
+        opacity: 0.7;
+        transition: opacity 140ms, transform 300ms;
+      }
+      .eller-refresh-btn:hover { opacity: 1; transform: rotate(180deg); }
+
+      .eller-events-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
+      .eller-event-row {
+        display: grid;
+        grid-template-columns: 96px 1fr auto auto;
+        gap: 12px;
+        align-items: center;
+        padding: 11px 14px;
+        background: var(--card-bg);
+        border-left: 3px solid transparent;
+        transition: background 140ms;
+      }
+      .eller-event-row:hover { background: var(--card-hover); }
+      .eller-event-row.past { opacity: 0.38; pointer-events: none; }
+      .eller-event-row.critical { border-left-color: #9D2235; }
+      .eller-event-row.high { border-left-color: #f59e0b; }
+      .eller-event-row.watch { border-left-color: #888; }
+
+      .eller-event-date { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+      .eller-event-date-day { font-weight: 700; color: var(--text); font-size: 13px; }
+
+      .eller-event-name { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.3; }
+      .eller-event-note { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.35; }
+
+      .eller-event-badges { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+      .eller-badge {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        padding: 2px 8px;
+        border-radius: 999px;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .eller-badge-virtual { background: rgba(59,130,246,0.15); color: #60a5fa; }
+      body.light .eller-badge-virtual { background: rgba(59,130,246,0.11); color: #1d4ed8; }
+      .eller-badge-inperson { background: rgba(168,85,247,0.15); color: #c084fc; }
+      body.light .eller-badge-inperson { background: rgba(168,85,247,0.11); color: #7c3aed; }
+
+      .eller-status-chip {
+        font-size: 11px;
+        font-weight: 800;
+        padding: 3px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+      }
+      .eller-status-today { background: var(--gold); color: #111; animation: eller-pulse 2s ease-in-out infinite; }
+      .eller-status-urgent { background: rgba(231,76,60,0.18); color: #e74c3c; }
+      body.light .eller-status-urgent { color: #c0392b; }
+      .eller-status-soon { background: rgba(245,158,11,0.18); color: #f59e0b; }
+      body.light .eller-status-soon { color: #b45309; }
+      .eller-status-horizon { background: rgba(46,204,113,0.13); color: #2ecc71; }
+      body.light .eller-status-horizon { color: #16a34a; }
+      .eller-status-past { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+      body.light .eller-status-past { background: rgba(0,0,0,0.06); }
+      @keyframes eller-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255,204,0,0.45); }
+        50% { box-shadow: 0 0 0 7px rgba(255,204,0,0); }
+      }
+
+      .eller-event-actions { display: flex; gap: 6px; align-items: center; }
+      .eller-event-link {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gold);
+        text-decoration: none;
+        padding: 4px 10px;
+        border: 1px solid var(--gold-border);
+        border-radius: 6px;
+        white-space: nowrap;
+        transition: background 140ms;
+      }
+      .eller-event-link:hover { background: var(--gold-dim); }
+      .eller-gcal-link {
+        font-size: 16px;
+        text-decoration: none;
+        line-height: 1;
+        opacity: 0.45;
+        transition: opacity 140ms, transform 140ms;
+        display: inline-block;
+      }
+      .eller-gcal-link:hover { opacity: 1; transform: scale(1.12); }
+      .eller-events-footnote { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+      .eller-quickcheck {
+        display: flex;
+        gap: 0;
+        margin-bottom: 20px;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .eller-qc-group {
+        flex: 1;
+        padding: 12px 12px 14px;
+      }
+      .eller-qc-group-label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+        padding: 0 2px;
+      }
+      .eller-qc-subgrid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+      .eller-qc-divider {
+        width: 1px;
+        background: var(--border);
+        margin: 10px 0;
+        flex-shrink: 0;
+      }
+      .eller-qc-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 10px 6px;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-decoration: none;
+        gap: 5px;
+        transition: border-color 140ms, color 140ms, background 140ms;
+        line-height: 1.25;
+      }
+      .eller-qc-btn:hover { border-color: var(--gold-border); color: var(--gold); background: var(--gold-dim); }
+      .eller-qc-icon { font-size: 18px; line-height: 1; }
+
+      @media (max-width: 700px) {
+        .eller-quickcheck { grid-template-columns: repeat(2, 1fr); }
+        .eller-event-row { grid-template-columns: 80px 1fr; }
+        .eller-event-badges, .eller-event-actions { display: none; }
+      }
+    </style>`;
+  }
+
+  function _uscellerEventsHTML(page) {
+    if (!page.events?.length) return '';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    const uscEvents = page.events.filter(e => e.school !== 'ua');
+    const uaEvents  = page.events.filter(e => e.school === 'ua');
+
+    const upcomingTotal = page.events.filter(e => new Date(e.date + 'T00:00:00') >= today).length;
+
+    const hasCriticalUsc = uscEvents.some(e => e.priority === 'critical' && new Date(e.date + 'T00:00:00') >= today);
+    const campaignBanner = hasCriticalUsc ? `
+      <div class="eller-campaign-banner">
+        <div class="eller-campaign-icon">⚡</div>
+        <div>
+          <div class="eller-campaign-title">September 2–10 Recruiting Sprint</div>
+          <div class="eller-campaign-sub">Four coordinated events across nine days. Stack them: prep panel Sep 2 → networking + Altman Solon Sep 3 → resume review Sep 8 → career fair Sep 10. The fair is non-negotiable. The Altman Solon session is the sleeper.</div>
+        </div>
+      </div>` : '';
+
+    return `
+      <div class="card workflow-section eller-events-card">
+        <div class="card-title">
+          <span>Upcoming Events <span style="font-weight:400;font-size:13px;color:var(--text-muted)">${upcomingTotal} ahead</span></span>
+        </div>
+
+        <div class="eller-school-label">
+          <span>USC Career Center</span>
+          <div class="eller-school-label-right">
+            <button class="eller-refresh-btn" onclick="WorkflowPages.render('workflow-usc-eller')" title="Refresh events">↻</button>
+            <a class="eller-events-callink" href="https://careers.usc.edu/events/" target="_blank" rel="noopener noreferrer">Full calendar →</a>
+          </div>
+        </div>
+        ${campaignBanner}
+        <div class="eller-events-grid">${uscEvents.map(e => _uscellerEventRowHTML(e, today)).join('')}</div>
+        <div class="eller-events-footnote" style="margin-bottom:20px">Check USC Handshake to confirm recent-grad eligibility before registering.</div>
+
+        <div class="eller-school-label">
+          <span>UofA / Eller</span>
+          <div class="eller-school-label-right">
+            <button class="eller-refresh-btn" onclick="WorkflowPages.render('workflow-usc-eller')" title="Refresh events">↻</button>
+            <a class="eller-events-callink" href="https://eller.arizona.edu/eller-expo" target="_blank" rel="noopener noreferrer">Eller Expo →</a>
+          </div>
+        </div>
+        <div class="eller-events-grid">${uaEvents.map(e => _uscellerEventRowHTML(e, today)).join('')}</div>
+        <div class="eller-events-footnote">Virtual employer events are listed in UA Handshake and arizona.12twenty.com — not on public calendars.</div>
+      </div>`;
+  }
+
+  function _uscellerEventRowHTML(e, today) {
+    const eDate = new Date(e.date + 'T00:00:00');
+    const days = Math.round((eDate - today) / 86400000);
+    const isPast = days < 0;
+    const dateLabel = eDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const formatBadge = e.format === 'virtual'
+      ? '<span class="eller-badge eller-badge-virtual">Virtual</span>'
+      : '<span class="eller-badge eller-badge-inperson">In Person</span>';
+    return `
+      <div class="eller-event-row ${isPast ? 'past' : (e.priority || '')}">
+        <div class="eller-event-date">
+          <div class="eller-event-date-day">${dateLabel}</div>
+          ${e.time ? `<div>${_esc(e.time)}</div>` : ''}
+        </div>
+        <div>
+          <div class="eller-event-name">${_esc(e.name)}</div>
+          ${e.note ? `<div class="eller-event-note">${_esc(e.note)}</div>` : ''}
+        </div>
+        <div class="eller-event-badges">
+          ${formatBadge}
+          ${_uscellerStatusChip(days)}
+        </div>
+        <div class="eller-event-actions">
+          ${e.url ? `<a class="eller-event-link" href="${_escAttr(e.url)}" target="_blank" rel="noopener noreferrer">View →</a>` : ''}
+          <a class="eller-gcal-link" href="${_escAttr(_uscellerGcalUrl(e))}" target="_blank" rel="noopener noreferrer" title="Add to Google Calendar">📅</a>
+        </div>
+      </div>`;
+  }
+
+  function _uscellerStatusChip(days) {
+    if (days < 0)  return '<span class="eller-status-chip eller-status-past">Past</span>';
+    if (days === 0) return '<span class="eller-status-chip eller-status-today">Today</span>';
+    if (days === 1) return '<span class="eller-status-chip eller-status-urgent">Tomorrow</span>';
+    if (days <= 7)  return `<span class="eller-status-chip eller-status-urgent">in ${days} days</span>`;
+    if (days <= 21) return `<span class="eller-status-chip eller-status-soon">in ${days} days</span>`;
+    return `<span class="eller-status-chip eller-status-horizon">in ${days} days</span>`;
+  }
+
+  function _uscellerGcalUrl(event) {
+    const d = event.date.replace(/-/g, '');
+    const details = [event.time ? `Time: ${event.time}` : '', event.note, event.url].filter(Boolean).join('\n');
+    const loc = encodeURIComponent(event.location || 'USC Campus, Los Angeles CA');
+    return `https://calendar.google.com/calendar/r/eventedit?text=${encodeURIComponent(event.name)}&dates=${d}/${d}&details=${encodeURIComponent(details)}&location=${loc}`;
+  }
+
+  function _faqStyles() {
+    return `<style>
+      .eller-faq-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+      .eller-faq-item { background: var(--card-bg); }
+      .eller-faq-summary { list-style: none; padding: 13px 16px; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 12px; user-select: none; transition: background 140ms; }
+      .eller-faq-summary::-webkit-details-marker { display: none; }
+      .eller-faq-summary:hover { background: var(--card-hover); }
+      .eller-faq-chevron { color: var(--gold); font-size: 20px; line-height: 1; flex-shrink: 0; transition: transform 200ms ease; }
+      .eller-faq-item[open] .eller-faq-chevron { transform: rotate(90deg); }
+      .eller-faq-body { padding: 4px 16px 14px; font-size: 13px; color: var(--text-muted); line-height: 1.6; border-top: 1px solid var(--border); }
+      .eller-faq-body p { margin: 10px 0 0; }
+      .eller-template { background: var(--gold-dim); border: 1px solid var(--gold-border); border-radius: 8px; padding: 12px 14px; color: var(--text); font-style: italic; line-height: 1.65; margin-top: 10px; font-size: 13px; }
+    </style>`;
+  }
+
+  function _outreachFaqHTML(page) {
+    if (!page.outreach?.length) return '';
+    return `<div class="eller-faq-list">
+      ${page.outreach.map((item, i) => {
+        const body = item.template
+          ? `<div class="eller-template">${_esc(item.template)}</div>`
+          : `<p>${_esc(item.a)}</p>`;
+        return `<details class="eller-faq-item" ${i === 0 ? 'open' : ''}>
+          <summary class="eller-faq-summary">
+            <span>${_esc(item.q)}</span>
+            <span class="eller-faq-chevron">›</span>
+          </summary>
+          <div class="eller-faq-body">${body}</div>
+        </details>`;
+      }).join('')}
+    </div>`;
+  }
+
+  function _uscellerQuickCheckHTML(page) {
+    if (!page.quickLinks) return '';
+    const _group = (links) => links.map(l => `
+      <a class="eller-qc-btn" href="${_escAttr(l.url)}" target="_blank" rel="noopener noreferrer">
+        <span class="eller-qc-icon">${l.icon}</span>
+        <span>${_esc(l.label)}</span>
+      </a>`).join('');
+    return `
+      <div class="eller-quickcheck">
+        <div class="eller-qc-group">
+          <div class="eller-qc-group-label">USC</div>
+          <div class="eller-qc-subgrid">${_group(page.quickLinks.usc || [])}</div>
+        </div>
+        <div class="eller-qc-divider"></div>
+        <div class="eller-qc-group">
+          <div class="eller-qc-group-label">UofA / Eller</div>
+          <div class="eller-qc-subgrid">${_group(page.quickLinks.ua || [])}</div>
+        </div>
+      </div>`;
+  }
+
+  /* ── end USC/Eller ──────────────────────────────────────────────────── */
 
   async function submitLog(viewId) {
     const page = PAGES[viewId];

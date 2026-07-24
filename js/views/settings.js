@@ -333,18 +333,32 @@ const Settings = (() => {
           </div>
         </div>
 
-        <!-- LinkedIn Radar -->
+        <!-- LinkedIn Alumni -->
         <div class="settings-section">
-          ${_sectionHeaderHTML('linkedin-radar', 'LinkedIn Radar')}
-          <div id="linkedin-radar-panel" style="display:none">
-
+          ${_sectionHeaderHTML('linkedin-alumni', 'LinkedIn Alumni')}
+          <div id="linkedin-alumni-panel" style="display:none">
           <div class="setting-row">
-            <span class="setting-label">Apify Token</span>
+            <span class="setting-label">li_at Cookie</span>
             <div class="setting-control">
-              <input id="ar-apify-token" type="password" placeholder="apify_api_…" autocomplete="off" style="font-family:monospace;font-size:12px">
-              <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="ar-token-status">Leave blank to keep the current token.</div>
+              <input id="li-cookie" type="password" placeholder="Paste your LinkedIn li_at cookie value" autocomplete="off" style="font-family:monospace;font-size:12px">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">
+                In Chrome: open LinkedIn → F12 → Application → Cookies → linkedin.com → copy the <strong>li_at</strong> value.<br>
+                This is stored locally and used only to find USC/Eller alumni at your target companies.
+              </div>
+              <div style="margin-top:8px">
+                <button class="btn btn-primary btn-sm" onclick="Settings.saveLinkedInCookie()">Save Cookie</button>
+                <span id="li-cookie-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
+              </div>
             </div>
           </div>
+          </div>
+        </div>
+
+        <!-- LinkedIn Radar -->
+        <div class="settings-section">
+          ${_sectionHeaderHTML('linkedin-radar', 'Job Board Scraper')}
+          <div id="linkedin-radar-panel" style="display:none">
+
           <div class="setting-row">
             <span class="setting-label">Role Keyword</span>
             <div class="setting-control">
@@ -424,50 +438,10 @@ const Settings = (() => {
           </div>
 
           <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="Settings.saveApifySettings()">Save LinkedIn Radar Settings</button>
+            <button class="btn btn-primary btn-sm" onclick="Settings.saveApifySettings()">Save Job Board Scraper Settings</button>
             <span id="ar-settings-error" style="font-size:12px;color:var(--danger)"></span>
             <span id="ar-settings-ok" style="font-size:12px;color:var(--success)"></span>
           </div>
-          </div>
-        </div>
-
-        <!-- Google Drive -->
-        <div class="settings-section">
-          ${_sectionHeaderHTML('google-drive-sync', 'Google Drive Sync')}
-          <div id="google-drive-sync-panel" style="display:none">
-          <div class="setting-row">
-            <span class="setting-label">Status</span>
-            <div class="drive-status-badge ${status.has_drive ? 'connected' : 'disconnected'}">
-              ${status.has_drive ? '✓ Connected' : '✗ Not connected'}
-            </div>
-          </div>
-          ${!status.has_drive ? `
-          ${status.google_client_id ? `
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-              Sign in with the Google account where you want to save app data.
-            </div>
-          ` : `
-            <div class="setting-row">
-              <span class="setting-label">Client ID</span>
-              <div class="setting-control">
-                <input id="s-gclient-id" type="text" placeholder="123456789-xxx.apps.googleusercontent.com"
-                  style="font-family:monospace;font-size:12px">
-              </div>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">Client Secret</span>
-              <div class="setting-control">
-                <input id="s-gclient-secret" type="password" placeholder="GOCSPX-..."
-                  style="font-family:monospace;font-size:12px">
-              </div>
-            </div>
-          `}
-          <div style="margin-top:4px">
-            <button class="btn btn-primary btn-sm" onclick="Settings.connectDrive()">Connect Google Drive</button>
-          </div>` : `
-          <div style="margin-top:4px">
-            <button class="btn btn-ghost btn-sm" onclick="Settings.disconnectDrive()">Disconnect Drive</button>
-          </div>`}
           </div>
         </div>
 
@@ -547,6 +521,15 @@ const Settings = (() => {
     if (bandEl) bandEl.innerHTML = Gauges.renderBand();
     Gauges.refreshLiveCounts();
     UI.notify('Gauge goals saved', 'success');
+  }
+
+  function saveLinkedInCookie() {
+    const val = document.getElementById('li-cookie')?.value.trim();
+    if (!val) { UI.notify('Paste your li_at cookie value first', 'error'); return; }
+    Storage.set('linkedin_li_at', val);
+    const status = document.getElementById('li-cookie-status');
+    if (status) { status.textContent = '✓ Saved'; status.style.color = 'var(--success)'; }
+    UI.notify('LinkedIn cookie saved', 'success');
   }
 
   async function saveApiKey() {
@@ -996,7 +979,6 @@ const Settings = (() => {
     if (errEl) errEl.textContent = '';
     if (okEl)  okEl.textContent  = '';
 
-    const token = (document.getElementById('ar-apify-token')?.value || '').trim();
     const scoring = {};
     APIFY_SCORING_FIELDS.forEach(field => {
       const val = Number(document.getElementById(`ar-scoring-${field.key}`)?.value);
@@ -1016,20 +998,12 @@ const Settings = (() => {
         scoring,
       },
     };
-    if (token) body.apify_token = token;
-
     try {
       const resp   = await fetch('/api/apify/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const result = await resp.json().catch(() => ({}));
       if (!resp.ok || result.ok === false) throw new Error(result.error || 'Save failed');
-      if (token) {
-        const tokenInput = document.getElementById('ar-apify-token');
-        if (tokenInput) tokenInput.value = '';
-        const statusEl = document.getElementById('ar-token-status');
-        if (statusEl) statusEl.textContent = '✓ Token saved. Leave blank to keep it.';
-      }
       if (okEl) { okEl.textContent = '✓ Saved'; setTimeout(() => { if (okEl) okEl.textContent = ''; }, 3000); }
-      UI.notify('LinkedIn Radar settings saved', 'success');
+      UI.notify('Job Board Scraper settings saved', 'success');
     } catch (err) {
       if (errEl) errEl.textContent = err.message;
       UI.notify('Save failed', 'error');
@@ -1062,14 +1036,19 @@ const Settings = (() => {
 
       // Populate simple inputs
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+
+      // Pre-fill LinkedIn cookie indicator
+      const savedCookie = Storage.get('linkedin_li_at', '');
+      const cookieStatus = document.getElementById('li-cookie-status');
+      if (cookieStatus && savedCookie) {
+        cookieStatus.textContent = '✓ Cookie saved';
+        cookieStatus.style.color = 'var(--success)';
+      }
+
       set('ar-role-keyword',   cfg.role_keyword || 'Data Analyst');
       set('ar-min-results',    cfg.min_results  || 50);
       set('ar-score-excellent', cfg.score_excellent_threshold || 90);
       set('ar-score-strong',    cfg.score_strong_threshold    || 70);
-
-      // Token status
-      const statusEl = document.getElementById('ar-token-status');
-      if (statusEl) statusEl.textContent = payload.has_token ? '✓ Token saved. Leave blank to keep it.' : 'No token saved yet.';
 
       // Scoring weights
       APIFY_SCORING_FIELDS.forEach(field => {
@@ -1228,6 +1207,7 @@ const Settings = (() => {
     saveProfile,
     saveParentEmails,
     saveGaugeGoals,
+    saveLinkedInCookie,
     saveApiKey,
     connectDrive,
     disconnectDrive,
