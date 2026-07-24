@@ -202,11 +202,11 @@ function scoreGoogleJob(item: Record<string, unknown>): ScoredJob {
              : via.includes('ziprecruiter') ? 'zip_recruiter'
              : 'google';
 
-  // Best apply URL from applyOptions array
+  // Best apply URL — gio21 uses applyOptions[].link (not .url or .applicationLink)
   const applyOptions = Array.isArray(item.applyOptions) ? item.applyOptions as Record<string, unknown>[] : [];
   const bestUrl = applyOptions.length
-    ? String(applyOptions[0]?.url || applyOptions[0]?.applicationLink || '')
-    : '';
+    ? String(applyOptions[0]?.link || applyOptions[0]?.url || applyOptions[0]?.applicationLink || '')
+    : String(item.url || item.jobUrl || '');
 
   return scoreJob({
     title:           item.title,

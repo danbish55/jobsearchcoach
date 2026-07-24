@@ -3459,7 +3459,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                        'zip_recruiter' if 'ziprecruiter' in via else
                        'google')
             opts    = item.get('applyOptions') or []
-            best_url = str((opts[0].get('url') or opts[0].get('applicationLink') or '') if opts else '')
+            best_url = str((opts[0].get('link') or opts[0].get('url') or opts[0].get('applicationLink') or '') if opts else (item.get('url') or item.get('jobUrl') or ''))
             return {
                 'title':           item.get('title'),
                 'company':         item.get('companyName'),
