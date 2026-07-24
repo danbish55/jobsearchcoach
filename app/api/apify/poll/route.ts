@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const ACTOR    = 'curious_coder~linkedin-jobs-scraper';
+const ACTOR_ID   = 'DYFzkdbYmMF6x7QMG'; // iskoren/multi-job-board-scraper
 const APIFY_BASE = 'https://api.apify.com/v2';
 
 // Mirrors app/api/apify/config/route.ts DEFAULT_CONFIG scoring rules.
@@ -38,18 +38,24 @@ const DEFAULT_LOCATIONS = {
 };
 
 interface ScoredJob {
-  id: string; title: string; company: string; location: string; url: string;
-  salary: string | null; applicantsCount: number | null; seniorityLevel: string;
-  employmentType: string; postedAt: string; description: string;
+  id: string; title: string; company: string; location: string;
+  url: string; urlDirect: string | null; site: string;
+  salary: string | null; salaryMin: number | null; salaryMax: number | null;
+  salaryCurrency: string; salaryInterval: string;
+  seniorityLevel: string; employmentType: string; postedAt: string;
+  description: string; isRemoteFlag: boolean;
   score: number; score_breakdown: { skills: number; experience: number; trajectory: number; preference: number };
   skills_matched: string[]; approval_state: string;
 }
 
 function scoreJob(item: Record<string, unknown>): ScoredJob {
-  const desc     = String(item.description || '').toLowerCase();
-  const title    = String(item.title       || '').toLowerCase();
-  const location = String(item.location    || '').toLowerCase();
-  const seniority = String(item.seniorityLevel || '').toLowerCase();
+  // New actor field names
+  const rawDesc    = String(item.description || '');
+  const desc       = rawDesc.toLowerCase();
+  const title      = String(item.title    || '').toLowerCase();
+  const location   = String(item.location || '').toLowerCase();
+  const seniority  = String(item.job_level || item.seniority || item.seniorityLevel || '').toLowerCase();
+  const isRemoteRaw = item.is_remote === true || location.includes('remote');
 
   // Skills (max 40)
   let matchedW = 0, totalW = 0;
@@ -71,13 +77,10 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
     : 0;
 
   // Experience (max 30)
-  const kw1 = DEFAULT_KEYWORDS.tier1;
-  const kw2 = DEFAULT_KEYWORDS.tier2;
-  const kw3 = DEFAULT_KEYWORDS.tier3;
   let expScore: number;
-  if (kw1.some(k => desc.includes(k))) {
+  if (DEFAULT_KEYWORDS.tier1.some(k => desc.includes(k))) {
     expScore = SCORING.keyword_tier1_pts;
-  } else if (kw2.some(k => desc.includes(k))) {
+  } else if (DEFAULT_KEYWORDS.tier2.some(k => desc.includes(k))) {
     expScore = SCORING.keyword_tier2_pts;
   } else {
     expScore = SCORING.exp_default_pts;
@@ -85,7 +88,7 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   if (['entry level', 'entry-level', 'internship'].includes(seniority)) {
     expScore = Math.min(expScore + 3, SCORING.experience_max);
   }
-  if (kw3.some(k => desc.includes(k))) {
+  if (DEFAULT_KEYWORDS.tier3.some(k => desc.includes(k))) {
     expScore = Math.min(expScore + SCORING.keyword_tier3_bonus, SCORING.experience_max);
   }
   expScore = Math.min(expScore, SCORING.experience_max);
@@ -101,14 +104,13 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   } else {
     trajScore = 5;
   }
-  // Penalize senior/leadership titles
   if (/\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b/.test(title)) {
     trajScore -= SCORING.senior_title_penalty;
   }
 
-  // Preference (max 10)
+  // Preference / location (max 10)
   const remoteTerms = ['remote', 'hybrid', 'wfh', 'work from home', 'telework', 'telecommute', 'virtual'];
-  const isRemote = remoteTerms.some(s => location.includes(s)) || remoteTerms.some(s => desc.includes(s));
+  const isRemote = isRemoteRaw || remoteTerms.some(s => location.includes(s)) || remoteTerms.some(s => desc.includes(s));
   let prefScore: number;
   if (isRemote) {
     prefScore = SCORING.location_remote_pts;
@@ -123,24 +125,43 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   } else {
     prefScore = SCORING.location_non_preferred_pts;
   }
-  const salary = String(item.salary || '').trim();
-  if (salary && !['null', 'none', ''].includes(salary.toLowerCase())) {
-    prefScore = Math.min(prefScore + 1, SCORING.preference_max);
-  }
+  // Bonus point if salary is known
+  const salaryMin = typeof item.salary_min === 'number' ? item.salary_min : null;
+  const salaryMax = typeof item.salary_max === 'number' ? item.salary_max : null;
+  if (salaryMin || salaryMax) prefScore = Math.min(prefScore + 1, SCORING.preference_max);
   prefScore = Math.min(prefScore, SCORING.preference_max);
 
   const total = Math.max(0, Math.min(100, skillsScore + expScore + trajScore + prefScore));
-  const jobId = String(item.id || '');
-  const link  = String(item.link || item.jobUrl || '');
-  const url   = jobId ? `https://www.linkedin.com/jobs/view/${jobId}` : link;
+
+  // Build a human-readable salary string
+  const salaryCurrency = String(item.salary_currency || 'USD');
+  const salaryInterval = String(item.salary_interval || '');
+  let salaryDisplay: string | null = null;
+  if (salaryMin && salaryMax) {
+    salaryDisplay = `$${Math.round(salaryMin / 1000)}K–$${Math.round(salaryMax / 1000)}K/yr`;
+  } else if (salaryMin) {
+    salaryDisplay = `$${Math.round(salaryMin / 1000)}K+/yr`;
+  } else if (salaryMax) {
+    salaryDisplay = `Up to $${Math.round(salaryMax / 1000)}K/yr`;
+  }
+
+  const url       = String(item.job_url || '');
+  const urlDirect = String(item.job_url_direct || '') || null;
 
   return {
-    id: jobId, title: String(item.title || ''), company: String(item.companyName || item.company || ''),
-    location: String(item.location || ''), url, salary: salary || null,
-    applicantsCount: item.applicantsCount != null ? (parseInt(String(item.applicantsCount)) || null) : null,
-    seniorityLevel: String(item.seniorityLevel || ''), employmentType: String(item.employmentType || ''),
-    postedAt: String(item.postedAt || ''),
-    description: String(item.description || item.descriptionHtml || item.jobDescription || item.jobDescriptionText || '').replace(/<[^>]*>/g, ' ').substring(0, 4000),
+    id: url || String(item.id || ''),
+    title: String(item.title || ''),
+    company: String(item.company || item.companyName || ''),
+    location: String(item.location || ''),
+    url, urlDirect,
+    site: String(item.site || ''),
+    salary: salaryDisplay,
+    salaryMin, salaryMax, salaryCurrency, salaryInterval,
+    seniorityLevel: String(item.job_level || item.seniority || item.seniorityLevel || ''),
+    employmentType: String(item.job_type || item.employmentType || ''),
+    postedAt: String(item.date_posted || item.postedAt || ''),
+    description: rawDesc.substring(0, 4000),
+    isRemoteFlag: isRemote,
     score: total,
     score_breakdown: { skills: skillsScore, experience: expScore, trajectory: trajScore, preference: prefScore },
     skills_matched: matchedSkills, approval_state: 'pending_review',
@@ -170,8 +191,8 @@ export async function GET(req: Request) {
     if (!runId) return NextResponse.json({ ok: false, error: 'Missing runId' }, { status: 400 });
     if (!token) return NextResponse.json({ ok: false, error: 'Missing token' }, { status: 400 });
 
-    // Check run status
-    const runResp = await fetch(`${APIFY_BASE}/acts/${ACTOR}/runs/${runId}`, {
+    // Check run status via run ID (works with any actor ID)
+    const runResp = await fetch(`${APIFY_BASE}/runs/${runId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const runData = await runResp.json();
@@ -185,14 +206,12 @@ export async function GET(req: Request) {
     if (status === 'RUNNING' || status === 'READY' || status === '') {
       return NextResponse.json({ ok: true, status: 'running' });
     }
-
     if (status !== 'SUCCEEDED') {
       return NextResponse.json({ ok: false, error: `Apify run ended with status: ${status}` }, { status: 500 });
     }
 
-    // Fetch items from dataset
     const itemsResp = await fetch(
-      `${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=200`,
+      `${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=400`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!itemsResp.ok) {

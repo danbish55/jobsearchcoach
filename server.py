@@ -248,7 +248,7 @@ def _read_config_file(path):
 
 # ── Apify / LinkedIn Radar ─────────────────────────────────────────────────
 
-_APIFY_ACTOR = 'curious_coder~linkedin-jobs-scraper'
+_APIFY_ACTOR = 'DYFzkdbYmMF6x7QMG'  # iskoren/multi-job-board-scraper
 _APIFY_BASE  = 'https://api.apify.com/v2'
 
 
@@ -442,29 +442,44 @@ def _score_apify_job(item, cfg):
             pref_score = int(scoring.get('location_ambiguous_pts', 2))
         else:
             pref_score = int(scoring.get('location_non_preferred_pts', -15))
-    salary = str(item.get('salary') or '').strip()
-    if salary and salary.lower() not in ('null', 'none', ''):
+    if item.get('salary_min') or item.get('salary_max'):
         pref_score = min(pref_score + 1, pref_max)
     pref_score = min(pref_score, pref_max)
 
     # ── Total ─────────────────────────────────────────────────────────────
-    total  = max(0, min(100, skills_score + exp_score + traj_score + pref_score))
-    job_id = str(item.get('id') or '')
-    link   = item.get('link') or item.get('jobUrl') or ''
-    url    = f'https://www.linkedin.com/jobs/view/{job_id}' if job_id else link
+    total = max(0, min(100, skills_score + exp_score + traj_score + pref_score))
+    url   = str(item.get('job_url') or item.get('link') or item.get('jobUrl') or '')
+
+    # Build salary display string from structured fields
+    sal_min = item.get('salary_min')
+    sal_max = item.get('salary_max')
+    if sal_min and sal_max:
+        salary_display = f'${int(sal_min)//1000}K–${int(sal_max)//1000}K/yr'
+    elif sal_min:
+        salary_display = f'${int(sal_min)//1000}K+/yr'
+    elif sal_max:
+        salary_display = f'Up to ${int(sal_max)//1000}K/yr'
+    else:
+        salary_display = None
 
     return {
-        'id':              job_id,
+        'id':              url or str(item.get('id') or ''),
         'title':           item.get('title') or '',
-        'company':         item.get('companyName') or item.get('company') or '',
+        'company':         item.get('company') or item.get('companyName') or '',
         'location':        item.get('location') or '',
         'url':             url,
-        'salary':          salary or None,
-        'applicantsCount': (lambda v: int(v) if str(v).isdigit() else None)(item.get('applicantsCount', '')),
-        'seniorityLevel':  item.get('seniorityLevel') or '',
-        'employmentType':  item.get('employmentType') or '',
-        'postedAt':        item.get('postedAt') or '',
-        'description':     (item.get('description') or item.get('descriptionHtml') or item.get('jobDescription') or item.get('jobDescriptionText') or '')[:4000],
+        'urlDirect':       item.get('job_url_direct') or None,
+        'site':            item.get('site') or '',
+        'salary':          salary_display,
+        'salaryMin':       sal_min if isinstance(sal_min, (int, float)) else None,
+        'salaryMax':       sal_max if isinstance(sal_max, (int, float)) else None,
+        'salaryCurrency':  item.get('salary_currency') or 'USD',
+        'salaryInterval':  item.get('salary_interval') or '',
+        'seniorityLevel':  item.get('job_level') or item.get('seniority') or item.get('seniorityLevel') or '',
+        'employmentType':  item.get('job_type') or item.get('employmentType') or '',
+        'postedAt':        item.get('date_posted') or item.get('postedAt') or '',
+        'isRemoteFlag':    bool(item.get('is_remote')),
+        'description':     (item.get('description') or '')[:4000],
         'score':           total,
         'score_breakdown': {
             'skills':     skills_score,
@@ -3395,14 +3410,19 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
         apify_cfg = _deep_merge(_default_apify_config(), cfg.get('apify_config') or {})
         role      = str(apify_cfg.get('role_keyword') or 'Data Analyst').strip()
-        count     = int(apify_cfg.get('min_results') or 50)
-        li_url    = (
-            f'https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote(role)}'
-            f'&location=United+States&f_E=2&f_JT=F&position=1&pageNum=0'
-        )
+        count     = min(int(apify_cfg.get('min_results') or 50), 100)
         try:
             actor_url = f'{_APIFY_BASE}/acts/{_APIFY_ACTOR}/runs?waitForFinish=300'
-            payload   = json.dumps({'urls': [li_url], 'count': count, 'scrapeCompany': False}).encode('utf-8')
+            payload   = json.dumps({
+                'searchTerm': role,
+                'location': 'United States',
+                'sites': ['linkedin', 'indeed', 'glassdoor'],
+                'maxResults': count,
+                'enforceAnnualSalary': True,
+                'descriptionFormat': 'markdown',
+                'jobType': 'fulltime',
+                'countryIndeed': 'USA',
+            }).encode('utf-8')
             req       = urllib.request.Request(
                 actor_url, data=payload, method='POST',
                 headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
@@ -3423,7 +3443,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             import re as _re
             _EXCL_SENIORITY = {'mid-senior level', 'senior level', 'director', 'executive', 'management'}
             def _is_excluded(j):
-                if any(s in j.get('seniorityLevel', '').lower() for s in _EXCL_SENIORITY):
+                seniority = (j.get('seniorityLevel') or j.get('job_level') or j.get('seniority') or '').lower()
+                if any(s in seniority for s in _EXCL_SENIORITY):
                     return True
                 d = j.get('description', '').lower()
                 if d:
