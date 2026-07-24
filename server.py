@@ -325,7 +325,7 @@ def _default_apify_config():
             'keyword_tier1_pts': 30,
             'keyword_tier2_pts': 28,
             'keyword_tier3_bonus': 5,
-            'exp_default_pts': 15,
+            'exp_default_pts': 22,
             'senior_title_penalty': 15,
             'exp_3yr_penalty': 6,
             'exp_4yr_penalty': 12,
@@ -477,7 +477,7 @@ def _score_apify_job(item, cfg):
         'seniorityLevel':  item.get('seniorityLevel') or '',
         'employmentType':  item.get('employmentType') or '',
         'postedAt':        item.get('postedAt') or '',
-        'description':     (item.get('description') or '')[:4000],
+        'description':     (item.get('description') or item.get('descriptionHtml') or item.get('jobDescription') or item.get('jobDescriptionText') or '')[:4000],
         'score':           total,
         'score_breakdown': {
             'skills':     skills_score,
