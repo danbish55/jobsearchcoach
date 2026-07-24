@@ -3415,14 +3415,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             actor_url = f'{_APIFY_BASE}/acts/{_APIFY_ACTOR}/runs?waitForFinish=300'
             payload   = json.dumps({
                 'searchTerm': 'entry level data analyst',
+                'googleSearchTerm': 'entry level data analyst jobs United States',
                 'location': 'United States',
-                'sites': ['linkedin', 'indeed', 'glassdoor', 'google', 'ziprecruiter', 'bayt', 'bdjobs', 'naukri'],
+                # omitting 'sites' → actor default = all 8 boards
                 'maxResults': count,
                 'hoursOld': 144,
                 'enforceAnnualSalary': True,
                 'descriptionFormat': 'markdown',
                 'jobType': 'fulltime',
-                'countryIndeed': 'USA',
+                'countryIndeed': 'US',
             }).encode('utf-8')
             req       = urllib.request.Request(
                 actor_url, data=payload, method='POST',

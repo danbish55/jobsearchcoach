@@ -407,17 +407,21 @@ const ApifyRadar = (() => {
   // ── Table rendering ──────────────────────────────────────────────────────
 
   const _BOARD_META = {
-    linkedin:     { cls: 'li',  label: 'LI', name: 'LinkedIn'     },
-    indeed:       { cls: 'in',  label: 'IN', name: 'Indeed'       },
-    glassdoor:    { cls: 'gd',  label: 'GD', name: 'Glassdoor'    },
-    google:       { cls: 'go',  label: 'GO', name: 'Google Jobs'  },
-    ziprecruiter: { cls: 'zr',  label: 'ZR', name: 'ZipRecruiter' },
-    bayt:         { cls: 'by',  label: 'BY', name: 'Bayt'         },
-    bdjobs:       { cls: 'bd',  label: 'BD', name: 'BDJobs'       },
-    naukri:       { cls: 'nk',  label: 'NK', name: 'Naukri'       },
+    linkedin:       { cls: 'li',  label: 'LI', name: 'LinkedIn'     },
+    indeed:         { cls: 'in',  label: 'IN', name: 'Indeed'       },
+    glassdoor:      { cls: 'gd',  label: 'GD', name: 'Glassdoor'    },
+    google:         { cls: 'go',  label: 'GO', name: 'Google Jobs'  },
+    google_jobs:    { cls: 'go',  label: 'GO', name: 'Google Jobs'  },
+    googlejobs:     { cls: 'go',  label: 'GO', name: 'Google Jobs'  },
+    ziprecruiter:   { cls: 'zr',  label: 'ZR', name: 'ZipRecruiter' },
+    zip_recruiter:  { cls: 'zr',  label: 'ZR', name: 'ZipRecruiter' },
+    bayt:           { cls: 'by',  label: 'BY', name: 'Bayt'         },
+    bdjobs:         { cls: 'bd',  label: 'BD', name: 'BDJobs'       },
+    bd_jobs:        { cls: 'bd',  label: 'BD', name: 'BDJobs'       },
+    naukri:         { cls: 'nk',  label: 'NK', name: 'Naukri'       },
   };
   function _boardBadge(site) {
-    const s = (site || '').toLowerCase();
+    const s = (site || '').toLowerCase().replace(/[^a-z_]/g, '');
     const m = _BOARD_META[s];
     if (m) return `<span class="ar-board-badge ${m.cls}" title="${m.name}">${m.label}</span>`;
     return s ? `<span class="ar-board-badge unknown" title="${_esc(site)}">${_esc(site.substring(0,2).toUpperCase())}</span>` : '<span class="ar-muted">—</span>';
