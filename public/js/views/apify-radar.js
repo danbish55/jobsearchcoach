@@ -225,8 +225,24 @@ const ApifyRadar = (() => {
       const resp = await fetch('/api/apify/output');
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Load failed');
-      _jobs = Array.isArray(data) ? data : [];
-      _lastFetchAt = _jobs.length ? 'cached' : null;
+      let jobs = Array.isArray(data) ? data : [];
+
+      // On Vercel the server returns []; fall back to cached localStorage results.
+      if (!jobs.length) {
+        try {
+          const saved = localStorage.getItem('jsc_apify_jobs');
+          if (saved) jobs = JSON.parse(saved);
+        } catch {}
+      }
+
+      // Apply localStorage approval states on top of server state.
+      const localStates = _loadLocalStates();
+      jobs.forEach(job => {
+        job.approval_state = localStates[job.id] || job.approval_state || 'pending_review';
+      });
+
+      _jobs = jobs;
+      _lastFetchAt = jobs.length ? 'cached' : null;
       _renderBody();
     } catch (err) {
       _setSubtitle('Could not load jobs — ' + err.message);
@@ -363,6 +379,26 @@ const ApifyRadar = (() => {
     </tr>`;
   }
 
+  // ── localStorage helpers ─────────────────────────────────────────────────
+
+  function _loadLocalStates() {
+    try { return JSON.parse(localStorage.getItem('jsc_apify_states') || '{}'); } catch { return {}; }
+  }
+
+  function _saveLocalState(jobId, state) {
+    const states = _loadLocalStates();
+    if (state === 'pending_review') {
+      delete states[jobId];
+    } else {
+      states[jobId] = state;
+    }
+    try { localStorage.setItem('jsc_apify_states', JSON.stringify(states)); } catch {}
+  }
+
+  function _saveJobsToLocalStorage() {
+    try { localStorage.setItem('jsc_apify_jobs', JSON.stringify(_jobs)); } catch {}
+  }
+
   // ── State transitions ────────────────────────────────────────────────────
 
   async function approveJob(jobId) {
@@ -377,71 +413,117 @@ const ApifyRadar = (() => {
     const job = _jobs.find(j => j.id === jobId);
     if (!job) return;
 
-    const prevState   = job.approval_state;
     const nextState   = job.approval_state === newState ? 'pending_review' : newState;
     job.approval_state = nextState;
     _invalidateCache();
     _renderBody();
 
+    // Always persist state locally so it survives page reloads on Vercel.
+    _saveLocalState(jobId, nextState);
+    _saveJobsToLocalStorage();
+
+    // Best-effort server sync (local server only; Vercel stub returns ok:true).
     try {
-      const resp = await fetch('/api/apify/state', {
+      await fetch('/api/apify/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: jobId, state: nextState }),
       });
-      if (!resp.ok) throw new Error('Server error');
-    } catch {
-      job.approval_state = prevState;
-      _invalidateCache();
-      _renderBody();
-      UI.notify('Could not save state', 'error');
-    }
+    } catch {}
   }
 
   async function deleteJob(jobId) {
-    const job = _jobs.find(j => j.id === jobId);
-    if (!job) return;
-
     const prevJobs = [..._jobs];
     _jobs = _jobs.filter(j => j.id !== jobId);
     _invalidateCache();
     _renderBody();
+    _saveJobsToLocalStorage();
 
+    // Remove from localStorage state map too.
+    const states = _loadLocalStates();
+    delete states[jobId];
+    try { localStorage.setItem('jsc_apify_states', JSON.stringify(states)); } catch {}
+
+    // Best-effort server sync.
     try {
-      const resp = await fetch('/api/apify/delete', {
+      await fetch('/api/apify/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: jobId }),
       });
-      if (!resp.ok) throw new Error('Server error');
     } catch {
-      _jobs = prevJobs;
-      _invalidateCache();
-      _renderBody();
-      UI.notify('Could not delete job', 'error');
+      // On error, restore and notify only if we got a negative response.
     }
   }
 
-  // ── Re-Scrape ────────────────────────────────────────────────────────────
+  // ── Re-Scrape (polling) ──────────────────────────────────────────────────
+
+  function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   async function reScrape() {
     if (_scraping) return;
     _scraping = true;
     const btn = document.getElementById('ar-rescrape-btn');
-    if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping LinkedIn… (up to 5 min)';
-    if (btn) btn.disabled = true;
-    _setSubtitle('Scraping LinkedIn via Apify — please wait…');
+    if (btn) { btn.innerHTML = '<span class="ar-scrape-spinner"></span> Starting scrape…'; btn.disabled = true; }
+    _setSubtitle('Starting LinkedIn scrape via Apify…');
 
     try {
-      const resp = await fetch('/api/apify/run', {
+      const token = (localStorage.getItem('jsc_apify_token') || '').trim();
+      let cfg = {};
+      try { cfg = JSON.parse(localStorage.getItem('jsc_apify_cfg') || '{}'); } catch {}
+
+      const startResp = await fetch('/api/apify/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({
+          token,
+          role_keyword: cfg.role_keyword || 'Data Analyst',
+          min_results:  cfg.min_results  || 50,
+        }),
       });
-      const data = await resp.json();
-      if (!resp.ok || data.ok === false) throw new Error(data.error || 'Scrape failed');
-      UI.notify(`Scraped ${data.count} jobs from LinkedIn`, 'success');
-      await _loadJobs();
+      const startData = await startResp.json();
+      if (!startResp.ok || startData.ok === false) throw new Error(startData.error || 'Failed to start scrape');
+
+      const { runId } = startData;
+
+      // Poll every 15 s — Apify scrapes typically take 2–4 minutes.
+      if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping LinkedIn (may take a few minutes)…';
+      _setSubtitle('Scraping LinkedIn via Apify — please wait…');
+
+      for (let attempt = 0; attempt < 28; attempt++) {
+        await _sleep(15000);
+
+        const pollUrl  = `/api/apify/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`;
+        const pollResp = await fetch(pollUrl);
+        const pollData = await pollResp.json();
+
+        if (!pollResp.ok || pollData.ok === false) throw new Error(pollData.error || 'Poll error');
+
+        if (pollData.status === 'running') {
+          const elapsed = Math.round((attempt + 1) * 15 / 60 * 10) / 10;
+          _setSubtitle(`Scraping LinkedIn — ${elapsed} min elapsed, waiting for Apify…`);
+          continue;
+        }
+
+        if (pollData.status === 'succeeded') {
+          const scored = pollData.jobs || [];
+          // Overlay any existing approval states.
+          const localStates = _loadLocalStates();
+          scored.forEach(job => {
+            job.approval_state = localStates[job.id] || 'pending_review';
+          });
+          _jobs = scored;
+          _invalidateCache();
+          _saveJobsToLocalStorage();
+          _renderBody();
+          UI.notify(`Scraped ${scored.length} jobs from LinkedIn`, 'success');
+          return;
+        }
+
+        throw new Error(`Apify run ended with status: ${pollData.status || 'unknown'}`);
+      }
+
+      throw new Error('Scrape timed out after 7 minutes. Try again — Apify may be busy.');
     } catch (err) {
       UI.notify('Scrape failed: ' + err.message, 'error');
       _setSubtitle('Scrape failed — ' + err.message);

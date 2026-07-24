@@ -1029,11 +1029,14 @@ const Settings = (() => {
       const result = await resp.json().catch(() => ({}));
       if (!resp.ok || result.ok === false) throw new Error(result.error || 'Save failed');
       if (token) {
+        localStorage.setItem('jsc_apify_token', token);
         const tokenInput = document.getElementById('ar-apify-token');
         if (tokenInput) tokenInput.value = '';
         const statusEl = document.getElementById('ar-token-status');
         if (statusEl) statusEl.textContent = '✓ Token saved. Leave blank to keep it.';
       }
+      // Persist config locally so reScrape can use it on Vercel
+      try { localStorage.setItem('jsc_apify_cfg', JSON.stringify(body.apify_config)); } catch {}
       if (okEl) { okEl.textContent = '✓ Saved'; setTimeout(() => { if (okEl) okEl.textContent = ''; }, 3000); }
       UI.notify('LinkedIn Radar settings saved', 'success');
     } catch (err) {
