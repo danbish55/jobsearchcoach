@@ -230,11 +230,11 @@ const ApifyRadar = (() => {
         padding: 2px 5px; border-radius: 4px; color: #fff; vertical-align: middle;
         line-height: 1.4; white-space: nowrap;
       }
-      #apify-radar-content .ar-board-badge.li  { background: #0A66C2; }
-      #apify-radar-content .ar-board-badge.in  { background: #003A9B; }
-      #apify-radar-content .ar-board-badge.gd  { background: #0CAA41; }
-      #apify-radar-content .ar-board-badge.go  { background: #4285F4; }
-      #apify-radar-content .ar-board-badge.zr  { background: #4A90D9; }
+      #apify-radar-content .ar-board-badge.li  { background: #0A66C2; }  /* LinkedIn blue   */
+      #apify-radar-content .ar-board-badge.in  { background: #E8600A; }  /* Indeed orange   */
+      #apify-radar-content .ar-board-badge.gd  { background: #0CAA41; }  /* Glassdoor green */
+      #apify-radar-content .ar-board-badge.go  { background: #C5221F; }  /* Google red      */
+      #apify-radar-content .ar-board-badge.zr  { background: #7C3AED; }  /* ZipRecruiter purple */
       #apify-radar-content .ar-board-badge.by  { background: #CC2229; }
       #apify-radar-content .ar-board-badge.bd  { background: #1E5F8C; }
       #apify-radar-content .ar-board-badge.nk  { background: #E05A2B; }
@@ -362,6 +362,7 @@ const ApifyRadar = (() => {
       case 'seniorityLevel': return (job.seniorityLevel  || '').toLowerCase();
       case 'salary':         return (job.salary   || '');
       case 'applicantsCount': return job.applicantsCount ?? -1;
+      case 'site':           return (job.site || '').toLowerCase();
       case 'postedAt':       return job.postedAt  || '';
       case 'approval_state': return job.approval_state || '';
       default:               return job.score ?? 0;
@@ -449,7 +450,7 @@ const ApifyRadar = (() => {
         <tr>
           <th style="width:36px;min-width:36px">#<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_rank"></span></th>
           ${_thHTML('score',          'Score',      '62px')}
-          <th style="width:44px;min-width:44px;text-align:center">Src</th>
+          ${_thHTML('site',           'Src',        '52px')}
           ${_thHTML('title',          'Job Title',  '220px')}
           ${_thHTML('company',        'Company',    '130px')}
           ${_thHTML('location',       'Location',   '140px')}
@@ -490,8 +491,9 @@ const ApifyRadar = (() => {
     const fire       = (job.applicantsCount || 0) >= 200 ? '<span class="ar-fire" title="200+ applicants">🔥</span>' : '';
     const salary     = job.salary ? `<span class="ar-salary">${_esc(job.salary)}</span>` : '<span class="ar-muted">—</span>';
     const posted     = _formatPosted(job.postedAt);
-    const titleLink  = job.url
-      ? `<a href="${_esc(job.url)}" target="_blank" rel="noopener" title="${_esc(job.title || '')}">${_esc(job.title || 'Untitled')}</a>`
+    const jobUrl     = job.url || job.urlDirect || '';
+    const titleLink  = jobUrl
+      ? `<a href="${_esc(jobUrl)}" target="_blank" rel="noopener" title="${_esc(job.title || '')}">${_esc(job.title || 'Untitled')}</a>`
       : _esc(job.title || 'Untitled');
 
     const tipText = `Skills ${bd.skills||0} · Exp ${bd.experience||0} · Title ${bd.trajectory||0} · Pref ${bd.preference||0}`;
@@ -883,12 +885,20 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
           _saveJobsToLocalStorage();
           _renderBody();
           const dbg = pollData.debug || {};
-          const siteBreakdown = Object.entries(dbg.rawBySite || {})
-            .sort((a, b) => b[1] - a[1])
-            .map(([s, n]) => `${s}:${n}`).join('  ');
+          const rawBySite = dbg.rawBySite || {};
+          const _ALL_BOARDS = [
+            { key: 'linkedin',     label: 'LI' },
+            { key: 'indeed',       label: 'IN' },
+            { key: 'glassdoor',    label: 'GD' },
+            { key: 'google',       label: 'GO' },
+            { key: 'zip_recruiter', label: 'ZR' },
+          ];
+          const siteBreakdown = _ALL_BOARDS
+            .map(b => `${b.label}:${rawBySite[b.key] || 0}`)
+            .join('  ');
           console.log('[JobBoardScraper] debug', dbg);
           _setSubtitle(
-            `${scored.length} jobs shown · ${dbg.rawTotal || '?'} raw · ${dbg.afterExclusion || '?'} after exclusion · by board: ${siteBreakdown || 'n/a'}`
+            `${scored.length} jobs shown · ${dbg.rawTotal || '?'} raw · ${dbg.afterExclusion || '?'} after exclusion · by board: ${siteBreakdown}`
           );
           UI.notify(`Scraped ${scored.length} jobs (${dbg.rawTotal || '?'} raw across all boards)`, 'success');
           return;
