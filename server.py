@@ -3417,13 +3417,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'searchTerm': 'entry level data analyst',
                 'googleSearchTerm': 'entry level data analyst jobs United States',
                 'location': 'United States',
-                # omitting 'sites' → actor default = all 8 boards
+                'sites': ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter', 'bayt', 'bdjobs', 'naukri'],
                 'maxResults': count,
                 'hoursOld': 144,
+                # jobType omitted: Indeed breaks when hoursOld and jobType are combined
                 'enforceAnnualSalary': True,
                 'descriptionFormat': 'markdown',
-                'jobType': 'fulltime',
-                'countryIndeed': 'US',
+                'countryIndeed': 'usa',
             }).encode('utf-8')
             req       = urllib.request.Request(
                 actor_url, data=payload, method='POST',

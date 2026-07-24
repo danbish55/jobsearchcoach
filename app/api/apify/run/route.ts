@@ -18,13 +18,13 @@ export async function POST(req: Request) {
       searchTerm: 'entry level data analyst',
       googleSearchTerm: 'entry level data analyst jobs United States',
       location: 'United States',
-      // omitting `sites` → actor default = all 8 boards
+      sites: ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter', 'bayt', 'bdjobs', 'naukri'],
       maxResults,
       hoursOld: 144,
+      // jobType omitted: Indeed breaks when hoursOld and jobType are combined
       enforceAnnualSalary: true,
       descriptionFormat: 'markdown',
-      jobType: 'fulltime',
-      countryIndeed: 'US',
+      countryIndeed: 'usa',
     };
 
     const resp = await fetch(`${APIFY_BASE}/acts/${ACTOR_ID}/runs`, {
