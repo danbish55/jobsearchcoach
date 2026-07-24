@@ -20,8 +20,7 @@ export async function POST(req: Request) {
       location: 'United States',
       sites: ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter', 'bayt', 'bdjobs', 'naukri'],
       maxResults,
-      hoursOld: 144,
-      // jobType omitted: Indeed breaks when hoursOld and jobType are combined
+      // hoursOld removed: appears to cause non-LI/IN boards to return 0 results
       enforceAnnualSalary: true,
       descriptionFormat: 'markdown',
       countryIndeed: 'usa',

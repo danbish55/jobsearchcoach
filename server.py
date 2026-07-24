@@ -3419,8 +3419,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'location': 'United States',
                 'sites': ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter', 'bayt', 'bdjobs', 'naukri'],
                 'maxResults': count,
-                'hoursOld': 144,
-                # jobType omitted: Indeed breaks when hoursOld and jobType are combined
+                # hoursOld removed: causes non-LI/IN boards to return 0 results
                 'enforceAnnualSalary': True,
                 'descriptionFormat': 'markdown',
                 'countryIndeed': 'usa',
