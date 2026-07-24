@@ -170,7 +170,10 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
 
 const EXCLUDED_SENIORITIES = ['mid-senior level', 'senior level', 'director', 'executive', 'management'];
 
+const SENIOR_TITLE_RE = /\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b/i;
+
 function isExcluded(job: ScoredJob): boolean {
+  if (SENIOR_TITLE_RE.test(job.title)) return true;
   if (EXCLUDED_SENIORITIES.some(s => job.seniorityLevel.toLowerCase().includes(s))) return true;
   if (job.description) {
     const d = job.description.toLowerCase();

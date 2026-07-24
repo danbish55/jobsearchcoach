@@ -3443,7 +3443,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 raise ValueError('Unexpected Apify response format.')
             import re as _re
             _EXCL_SENIORITY = {'mid-senior level', 'senior level', 'director', 'executive', 'management'}
+            _SENIOR_TITLE_RE = _re.compile(r'\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b', _re.I)
             def _is_excluded(j):
+                if _SENIOR_TITLE_RE.search(j.get('title') or ''):
+                    return True
                 seniority = (j.get('seniorityLevel') or j.get('job_level') or j.get('seniority') or '').lower()
                 if any(s in seniority for s in _EXCL_SENIORITY):
                     return True
