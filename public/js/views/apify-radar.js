@@ -5,11 +5,12 @@ const ApifyRadar = (() => {
   let _filterState = 'all';
   let _sortBy      = 'score';
   let _sortDir     = 'desc';
-  let _scraping    = false;
-  let _cache       = null;
-  let _cacheKey    = '';
-  let _resizing    = null;
-  const _colWidths = {};   // col key → saved px width (survives re-renders)
+  let _scraping         = false;
+  let _cache            = null;
+  let _cacheKey         = '';
+  let _resizing         = null;
+  let _activeApplyJobId = '';
+  const _colWidths      = {};   // col key → saved px width (survives re-renders)
 
   // ── Styles ───────────────────────────────────────────────────────────────
 
@@ -501,8 +502,228 @@ const ApifyRadar = (() => {
   async function applyJob(jobId) {
     const job = _jobs.find(j => j.id === jobId);
     if (!job) return;
+
+    // 1. Open the posting
     if (job.url) window.open(job.url, '_blank', 'noopener');
-    if (job.approval_state !== 'applied') await _transition(jobId, 'applied');
+
+    // 2. Copy profile info to clipboard
+    try {
+      await _arCopyText(_arProfileClipboard());
+      UI.notify('Profile info copied to clipboard', 'success');
+    } catch {
+      UI.notify('Could not copy profile info automatically', 'error');
+    }
+
+    // 3. Show the apply modal
+    _arShowApplyModal(job);
+  }
+
+  // ── Apply modal ───────────────────────────────────────────────────────────
+
+  function _arShowApplyModal(job) {
+    _activeApplyJobId = job.id;
+    UI.showModal(
+      `Applying to ${_esc(job.title || 'role')} at ${_esc(job.company || 'company')}`,
+      `<div class="job-lead-apply-modal">
+        <section class="job-lead-apply-section">
+          <div class="job-lead-apply-section-title">Quick Actions</div>
+          <div class="job-lead-apply-actions">
+            <button class="btn btn-primary btn-sm" onclick="ApifyRadar.openResumeFolder()">Open Resume Folder</button>
+            <button class="btn btn-gold btn-sm" onclick="ApifyRadar.draftCoverLetter()">Draft Cover Letter</button>
+          </div>
+          <p class="job-lead-apply-note">Profile info copied to clipboard &#10003;</p>
+          <div class="job-lead-apply-instructions">
+            <strong>Suggested application flow:</strong>
+            <ol>
+              <li>Draft the cover letter here and save a copy if you want to keep it.</li>
+              <li>The job posting is already open — follow the employer's application steps.</li>
+              <li>Select the best resume from the resume folder and paste the cover letter if the form asks for one.</li>
+              <li>Submit on the job site first, then come back here and click "Yes, I Applied."</li>
+            </ol>
+          </div>
+        </section>
+
+        <section id="ar-cover-section" class="job-lead-apply-section hidden">
+          <div class="job-lead-apply-section-title">Cover Letter</div>
+          <div id="ar-cover-loading" class="job-lead-cover-loading hidden">
+            <span class="job-leads-spinner"></span>
+            <span>Drafting cover letter…</span>
+          </div>
+          <textarea id="ar-cover-text" class="job-lead-cover-text" readonly></textarea>
+          <div class="job-lead-apply-actions">
+            <button class="btn btn-primary btn-sm" onclick="ApifyRadar.copyCoverLetter()">Copy</button>
+            <button class="btn btn-ghost btn-sm"   onclick="ApifyRadar.saveCoverLetter()">Save to Drive</button>
+          </div>
+        </section>
+
+        <section class="job-lead-apply-section">
+          <div class="job-lead-apply-section-title">Confirmation</div>
+          <p class="job-lead-apply-note">Once you have submitted the application, record it here.</p>
+          <div id="ar-apply-status" class="job-lead-apply-status"></div>
+        </section>
+      </div>`,
+      [
+        { id: 'ar-confirm-applied', label: 'Yes, I Applied', class: 'btn-primary', close: false, action: () => ApifyRadar.confirmApplied() },
+        { id: 'ar-close-modal',     label: 'Not Yet — Close', class: 'btn-ghost', action: () => UI.closeModal() },
+      ],
+      { closeOnBackdrop: false }
+    );
+    document.querySelector('#active-modal .modal')?.classList.add('job-lead-apply-shell');
+  }
+
+  async function openResumeFolder() {
+    _arSetApplyStatus('Opening resume folder…');
+    try {
+      const r = await fetch('/api/open-folder?type=resumes').then(res => res.json());
+      _arSetApplyStatus(r.path ? `Resume folder opened: ${r.path}` : 'Resume folder opened.');
+    } catch (err) {
+      _arSetApplyStatus(`Could not open resume folder. ${err.message || ''}`.trim(), true);
+    }
+  }
+
+  async function draftCoverLetter() {
+    const section = document.getElementById('ar-cover-section');
+    const loading = document.getElementById('ar-cover-loading');
+    const text    = document.getElementById('ar-cover-text');
+    if (section) section.classList.remove('hidden');
+    if (loading) loading.classList.remove('hidden');
+    if (text)    text.value = '';
+    try {
+      const job    = _jobs.find(j => j.id === _activeApplyJobId);
+      if (!job) throw new Error('Job not found');
+      const letter = await _arGenerateCoverLetter(job);
+      if (text) text.value = letter;
+      _arSetApplyStatus('Cover letter drafted.');
+    } catch (err) {
+      _arSetApplyStatus(err.message || 'Could not draft cover letter.', true);
+    } finally {
+      if (loading) loading.classList.add('hidden');
+    }
+  }
+
+  async function _arGenerateCoverLetter(job) {
+    const profile    = Storage.get('profile', {});
+    const resume     = Storage.get('resume',  {});
+    const name       = profile.name || 'Corinne Bish';
+    const email      = profile.email || profile.student_email || '';
+    const phone      = profile.phone || profile.mobile || '';
+    const linkedin   = profile.linkedin || profile.linkedin_url || '';
+    const skills     = Array.isArray(profile.skills)
+      ? profile.skills.join(', ')
+      : (profile.skills || 'data analytics, SQL, dashboards, business intelligence');
+    const roles      = Array.isArray(profile.target_roles)
+      ? profile.target_roles.join(', ')
+      : (profile.target_roles || 'Data Analyst, Business Intelligence Analyst');
+
+    const system = `You are helping Corinne, a recent USC Marshall School of Business MSBA graduate, write a tailored cover letter.
+
+Candidate profile:
+- Full name: ${name}
+- Email: ${email || 'not available'}
+- Phone: ${phone || 'not available'}
+- LinkedIn: ${linkedin || 'not available'}
+- Degree: MSBA, USC Marshall School of Business
+- Skills: ${skills}
+- Target roles: ${roles}
+
+Write a professional, specific, and concise cover letter for the following job.
+Start with a simple contact header using the available exact candidate details above.
+If email, phone, or LinkedIn is not available, omit that missing field entirely.
+Sign the letter with the candidate's full name.
+Never use placeholders such as [Last Name], [Email], [Phone], [LinkedIn], or "your phone number".
+Do not use generic filler phrases. Reference the specific company and role.
+Avoid AI-sounding polish, generic enthusiasm, and formulaic phrasing where possible.
+Do not use em dashes or long dashes. Use commas, periods, or parentheses instead.
+Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and direct.`;
+
+    const user = `Job details:\nCompany: ${job.company || ''}\nRole: ${job.title || ''}\nLocation: ${job.location || ''}\nDescription: ${job.description || ''}`;
+
+    const model = (typeof Config !== 'undefined' && Config.claudeModel) ? Config.claudeModel() : 'claude-haiku-4-5-20251001';
+    const resp  = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, max_tokens: 900, stream: false, system, messages: [{ role: 'user', content: user }] }),
+    });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      throw new Error(e.error?.message || e.error || 'Cover letter generation failed');
+    }
+    const payload = await resp.json();
+    const letter  = (payload.content || []).filter(b => b.type === 'text').map(b => b.text || '').join('\n').trim();
+    if (!letter) throw new Error('Claude returned an empty cover letter.');
+    return letter;
+  }
+
+  async function copyCoverLetter() {
+    const text = document.getElementById('ar-cover-text')?.value || '';
+    if (!text.trim()) { _arSetApplyStatus('No cover letter to copy yet.', true); return; }
+    try { await _arCopyText(text); _arSetApplyStatus('Cover letter copied.'); }
+    catch { _arSetApplyStatus('Could not copy cover letter.', true); }
+  }
+
+  function saveCoverLetter() {
+    const text = document.getElementById('ar-cover-text')?.value || '';
+    if (!text.trim()) { _arSetApplyStatus('No cover letter to save yet.', true); return; }
+    const job    = _jobs.find(j => j.id === _activeApplyJobId);
+    const stored = Storage.get('cover_letters', { items: [] });
+    stored.items = [{
+      id: `cover_${Date.now()}`, lead_id: _activeApplyJobId,
+      company: job?.company || '', role: job?.title || '',
+      created_at: new Date().toISOString(), text,
+    }, ...(stored.items || [])];
+    Storage.set('cover_letters', stored);
+    _arSetApplyStatus('Cover letter saved to Drive.');
+  }
+
+  async function confirmApplied() {
+    if (!_activeApplyJobId) return;
+    _arSetApplyStatus('Recording application…');
+    try {
+      const job = _jobs.find(j => j.id === _activeApplyJobId);
+      await _transition(_activeApplyJobId, 'applied');
+      // Add to the Applications tracker so it shows up in the Applications view
+      if (job && typeof Jobs !== 'undefined') {
+        Jobs.addApplication({
+          company:        job.company,
+          source_lead_id: job.id,
+          role:           job.title,
+          date:           new Date().toISOString().split('T')[0],
+          status:         'applied',
+          url:            job.url,
+          notes:          `LinkedIn Radar · Score: ${job.score} · Skills: ${(job.skills_matched || []).join(', ')}`,
+        });
+      }
+      _arSetApplyStatus('Application recorded.');
+      UI.notify(`Application recorded for ${_esc(job?.title || 'role')} at ${_esc(job?.company || 'company')}`, 'success');
+      UI.closeModal();
+      _activeApplyJobId = '';
+    } catch (err) {
+      _arSetApplyStatus(err.message || 'Could not record application.', true);
+    }
+  }
+
+  function _arSetApplyStatus(msg, isError = false) {
+    const el = document.getElementById('ar-apply-status');
+    if (!el) return;
+    el.className = `job-lead-apply-status ${isError ? 'error' : 'success'}`;
+    el.textContent = msg;
+  }
+
+  function _arProfileClipboard() {
+    const profile  = Storage.get('profile', {});
+    const name     = profile.name || 'Corinne Bish';
+    const email    = profile.email || profile.student_email || '';
+    const phone    = profile.phone || profile.mobile || '';
+    const linkedin = profile.linkedin || profile.linkedin_url || '';
+    return [`Name: ${name}`, `Email: ${email}`, `Phone: ${phone}`, `LinkedIn: ${linkedin}`].join('\n');
+  }
+
+  async function _arCopyText(text) {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
   }
 
   async function _transition(jobId, newState) {
@@ -658,5 +879,10 @@ const ApifyRadar = (() => {
     startColResize,
     applyFilter,
     setStateFilter,
+    openResumeFolder,
+    draftCoverLetter,
+    copyCoverLetter,
+    saveCoverLetter,
+    confirmApplied,
   };
 })();
