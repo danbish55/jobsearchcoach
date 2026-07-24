@@ -204,7 +204,7 @@ const ApifyRadar = (() => {
           <div class="ar-subtitle" id="ar-subtitle">Loading…</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-ghost btn-sm" id="ar-rescrape-btn" onclick="ApifyRadar.reScrape()">📡 Re-Scrape LinkedIn</button>
+          <button class="btn btn-ghost btn-sm" id="ar-rescrape-btn" onclick="ApifyRadar.reScrape()">📡 Re-Scrape All Boards</button>
         </div>
       </div>
       <div class="ar-controls">
@@ -231,7 +231,7 @@ const ApifyRadar = (() => {
     } catch (err) {
       _setSubtitle('Could not load jobs — ' + err.message);
       document.getElementById('ar-body').innerHTML =
-        `<div class="ar-empty">No data yet.<div class="ar-empty-sub">Click Re-Scrape LinkedIn to fetch fresh jobs.</div></div>`;
+        `<div class="ar-empty">No data yet.<div class="ar-empty-sub">Click Re-Scrape All Boards to fetch fresh jobs.</div></div>`;
     }
   }
 
@@ -264,7 +264,7 @@ const ApifyRadar = (() => {
   function _updateSubtitle(visibleCount) {
     const total = _jobs.length;
     if (!total) {
-      _setSubtitle('No jobs loaded yet. Click Re-Scrape to fetch from LinkedIn.');
+      _setSubtitle('No jobs loaded yet. Click Re-Scrape All Boards to fetch fresh jobs.');
       return;
     }
     const pending  = _jobs.filter(j => j.approval_state === 'pending_review').length;
@@ -428,9 +428,9 @@ const ApifyRadar = (() => {
     if (_scraping) return;
     _scraping = true;
     const btn = document.getElementById('ar-rescrape-btn');
-    if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping LinkedIn… (up to 5 min)';
+    if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping all boards… (up to 5 min)';
     if (btn) btn.disabled = true;
-    _setSubtitle('Scraping LinkedIn via Apify — please wait…');
+    _setSubtitle('Job Board Scraper running via Apify — please wait…');
 
     try {
       const resp = await fetch('/api/apify/run', {
@@ -440,14 +440,14 @@ const ApifyRadar = (() => {
       });
       const data = await resp.json();
       if (!resp.ok || data.ok === false) throw new Error(data.error || 'Scrape failed');
-      UI.notify(`Scraped ${data.count} jobs from LinkedIn`, 'success');
+      UI.notify(`Scraped ${data.count} jobs from all boards`, 'success');
       await _loadJobs();
     } catch (err) {
       UI.notify('Scrape failed: ' + err.message, 'error');
       _setSubtitle('Scrape failed — ' + err.message);
     } finally {
       _scraping = false;
-      if (btn) { btn.innerHTML = '📡 Re-Scrape LinkedIn'; btn.disabled = false; }
+      if (btn) { btn.innerHTML = '📡 Re-Scrape All Boards'; btn.disabled = false; }
     }
   }
 

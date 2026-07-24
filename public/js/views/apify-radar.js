@@ -233,6 +233,11 @@ const ApifyRadar = (() => {
       #apify-radar-content .ar-board-badge.li  { background: #0A66C2; }
       #apify-radar-content .ar-board-badge.in  { background: #003A9B; }
       #apify-radar-content .ar-board-badge.gd  { background: #0CAA41; }
+      #apify-radar-content .ar-board-badge.go  { background: #4285F4; }
+      #apify-radar-content .ar-board-badge.zr  { background: #4A90D9; }
+      #apify-radar-content .ar-board-badge.by  { background: #CC2229; }
+      #apify-radar-content .ar-board-badge.bd  { background: #1E5F8C; }
+      #apify-radar-content .ar-board-badge.nk  { background: #E05A2B; }
       #apify-radar-content .ar-board-badge.unknown { background: #888; }
 
       /* ── Board legend strip ── */
@@ -261,7 +266,7 @@ const ApifyRadar = (() => {
           <div class="ar-subtitle" id="ar-subtitle">Loading…</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-ghost btn-sm" id="ar-rescrape-btn" onclick="ApifyRadar.reScrape()">📡 Re-Scrape LinkedIn</button>
+          <button class="btn btn-ghost btn-sm" id="ar-rescrape-btn" onclick="ApifyRadar.reScrape()">📡 Re-Scrape All Boards</button>
         </div>
       </div>
       <div class="ar-controls">
@@ -279,6 +284,11 @@ const ApifyRadar = (() => {
         <span class="ar-board-legend-item"><span class="ar-board-badge li">LI</span> LinkedIn</span>
         <span class="ar-board-legend-item"><span class="ar-board-badge in">IN</span> Indeed</span>
         <span class="ar-board-legend-item"><span class="ar-board-badge gd">GD</span> Glassdoor</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge go">GO</span> Google Jobs</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge zr">ZR</span> ZipRecruiter</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge by">BY</span> Bayt</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge bd">BD</span> BDJobs</span>
+        <span class="ar-board-legend-item"><span class="ar-board-badge nk">NK</span> Naukri</span>
       </div>
       <div id="ar-body"></div>`;
     _loadJobs();
@@ -303,7 +313,7 @@ const ApifyRadar = (() => {
     } catch (err) {
       _setSubtitle('Could not load jobs — ' + err.message);
       document.getElementById('ar-body').innerHTML =
-        `<div class="ar-empty">No data yet.<div class="ar-empty-sub">Click Re-Scrape LinkedIn to fetch fresh jobs.</div></div>`;
+        `<div class="ar-empty">No data yet.<div class="ar-empty-sub">Click Re-Scrape All Boards to fetch fresh jobs.</div></div>`;
     }
   }
 
@@ -378,7 +388,7 @@ const ApifyRadar = (() => {
 
   function _updateSubtitle(visibleCount) {
     const total    = _jobs.length;
-    if (!total) { _setSubtitle('No jobs loaded yet. Click Re-Scrape to fetch from LinkedIn.'); return; }
+    if (!total) { _setSubtitle('No jobs loaded yet. Click Re-Scrape All Boards to fetch fresh jobs.'); return; }
     const pending  = _jobs.filter(j => j.approval_state === 'pending_review').length;
     const approved = _jobs.filter(j => j.approval_state === 'approved').length;
     const applied  = _jobs.filter(j => j.approval_state === 'applied').length;
@@ -396,11 +406,20 @@ const ApifyRadar = (() => {
 
   // ── Table rendering ──────────────────────────────────────────────────────
 
+  const _BOARD_META = {
+    linkedin:     { cls: 'li',  label: 'LI', name: 'LinkedIn'     },
+    indeed:       { cls: 'in',  label: 'IN', name: 'Indeed'       },
+    glassdoor:    { cls: 'gd',  label: 'GD', name: 'Glassdoor'    },
+    google:       { cls: 'go',  label: 'GO', name: 'Google Jobs'  },
+    ziprecruiter: { cls: 'zr',  label: 'ZR', name: 'ZipRecruiter' },
+    bayt:         { cls: 'by',  label: 'BY', name: 'Bayt'         },
+    bdjobs:       { cls: 'bd',  label: 'BD', name: 'BDJobs'       },
+    naukri:       { cls: 'nk',  label: 'NK', name: 'Naukri'       },
+  };
   function _boardBadge(site) {
     const s = (site || '').toLowerCase();
-    if (s === 'linkedin')   return '<span class="ar-board-badge li"  title="LinkedIn">LI</span>';
-    if (s === 'indeed')     return '<span class="ar-board-badge in"  title="Indeed">IN</span>';
-    if (s === 'glassdoor')  return '<span class="ar-board-badge gd"  title="Glassdoor">GD</span>';
+    const m = _BOARD_META[s];
+    if (m) return `<span class="ar-board-badge ${m.cls}" title="${m.name}">${m.label}</span>`;
     return s ? `<span class="ar-board-badge unknown" title="${_esc(site)}">${_esc(site.substring(0,2).toUpperCase())}</span>` : '<span class="ar-muted">—</span>';
   }
 
@@ -727,7 +746,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
           date:           new Date().toISOString().split('T')[0],
           status:         'applied',
           url:            job.url,
-          notes:          `LinkedIn Radar · Score: ${job.score} · Skills: ${(job.skills_matched || []).join(', ')}`,
+          notes:          `Job Board Scraper · Score: ${job.score} · Skills: ${(job.skills_matched || []).join(', ')}`,
         });
       }
       _arSetApplyStatus('Application recorded.');
@@ -823,7 +842,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     _scraping = true;
     const btn = document.getElementById('ar-rescrape-btn');
     if (btn) { btn.innerHTML = '<span class="ar-scrape-spinner"></span> Starting scrape…'; btn.disabled = true; }
-    _setSubtitle('Starting LinkedIn scrape via Apify…');
+    _setSubtitle('Starting Job Board Scraper via Apify…');
 
     try {
       const token = (localStorage.getItem('jsc_apify_token') || '').trim();
@@ -839,8 +858,8 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
       if (!startResp.ok || startData.ok === false) throw new Error(startData.error || 'Failed to start scrape');
 
       const { runId } = startData;
-      if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping LinkedIn (may take a few minutes)…';
-      _setSubtitle('Scraping LinkedIn via Apify — please wait…');
+      if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping all boards (may take a few minutes)…';
+      _setSubtitle('Job Board Scraper running via Apify — please wait…');
 
       for (let i = 0; i < 28; i++) {
         await _sleep(15000);
@@ -850,7 +869,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
         if (!pollResp.ok || pollData.ok === false) throw new Error(pollData.error || 'Poll error');
 
         if (pollData.status === 'running') {
-          _setSubtitle(`Scraping LinkedIn — ${Math.round((i + 1) * 15 / 60 * 10) / 10} min elapsed…`);
+          _setSubtitle(`Scraping all boards — ${Math.round((i + 1) * 15 / 60 * 10) / 10} min elapsed…`);
           continue;
         }
         if (pollData.status === 'succeeded') {
@@ -861,7 +880,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
           _invalidateCache();
           _saveJobsToLocalStorage();
           _renderBody();
-          UI.notify(`Scraped ${scored.length} jobs from LinkedIn`, 'success');
+          UI.notify(`Scraped ${scored.length} jobs from all boards`, 'success');
           return;
         }
         throw new Error(`Apify run ended: ${pollData.status || 'unknown'}`);
@@ -872,7 +891,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
       _setSubtitle('Scrape failed — ' + err.message);
     } finally {
       _scraping = false;
-      if (btn) { btn.innerHTML = '📡 Re-Scrape LinkedIn'; btn.disabled = false; }
+      if (btn) { btn.innerHTML = '📡 Re-Scrape All Boards'; btn.disabled = false; }
     }
   }
 

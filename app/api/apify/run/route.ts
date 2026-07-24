@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const payload = {
       searchTerm: 'entry level data analyst',
       location: 'United States',
-      sites: ['linkedin', 'indeed', 'glassdoor'],
+      sites: ['linkedin', 'indeed', 'glassdoor', 'google', 'ziprecruiter', 'bayt', 'bdjobs', 'naukri'],
       maxResults,
       hoursOld: 144,
       enforceAnnualSalary: true,

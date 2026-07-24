@@ -3416,7 +3416,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             payload   = json.dumps({
                 'searchTerm': 'entry level data analyst',
                 'location': 'United States',
-                'sites': ['linkedin', 'indeed', 'glassdoor'],
+                'sites': ['linkedin', 'indeed', 'glassdoor', 'google', 'ziprecruiter', 'bayt', 'bdjobs', 'naukri'],
                 'maxResults': count,
                 'hoursOld': 144,
                 'enforceAnnualSalary': True,
