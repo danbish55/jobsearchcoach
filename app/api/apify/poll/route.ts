@@ -185,62 +185,147 @@ function isExcluded(job: ScoredJob): boolean {
   return false;
 }
 
+// Map gio21/google-jobs-scraper fields to the same shape scoreJob() expects,
+// then score through the same pipeline so both actor outputs are treated identically.
+function scoreGoogleJob(item: Record<string, unknown>): ScoredJob {
+  // Annualise salary (gio21 can return HOUR / MONTH / YEAR)
+  const period = String(item.salaryPeriod || 'YEAR').toUpperCase();
+  const mult   = period === 'HOUR' ? 2080 : period === 'MONTH' ? 12 : 1;
+  const rawMin = typeof item.salaryMin === 'number' ? item.salaryMin * mult : null;
+  const rawMax = typeof item.salaryMax === 'number' ? item.salaryMax * mult : null;
+
+  // Derive board badge from postedVia ("LinkedIn", "Indeed", "Glassdoor", ...)
+  const via  = String(item.postedVia || '').toLowerCase();
+  const site = via.includes('linkedin')     ? 'linkedin'
+             : via.includes('indeed')       ? 'indeed'
+             : via.includes('glassdoor')    ? 'glassdoor'
+             : via.includes('ziprecruiter') ? 'zip_recruiter'
+             : 'google';
+
+  // Best apply URL from applyOptions array
+  const applyOptions = Array.isArray(item.applyOptions) ? item.applyOptions as Record<string, unknown>[] : [];
+  const bestUrl = applyOptions.length
+    ? String(applyOptions[0]?.url || applyOptions[0]?.applicationLink || '')
+    : '';
+
+  return scoreJob({
+    title:           item.title,
+    company:         item.companyName,
+    location:        item.location,
+    description:     item.description,
+    salary_min:      rawMin,
+    salary_max:      rawMax,
+    salary_currency: item.salaryCurrency || 'USD',
+    salary_interval: period === 'YEAR' ? 'yearly' : period.toLowerCase(),
+    is_remote:       item.workFromHome === true,
+    job_type:        item.jobType,
+    date_posted:     item.postedAtIso,
+    job_url:         bestUrl,
+    site,
+  });
+}
+
+// Deduplicate by normalised title+company — keep the higher-scored copy.
+function deduplicateJobs(jobs: ScoredJob[]): ScoredJob[] {
+  const seen = new Map<string, ScoredJob>();
+  for (const job of jobs) {
+    const key = (job.title + '|' + job.company).toLowerCase().replace(/[^a-z0-9|]/g, '');
+    const existing = seen.get(key);
+    if (!existing || job.score > existing.score) seen.set(key, job);
+  }
+  return Array.from(seen.values());
+}
+
+async function checkRun(runId: string, token: string): Promise<{ status: string; datasetId: string }> {
+  const resp = await fetch(`${APIFY_BASE}/actor-runs/${runId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) throw new Error(`Apify status check failed (${runId}): ${resp.status}`);
+  const data = await resp.json();
+  return {
+    status:    String(data?.data?.status || '').toUpperCase(),
+    datasetId: String(data?.data?.defaultDatasetId || ''),
+  };
+}
+
+async function fetchDataset(datasetId: string, token: string): Promise<Record<string, unknown>[]> {
+  const resp = await fetch(
+    `${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=400`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!resp.ok) throw new Error(`Could not fetch dataset ${datasetId}: ${resp.status}`);
+  const items = await resp.json();
+  return Array.isArray(items) ? items : [];
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const runId = searchParams.get('runId') || '';
-    const token = String(searchParams.get('token') || process.env.APIFY_TOKEN || '').trim();
+    const runId       = searchParams.get('runId')       || '';
+    const googleRunId = searchParams.get('googleRunId') || '';
+    const token       = String(searchParams.get('token') || process.env.APIFY_TOKEN || '').trim();
 
     if (!runId) return NextResponse.json({ ok: false, error: 'Missing runId' }, { status: 400 });
     if (!token) return NextResponse.json({ ok: false, error: 'Missing token' }, { status: 400 });
 
-    // Check run status via run ID (works with any actor ID)
-    const runResp = await fetch(`${APIFY_BASE}/actor-runs/${runId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const runData = await runResp.json();
-    if (!runResp.ok) {
-      return NextResponse.json({ ok: false, error: `Apify status check failed: ${runResp.status}` }, { status: 500 });
-    }
+    // Poll both actors in parallel (Google optional — if no ID, skip it)
+    const checks = await Promise.all([
+      checkRun(runId, token),
+      googleRunId ? checkRun(googleRunId, token) : Promise.resolve({ status: 'SUCCEEDED', datasetId: '' }),
+    ]);
+    const [liCheck, googleCheck] = checks;
 
-    const status    = String(runData?.data?.status || '').toUpperCase();
-    const datasetId = String(runData?.data?.defaultDatasetId || '');
-
-    if (status === 'RUNNING' || status === 'READY' || status === '') {
+    const PENDING = new Set(['RUNNING', 'READY', '']);
+    if (PENDING.has(liCheck.status) || (googleRunId && PENDING.has(googleCheck.status))) {
       return NextResponse.json({ ok: true, status: 'running' });
     }
-    if (status !== 'SUCCEEDED') {
-      return NextResponse.json({ ok: false, error: `Apify run ended with status: ${status}` }, { status: 500 });
+    if (liCheck.status !== 'SUCCEEDED') {
+      return NextResponse.json({ ok: false, error: `LI/IN run ended: ${liCheck.status}` }, { status: 500 });
     }
 
-    const itemsResp = await fetch(
-      `${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=400`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!itemsResp.ok) {
-      return NextResponse.json({ ok: false, error: `Could not fetch dataset items: ${itemsResp.status}` }, { status: 500 });
-    }
+    // Fetch datasets in parallel
+    const [liItems, googleItems] = await Promise.all([
+      fetchDataset(liCheck.datasetId, token),
+      (googleRunId && googleCheck.status === 'SUCCEEDED' && googleCheck.datasetId)
+        ? fetchDataset(googleCheck.datasetId, token)
+        : Promise.resolve([] as Record<string, unknown>[]),
+    ]);
 
-    const items = await itemsResp.json() as Record<string, unknown>[];
-    const allItems = Array.isArray(items) ? items : [];
-
-    // Per-site raw counts (before any filtering)
+    // Per-site raw counts for debug
     const rawBySite: Record<string, number> = {};
-    for (const item of allItems) {
+    for (const item of liItems) {
       const s = String(item.site || 'unknown');
       rawBySite[s] = (rawBySite[s] || 0) + 1;
     }
+    for (const item of googleItems) {
+      const via = String(item.postedVia || '').toLowerCase();
+      const s   = via.includes('linkedin')     ? 'linkedin'
+                : via.includes('indeed')       ? 'indeed'
+                : via.includes('glassdoor')    ? 'glassdoor'
+                : via.includes('ziprecruiter') ? 'zip_recruiter'
+                : 'google';
+      rawBySite[s] = (rawBySite[s] || 0) + 1;
+    }
 
-    const allScored = allItems.map(item => scoreJob(item));
-    const afterExclusion = allScored.filter(j => !isExcluded(j));
-    const scored = afterExclusion
+    // Score both sets through the same pipeline
+    const liScored     = liItems.map(item => scoreJob(item));
+    const googleScored = googleItems.map(item => scoreGoogleJob(item));
+
+    // Merge → exclude seniors → deduplicate → score threshold → sort
+    const merged       = [...liScored, ...googleScored];
+    const afterExcl    = merged.filter(j => !isExcluded(j));
+    const deduped      = deduplicateJobs(afterExcl);
+    const scored       = deduped
       .filter(j => j.score >= SCORING.min_score_threshold)
       .sort((a, b) => b.score - a.score);
 
     const debug = {
-      rawTotal: allItems.length,
+      rawTotal:        liItems.length + googleItems.length,
+      rawLi:           liItems.length,
+      rawGoogle:       googleItems.length,
       rawBySite,
-      afterExclusion: afterExclusion.length,
+      afterExclusion:  afterExcl.length,
+      afterDedup:      deduped.length,
       afterScoreFilter: scored.length,
     };
 

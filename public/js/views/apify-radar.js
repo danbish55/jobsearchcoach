@@ -858,13 +858,14 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
       const startData = await startResp.json();
       if (!startResp.ok || startData.ok === false) throw new Error(startData.error || 'Failed to start scrape');
 
-      const { runId } = startData;
+      const { runId, googleRunId } = startData;
       if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping all boards (may take a few minutes)…';
       _setSubtitle('Job Board Scraper running via Apify — please wait…');
 
       for (let i = 0; i < 28; i++) {
         await _sleep(15000);
-        const pollUrl  = `/api/apify/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`;
+        let pollUrl = `/api/apify/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`;
+        if (googleRunId) pollUrl += `&googleRunId=${encodeURIComponent(googleRunId)}`;
         const pollResp = await fetch(pollUrl);
         const pollData = await pollResp.json();
         if (!pollResp.ok || pollData.ok === false) throw new Error(pollData.error || 'Poll error');

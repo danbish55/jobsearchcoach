@@ -248,8 +248,10 @@ def _read_config_file(path):
 
 # ── Apify / LinkedIn Radar ─────────────────────────────────────────────────
 
-_APIFY_ACTOR = 'DYFzkdbYmMF6x7QMG'  # iskoren/multi-job-board-scraper
-_APIFY_BASE  = 'https://api.apify.com/v2'
+_APIFY_LI_IN_ACTOR  = 'DYFzkdbYmMF6x7QMG'  # openclawai — LinkedIn + Indeed
+_APIFY_GOOGLE_ACTOR = 'WJwHh23YVZFh9CIx6'  # gio21/google-jobs-scraper — meta-aggregator
+_APIFY_BASE         = 'https://api.apify.com/v2'
+_APIFY_ACTOR        = _APIFY_LI_IN_ACTOR   # kept for backward compat
 
 
 def _default_apify_config():
@@ -419,7 +421,7 @@ def _score_apify_job(item, cfg):
     else:
         traj_score = 5
     # Penalize senior/leadership titles
-    if _re.search(r'\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b', title):
+    if re.search(r'\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b', title):
         traj_score -= int(scoring.get('senior_title_penalty', 15))
 
     # ── Preference / location (max 10 pts) ──────────────────────────────
@@ -3406,67 +3408,141 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         cfg       = load_config()
         token     = str(cfg.get('apify_token') or '').strip()
         if not token:
-            self._json({'ok': False, 'error': 'Apify token not configured. Add it in Settings → LinkedIn Radar.'}, 400)
+            self._json({'ok': False, 'error': 'Apify token not configured. Add it in Settings → Job Board Scraper.'}, 400)
             return
         apify_cfg = _deep_merge(_default_apify_config(), cfg.get('apify_config') or {})
-        role      = str(apify_cfg.get('role_keyword') or 'Data Analyst').strip()
         count     = min(int(apify_cfg.get('min_results') or 50), 100)
-        try:
-            actor_url = f'{_APIFY_BASE}/acts/{_APIFY_ACTOR}/runs?waitForFinish=300'
-            payload   = json.dumps({
-                'searchTerm': 'entry level data analyst',
-                'googleSearchTerm': 'entry level data analyst jobs United States',
-                'location': 'United States',
-                'sites': ['linkedin', 'indeed', 'glassdoor', 'google', 'zip_recruiter'],
-                'maxResults': count,
-                'enforceAnnualSalary': True,
-                'descriptionFormat': 'markdown',
-                'countryIndeed': 'usa',
-            }).encode('utf-8')
-            req       = urllib.request.Request(
-                actor_url, data=payload, method='POST',
-                headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
-            )
+
+        auth_hdrs = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+
+        li_payload = json.dumps({
+            'searchTerm': 'entry level data analyst',
+            'location': 'United States',
+            'sites': ['linkedin', 'indeed'],
+            'maxResults': count,
+            'enforceAnnualSalary': True,
+            'descriptionFormat': 'markdown',
+            'countryIndeed': 'usa',
+        }).encode('utf-8')
+
+        google_payload = json.dumps({
+            'queries': ['entry level data analyst'],
+            'countryCode': 'us',
+            'datePosted': 'week',
+            'jobType': ['FULLTIME'],
+            'maxItems': count,
+        }).encode('utf-8')
+
+        def _run_actor(actor_id, payload_bytes):
+            url = f'{_APIFY_BASE}/acts/{actor_id}/runs?waitForFinish=300'
+            req = urllib.request.Request(url, data=payload_bytes, method='POST', headers=auth_hdrs)
             with urllib.request.urlopen(req, timeout=320) as resp:
-                run_data = json.loads(resp.read().decode('utf-8'))
-            dataset_id = (run_data.get('data') or {}).get('defaultDatasetId') or ''
-            if not dataset_id:
-                raise ValueError('No dataset ID returned from Apify run.')
-            items_url = f'{_APIFY_BASE}/datasets/{dataset_id}/items?limit={count + 100}'
-            req2 = urllib.request.Request(
-                items_url, headers={'Authorization': f'Bearer {token}'},
-            )
-            with urllib.request.urlopen(req2, timeout=60) as resp2:
-                items = json.loads(resp2.read().decode('utf-8'))
-            if not isinstance(items, list):
-                raise ValueError('Unexpected Apify response format.')
-            import re as _re
-            _EXCL_SENIORITY = {'mid-senior level', 'senior level', 'director', 'executive', 'management'}
-            _SENIOR_TITLE_RE = _re.compile(r'\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b', _re.I)
-            def _is_excluded(j):
-                if _SENIOR_TITLE_RE.search(j.get('title') or ''):
+                return json.loads(resp.read().decode('utf-8'))
+
+        def _fetch_dataset(dataset_id):
+            url = f'{_APIFY_BASE}/datasets/{dataset_id}/items?limit={count + 100}'
+            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                items = json.loads(resp.read().decode('utf-8'))
+            return items if isinstance(items, list) else []
+
+        def _normalize_google_item(item):
+            """Map gio21/google-jobs-scraper fields to the same shape as openclawai."""
+            period  = str(item.get('salaryPeriod') or 'YEAR').upper()
+            mult    = 2080 if period == 'HOUR' else 12 if period == 'MONTH' else 1
+            sal_min = item['salaryMin'] * mult if isinstance(item.get('salaryMin'), (int, float)) else None
+            sal_max = item['salaryMax'] * mult if isinstance(item.get('salaryMax'), (int, float)) else None
+            via     = str(item.get('postedVia') or '').lower()
+            site    = ('linkedin'    if 'linkedin'     in via else
+                       'indeed'      if 'indeed'       in via else
+                       'glassdoor'   if 'glassdoor'    in via else
+                       'zip_recruiter' if 'ziprecruiter' in via else
+                       'google')
+            opts    = item.get('applyOptions') or []
+            best_url = str((opts[0].get('url') or opts[0].get('applicationLink') or '') if opts else '')
+            return {
+                'title':           item.get('title'),
+                'company':         item.get('companyName'),
+                'location':        item.get('location'),
+                'description':     item.get('description'),
+                'salary_min':      sal_min,
+                'salary_max':      sal_max,
+                'salary_currency': item.get('salaryCurrency') or 'USD',
+                'salary_interval': 'yearly' if period == 'YEAR' else period.lower(),
+                'is_remote':       item.get('workFromHome') is True,
+                'job_type':        item.get('jobType'),
+                'date_posted':     item.get('postedAtIso'),
+                'job_url':         best_url,
+                'site':            site,
+            }
+
+        _EXCL_SENIORITY = {'mid-senior level', 'senior level', 'director', 'executive', 'management'}
+        _SENIOR_TITLE_RE = re.compile(r'\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b', re.I)
+
+        def _is_excluded(j):
+            if _SENIOR_TITLE_RE.search(j.get('title') or ''):
+                return True
+            seniority = (j.get('seniorityLevel') or j.get('job_level') or j.get('seniority') or '').lower()
+            if any(s in seniority for s in _EXCL_SENIORITY):
+                return True
+            d = (j.get('description') or '').lower()
+            if d:
+                pm = re.search(r'\b(\d+)\s*\+\s*years?\b', d)
+                rm = re.search(r'\b(\d+)\s*[-–]\s*\d+\s*years?\b', d)
+                min_yrs = int(pm.group(1)) if pm else (int(rm.group(1)) if rm else 0)
+                if min_yrs >= 3:
                     return True
-                seniority = (j.get('seniorityLevel') or j.get('job_level') or j.get('seniority') or '').lower()
-                if any(s in seniority for s in _EXCL_SENIORITY):
-                    return True
-                d = j.get('description', '').lower()
-                if d:
-                    pm = _re.search(r'\b(\d+)\s*\+\s*years?\b', d)
-                    rm = _re.search(r'\b(\d+)\s*[-–]\s*\d+\s*years?\b', d)
-                    min_yrs = int(pm.group(1)) if pm else (int(rm.group(1)) if rm else 0)
-                    if min_yrs >= 3:
-                        return True
-                return False
+            return False
+
+        def _dedup(jobs):
+            seen, out = {}, []
+            for j in jobs:
+                key = re.sub(r'[^a-z0-9|]', '', (j.get('title','') + '|' + j.get('company','')).lower())
+                if key not in seen or j.get('score', 0) > seen[key].get('score', 0):
+                    seen[key] = j
+            return list(seen.values())
+
+        try:
+            # Run both actors in parallel
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                li_future     = pool.submit(_run_actor, _APIFY_LI_IN_ACTOR,  li_payload)
+                google_future = pool.submit(_run_actor, _APIFY_GOOGLE_ACTOR, google_payload)
+                li_run_data     = li_future.result()
+                google_run_data = None
+                try:
+                    google_run_data = google_future.result()
+                except Exception as exc:
+                    print(f'[apify] Google Jobs actor error (continuing with LI/IN only): {exc}')
+
+            li_dataset_id = (li_run_data.get('data') or {}).get('defaultDatasetId') or ''
+            if not li_dataset_id:
+                raise ValueError('No dataset ID returned from LI/IN Apify run.')
+
+            li_items     = _fetch_dataset(li_dataset_id)
+            google_items = []
+            if google_run_data:
+                google_dataset_id = (google_run_data.get('data') or {}).get('defaultDatasetId') or ''
+                if google_dataset_id:
+                    try:
+                        raw_google = _fetch_dataset(google_dataset_id)
+                        google_items = [_normalize_google_item(item) for item in raw_google]
+                    except Exception as exc:
+                        print(f'[apify] Google dataset fetch error: {exc}')
+
             min_threshold = int((apify_cfg.get('scoring') or {}).get('min_score_threshold', 30))
-            scored = [_score_apify_job(item, apify_cfg) for item in items]
-            scored = [j for j in scored if not _is_excluded(j) and j.get('score', 0) >= min_threshold]
+            all_items = li_items + google_items
+            scored    = [_score_apify_job(item, apify_cfg) for item in all_items]
+            scored    = [j for j in scored if not _is_excluded(j)]
+            scored    = _dedup(scored)
+            scored    = [j for j in scored if j.get('score', 0) >= min_threshold]
             scored.sort(key=lambda x: x.get('score', 0), reverse=True)
+
             with open(self._apify_scored_path(), 'w', encoding='utf-8') as f:
                 json.dump(scored, f, indent=2)
             self._json({
                 'ok':         True,
                 'count':      len(scored),
-                'dataset_id': dataset_id,
+                'dataset_id': li_dataset_id,
                 'fetched_at': datetime.datetime.utcnow().isoformat() + 'Z',
             })
         except urllib.error.HTTPError as exc:
