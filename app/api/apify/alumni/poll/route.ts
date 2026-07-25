@@ -58,8 +58,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: `Could not fetch dataset: ${itemsResp.status}` }, { status: 500 });
     }
 
-    const raw    = await itemsResp.json();
-    const items  = Array.isArray(raw) ? raw : [];
+    const raw   = await itemsResp.json();
+    const items = Array.isArray(raw) ? raw : [];
+
+    // Actor emits a sentinel item when the cookie is invalid
+    const sentinel = items.find(i => (i as Record<string, unknown>)._reason === 'cookie-invalid');
+    if (sentinel) {
+      return NextResponse.json(
+        { ok: false, error: 'LinkedIn cookie expired — paste a fresh li_at cookie in Settings → LinkedIn Alumni.' },
+        { status: 401 }
+      );
+    }
+
     const alumni = items
       .map(item => normaliseProfile(item as Record<string, unknown>))
       .filter(p => p.name && p.profileUrl);
