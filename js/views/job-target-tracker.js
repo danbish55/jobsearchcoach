@@ -252,7 +252,7 @@ const JobTargetTracker = (() => {
     const status  = state.status  || '—';
     const warm    = state.warm    || false;
     const cache   = _alumniCache()[company.name];
-    const hasScan = cache && cache.alumni && cache.alumni.length > 0;
+    const hasScan = cache != null;
     const isScanning = _scanningSet.has(company.name);
     const isExpanded = _expandedSet.has(company.name);
     const color   = TIER_META[tier].color;
@@ -342,7 +342,8 @@ const JobTargetTracker = (() => {
   }
 
   function _alumniPanelInnerHTML(name, cache) {
-    const { alumni, ts, schools } = cache;
+    const { ts, schools } = cache;
+    const alumni = Array.isArray(cache.alumni) ? cache.alumni : [];
     const schoolLabel = (s) => {
       if (!s) return '';
       const sl = s.toLowerCase();
@@ -401,18 +402,31 @@ const JobTargetTracker = (() => {
   }
 
   function _refreshRow(name) {
-    // Find which tier this company belongs to and re-render just the row + alumni panel
     for (const tier of Object.keys(COMPANIES)) {
       const all = _allCompanies(tier);
       const co  = all.find(c => c.name === name);
       if (co) {
-        const rowEl = document.getElementById(`jtt-row-${_rowId(name)}`);
-        const panelEl = document.getElementById(`jtt-alumni-${_rowId(name)}`);
+        const rid     = _rowId(name);
+        const rowEl   = document.getElementById(`jtt-row-${rid}`);
+        const panelEl = document.getElementById(`jtt-alumni-${rid}`);
         if (!rowEl) return;
+
         const tmp = document.createElement('div');
         tmp.innerHTML = _rowHTML(co, tier);
-        rowEl.replaceWith(tmp.children[0]);
-        if (panelEl) panelEl.replaceWith(tmp.children[0]);
+
+        // Capture refs before any replaceWith calls move nodes out of tmp
+        const newRow    = tmp.firstElementChild;
+        const newAlumni = tmp.querySelector(`#jtt-alumni-${rid}`);
+        const newJobs   = tmp.querySelector('.jtt-jobs-panel');
+
+        rowEl.replaceWith(newRow);
+
+        // Sync jobs panel: remove old one if it exists, insert new one if needed
+        const afterRow = newRow.nextElementSibling;
+        if (afterRow && afterRow.classList.contains('jtt-jobs-panel')) afterRow.remove();
+        if (newJobs) newRow.insertAdjacentElement('afterend', newJobs);
+
+        if (panelEl && newAlumni) panelEl.replaceWith(newAlumni);
         return;
       }
     }
