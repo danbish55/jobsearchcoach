@@ -342,8 +342,7 @@ const JobTargetTracker = (() => {
   }
 
   function _alumniPanelInnerHTML(name, cache) {
-    const { ts, schools } = cache;
-    const alumni = Array.isArray(cache.alumni) ? cache.alumni : [];
+    const { alumni, ts, schools } = cache;
     const schoolLabel = (s) => {
       if (!s) return '';
       const sl = s.toLowerCase();
