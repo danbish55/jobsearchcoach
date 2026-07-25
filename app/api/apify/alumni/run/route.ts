@@ -8,10 +8,11 @@ const ELLA_URL = 'https://www.linkedin.com/school/university-of-arizona/';
 
 export async function POST(req: Request) {
   try {
-    const body   = await req.json().catch(() => ({}));
-    const token  = String(body.token  || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
-    const cookie = String(body.cookie || '').trim();
-    const max    = Math.min(Number(body.maxAlumni) || 1000, 1000);
+    const body    = await req.json().catch(() => ({}));
+    const token   = String(body.token   || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
+    const cookie  = String(body.cookie  || '').trim();
+    const keyword = String(body.keyword || '').trim();
+    const max     = Math.min(Number(body.maxAlumni) || 200, 1000);
 
     if (!cookie) {
       return NextResponse.json(
@@ -20,8 +21,9 @@ export async function POST(req: Request) {
       );
     }
 
+    const suffix = keyword ? `?keywords=${encodeURIComponent(keyword)}` : '';
     const input = {
-      schoolUrls:         [USC_URL, ELLA_URL],
+      schoolUrls:         [USC_URL + suffix, ELLA_URL + suffix],
       cookie,
       maxAlumniPerSchool: max,
       language:           'en_US',
