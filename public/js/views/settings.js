@@ -558,29 +558,34 @@ const Settings = (() => {
     const status = document.getElementById('li-cookie-status');
     const btn    = document.getElementById('li-test-btn');
     if (!cookie) { UI.notify('Save a cookie first', 'error'); return; }
-    if (status) { status.textContent = 'Testing…'; status.style.color = 'var(--text-muted)'; }
-    if (btn)    btn.disabled = true;
+    if (status) { status.textContent = 'Testing… (~30 seconds)'; status.style.color = 'var(--text-muted)'; }
+    if (btn) btn.disabled = true;
     try {
-      const resp = await fetch('/api/apify/alumni/run', {
+      const token = 'APIFY_TOKEN_REMOVED';
+      const startResp = await fetch('/api/apify/alumni/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cookie,
-          token: 'APIFY_TOKEN_REMOVED',
-          schools: ['https://www.linkedin.com/school/usc-marshall-school-of-business/'],
-          maxAlumni: 1,
-        }),
+        body: JSON.stringify({ cookie, token, maxAlumni: 1 }),
       });
-      const data = await resp.json();
-      if (data.ok && data.runId) {
-        if (status) { status.textContent = '✓ Cookie is valid — LinkedIn accepted it.'; status.style.color = 'var(--success)'; }
-        UI.notify('LinkedIn cookie is working!', 'success');
-      } else {
-        throw new Error(data.error || 'Rejected by LinkedIn');
+      const startData = await startResp.json();
+      if (!startData.ok) throw new Error(startData.error || 'Failed to start test');
+
+      // Poll until the run completes — this is the only way to know if the cookie is valid
+      for (let i = 0; i < 12; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const pollResp = await fetch(`/api/apify/alumni/poll?runId=${encodeURIComponent(startData.runId)}&token=${encodeURIComponent(token)}`);
+        const poll = await pollResp.json();
+        if (!poll.ok) throw new Error(poll.error || 'Cookie validation failed');
+        if (poll.status === 'succeeded') {
+          if (status) { status.textContent = `✓ Cookie valid — ${poll.count} alumni returned in quick test.`; status.style.color = 'var(--success)'; }
+          UI.notify('LinkedIn cookie is working!', 'success');
+          return;
+        }
       }
+      throw new Error('Test timed out after 60s');
     } catch (err) {
-      if (status) { status.textContent = `✗ ${err.message} — try refreshing the cookie.`; status.style.color = 'var(--danger)'; }
-      UI.notify('Cookie test failed — it may be expired', 'error');
+      if (status) { status.textContent = `✗ ${err.message}`; status.style.color = 'var(--danger)'; }
+      UI.notify(`Cookie test failed: ${err.message}`, 'error');
     } finally {
       if (btn) btn.disabled = false;
     }
