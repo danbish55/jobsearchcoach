@@ -410,22 +410,12 @@ const JobTargetTracker = (() => {
         const rowEl   = document.getElementById(`jtt-row-${rid}`);
         const panelEl = document.getElementById(`jtt-alumni-${rid}`);
         if (!rowEl) return;
-
         const tmp = document.createElement('div');
         tmp.innerHTML = _rowHTML(co, tier);
-
-        // Capture refs before any replaceWith calls move nodes out of tmp
+        // Capture refs before replaceWith moves nodes out of the live collection
         const newRow    = tmp.firstElementChild;
         const newAlumni = tmp.querySelector(`#jtt-alumni-${rid}`);
-        const newJobs   = tmp.querySelector('.jtt-jobs-panel');
-
         rowEl.replaceWith(newRow);
-
-        // Sync jobs panel: remove old one if it exists, insert new one if needed
-        const afterRow = newRow.nextElementSibling;
-        if (afterRow && afterRow.classList.contains('jtt-jobs-panel')) afterRow.remove();
-        if (newJobs) newRow.insertAdjacentElement('afterend', newJobs);
-
         if (panelEl && newAlumni) panelEl.replaceWith(newAlumni);
         return;
       }
