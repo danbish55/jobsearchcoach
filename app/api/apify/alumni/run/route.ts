@@ -3,8 +3,9 @@ import { NextResponse } from 'next/server';
 const ALUMNI_ACTOR = 'mg4cEVz9exfzFsDHl'; // crawlerbros/linkedin-schools-alumni-scraper
 const APIFY_BASE   = 'https://api.apify.com/v2';
 
-const USC_MARSHALL_URL = 'https://www.linkedin.com/school/usc-marshall-school-of-business/';
-const UOFA_ELLER_URL   = 'https://www.linkedin.com/school/eller-college-of-management/';
+// Broad school URLs catch all alumni, not just one program
+const USC_MARSHALL_URL = 'https://www.linkedin.com/school/university-of-southern-california/';
+const UOFA_ELLER_URL   = 'https://www.linkedin.com/school/university-of-arizona/';
 
 export async function POST(req: Request) {
   try {
@@ -23,12 +24,11 @@ export async function POST(req: Request) {
     }
 
     const input: Record<string, unknown> = {
-      schoolUrls:           schools,
+      schoolUrls:          schools,
       cookie,
-      maxAlumniPerSchool:   max,
-      graduationYearRange:  { start: 2020, end: 2026 },
-      language:             'en_US',
-      proxyConfiguration:   { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
+      maxAlumniPerSchool:  max,
+      language:            'en_US',
+      proxyConfiguration:  { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
     };
 
     if (company) input.currentCompany = company;
