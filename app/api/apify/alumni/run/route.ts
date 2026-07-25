@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       cookie,
       maxAlumniPerSchool: max,
       language:           'en_US',
-      proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
+      proxyConfiguration: { useApifyProxy: false },
     };
 
     const resp = await fetch(`${APIFY_BASE}/acts/${ALUMNI_ACTOR}/runs`, {

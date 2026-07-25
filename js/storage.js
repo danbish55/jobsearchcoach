@@ -18,6 +18,7 @@ const Storage = (() => {
     'gauge_settings',
     'job_target_tracker',
     'chat_memory',
+    'linkedin_li_at',
     'mission_discussion_dossier',
     'mission_discussion_network',
     'mission_discussion_deploy',
