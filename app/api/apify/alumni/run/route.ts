@@ -3,18 +3,15 @@ import { NextResponse } from 'next/server';
 const ALUMNI_ACTOR = 'mg4cEVz9exfzFsDHl'; // crawlerbros/linkedin-schools-alumni-scraper
 const APIFY_BASE   = 'https://api.apify.com/v2';
 
-// Broad school URLs catch all alumni, not just one program
-const USC_MARSHALL_URL = 'https://www.linkedin.com/school/university-of-southern-california/';
-const UOFA_ELLER_URL   = 'https://www.linkedin.com/school/university-of-arizona/';
+const USC_URL  = 'https://www.linkedin.com/school/university-of-southern-california/';
+const ELLA_URL = 'https://www.linkedin.com/school/university-of-arizona/';
 
 export async function POST(req: Request) {
   try {
-    const body    = await req.json().catch(() => ({}));
-    const token   = String(body.token   || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
-    const cookie  = String(body.cookie  || '').trim();
-    const company = String(body.company || '').trim();
-    const schools = Array.isArray(body.schools) ? body.schools : [USC_MARSHALL_URL, UOFA_ELLER_URL];
-    const max     = Math.min(Number(body.maxAlumni) || 50, 200);
+    const body   = await req.json().catch(() => ({}));
+    const token  = String(body.token  || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
+    const cookie = String(body.cookie || '').trim();
+    const max    = Math.min(Number(body.maxAlumni) || 1000, 1000);
 
     if (!cookie) {
       return NextResponse.json(
@@ -23,15 +20,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const input: Record<string, unknown> = {
-      schoolUrls:          schools,
+    const input = {
+      schoolUrls:         [USC_URL, ELLA_URL],
       cookie,
-      maxAlumniPerSchool:  max,
-      language:            'en_US',
-      proxyConfiguration:  { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
+      maxAlumniPerSchool: max,
+      language:           'en_US',
+      proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
     };
-
-    if (company) input.currentCompany = company;
 
     const resp = await fetch(`${APIFY_BASE}/acts/${ALUMNI_ACTOR}/runs`, {
       method: 'POST',
@@ -46,11 +41,9 @@ export async function POST(req: Request) {
     }
 
     const runId = data?.data?.id || '';
-    if (!runId) {
-      return NextResponse.json({ ok: false, error: 'No run ID returned from Apify.' }, { status: 500 });
-    }
+    if (!runId) return NextResponse.json({ ok: false, error: 'No run ID returned from Apify.' }, { status: 500 });
 
-    return NextResponse.json({ ok: true, runId, company, schools });
+    return NextResponse.json({ ok: true, runId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

@@ -1,12 +1,12 @@
 ﻿/* Job Target Tracker — compact row layout with alumni scan */
 const JobTargetTracker = (() => {
-  const STORAGE_KEY    = 'job_target_tracker';
-  const ALUMNI_CACHE   = 'jtt_alumni_cache';
-  const CUSTOM_KEY     = 'jtt_custom_companies';
-  let _activeTier      = 'all';
-  let _scanningSet     = new Set(); // company names currently being scanned
-  let _expandedSet     = new Set(); // alumni panels currently open
-  let _chat            = [];
+  const STORAGE_KEY  = 'job_target_tracker';
+  const ALL_ALUMNI_KEY = 'jtt_alumni_all';
+  const CUSTOM_KEY   = 'jtt_custom_companies';
+  let _activeTier    = 'all';
+  let _expandedSet   = new Set();
+  let _globalScanning = false;
+  let _chat          = [];
 
   // ── Hardcoded company list ────────────────────────────────────────────────
 
@@ -66,8 +66,20 @@ const JobTargetTracker = (() => {
   function _escAttr(str) { return _esc(str).replace(/'/g,'&#39;'); }
   function _state()      { return Storage.get(STORAGE_KEY, {}); }
   function _save(state)  { Storage.set(STORAGE_KEY, state); }
-  function _alumniCache(){ return Storage.get(ALUMNI_CACHE, {}); }
-  function _saveAlumniCache(c){ Storage.set(ALUMNI_CACHE, c); }
+  function _allAlumni()        { return Storage.get(ALL_ALUMNI_KEY, null); }
+  function _saveAllAlumni(data){ Storage.set(ALL_ALUMNI_KEY, data); }
+
+  function _alumniForCompany(name) {
+    const cache = _allAlumni();
+    if (!cache) return [];
+    const needle = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (needle.length < 3) return [];
+    return cache.alumni.filter(p => {
+      const co = String(p.currentCompany || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (co.length < 3) return false;
+      return co.includes(needle) || needle.includes(co);
+    });
+  }
   function _customCompanies(){ return Storage.get(CUSTOM_KEY, []); }
   function _apifyToken() { return 'APIFY_TOKEN_REMOVED'; }
   function _liCookie()   { return Storage.get('linkedin_li_at', ''); }
@@ -135,8 +147,9 @@ const JobTargetTracker = (() => {
         .jtt-btn        { font-size: 11px; font-weight: 600; padding: 3px 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 140ms; text-decoration: none; display: inline-block; }
         .jtt-btn:hover  { border-color: var(--gold); color: var(--gold); }
         .jtt-btn.alumni { border-color: #0A66C2; color: #0A66C2; }
-        .jtt-btn.alumni:hover { background: rgba(10,102,194,0.08); }
-        .jtt-btn.alumni.scanning { opacity: 0.6; cursor: default; }
+        .jtt-btn.alumni:hover, .jtt-btn.alumni.active { background: rgba(10,102,194,0.12); }
+        .jtt-scan-all { border-color: #9D2235; color: #9D2235; margin-left: auto; }
+        .jtt-scan-all:hover { background: rgba(157,34,53,0.08); }
         .jtt-btn.warm   { background: rgba(34,197,94,0.12); border-color: #22c55e; color: #22c55e; }
 
         /* ── Scraped jobs sub-rows ── */
@@ -203,6 +216,7 @@ const JobTargetTracker = (() => {
         <div class="jtt-toolbar">
           <input id="jtt-search" class="jtt-search" type="text" placeholder="Search companies..." oninput="JobTargetTracker.applyFilters()">
           ${['all','tier1','tier2','tier3'].map((t,i) => `<button class="jtt-filter ${_activeTier===t?'active':''}" onclick="JobTargetTracker.filterTier('${t}')">${['All Tiers','Tier 1','Tier 2','Tier 3'][i]}</button>`).join('')}
+          ${_liCookie() ? _scanBtnHTML() : ''}
         </div>
 
         ${Object.keys(COMPANIES).map(tier => _tierHTML(tier)).join('')}
@@ -251,10 +265,10 @@ const JobTargetTracker = (() => {
     const state   = _state()[company.name] || {};
     const status  = state.status  || '—';
     const warm    = state.warm    || false;
-    const cache   = _alumniCache()[company.name];
-    const hasScan = cache != null;
-    const isScanning = _scanningSet.has(company.name);
-    const isExpanded = _expandedSet.has(company.name);
+    const allCache      = _allAlumni();
+    const hasScan       = allCache != null;
+    const isExpanded    = _expandedSet.has(company.name);
+    const matchedAlumni = hasScan ? _alumniForCompany(company.name) : [];
     const color   = TIER_META[tier].color;
     const liUrl   = _linkedInUrl(company.name, company.role);
     const hasCookie = !!_liCookie();
@@ -264,10 +278,7 @@ const JobTargetTracker = (() => {
       ? `background:${statusColor}20;border-color:${statusColor};color:${statusColor}`
       : 'background:var(--card-hover);border-color:var(--border);color:var(--text-muted)';
 
-    const alumniCount = hasScan ? cache.alumni.length : '';
-    const alumniLabel = isScanning ? '⏳ Scanning…'
-      : hasScan      ? `👥 ${alumniCount} found`
-      : '👥 Alumni';
+    const alumniLabel = hasScan ? `👥 ${matchedAlumni.length}` : '👥 –';
 
     const matchedJobs = _jobsForCompany(company.name);
 
@@ -288,8 +299,8 @@ const JobTargetTracker = (() => {
         </div>
         <div class="jtt-co-actions">
           ${hasCookie
-            ? `<button class="jtt-btn alumni ${isScanning ? 'scanning' : ''}" ${isScanning ? 'disabled' : ''}
-                onclick="JobTargetTracker.scanAlumni('${_escAttr(company.name)}')">${alumniLabel}</button>`
+            ? `<button class="jtt-btn alumni ${isExpanded && hasScan ? 'active' : ''}" ${!hasScan ? 'disabled title="Scan alumni first"' : ''}
+                onclick="JobTargetTracker.toggleAlumni('${_escAttr(company.name)}')">${alumniLabel}</button>`
             : ''}
           <button class="jtt-btn ${warm ? 'warm' : ''}" onclick="JobTargetTracker.toggleWarm('${_escAttr(company.name)}')" title="${warm ? 'Warm path — click to clear' : 'Mark as warm path'}">${warm ? '🔥' : '🤝'}</button>
           <a class="jtt-btn" href="${_escAttr(liUrl)}" target="_blank" rel="noopener" title="LinkedIn Jobs">LI</a>
@@ -298,7 +309,7 @@ const JobTargetTracker = (() => {
       </div>
       ${matchedJobs.length ? _jobsPanelHTML(matchedJobs) : ''}
       <div class="jtt-alumni-panel ${isExpanded && hasScan ? 'open' : ''}" id="jtt-alumni-${_rowId(company.name)}">
-        ${hasScan ? _alumniPanelInnerHTML(company.name, cache) : ''}
+        ${isExpanded && hasScan ? _alumniPanelInnerHTML(company.name, matchedAlumni, allCache.ts) : ''}
       </div>`;
   }
 
@@ -341,8 +352,7 @@ const JobTargetTracker = (() => {
     </div>`;
   }
 
-  function _alumniPanelInnerHTML(name, cache) {
-    const { alumni, ts, schools } = cache;
+  function _alumniPanelInnerHTML(name, alumni, ts) {
     const schoolLabel = (s) => {
       if (!s) return '';
       const sl = s.toLowerCase();
@@ -354,7 +364,7 @@ const JobTargetTracker = (() => {
       <div class="jtt-alumni-header">
         <span class="jtt-alumni-title">Alumni at ${_esc(name)}</span>
         <span class="jtt-alumni-meta">Scanned ${_timeAgo(ts)}</span>
-        <span class="jtt-alumni-rescan" onclick="JobTargetTracker.scanAlumni('${_escAttr(name)}')">↻ Rescan</span>
+        <span class="jtt-alumni-rescan" onclick="JobTargetTracker.scanAllAlumni()">↻ Rescan</span>
       </div>
       <div class="jtt-alumni-list">
         ${alumni.length === 0
@@ -438,41 +448,48 @@ const JobTargetTracker = (() => {
 
   // ── Alumni scan ───────────────────────────────────────────────────────────
 
-  async function scanAlumni(name) {
-    if (_scanningSet.has(name)) return;
+  function _scanBtnHTML() {
+    const cache = _allAlumni();
+    if (_globalScanning) return `<button class="jtt-btn jtt-scan-all" disabled>⏳ Scanning USC/Eller alumni…</button>`;
+    const meta  = cache ? ` · ${cache.alumni.length} cached · ${_timeAgo(cache.ts)}` : '';
+    const label = cache ? `🎓 Rescan Alumni${meta}` : '🎓 Scan USC/Eller Alumni';
+    return `<button class="jtt-btn jtt-scan-all" onclick="JobTargetTracker.scanAllAlumni()">${label}</button>`;
+  }
+
+  async function scanAllAlumni() {
+    if (_globalScanning) return;
     const cookie = _liCookie();
     if (!cookie) { UI.notify('Add your LinkedIn cookie in Settings → LinkedIn Alumni first', 'error'); return; }
-
-    _scanningSet.add(name);
-    _expandedSet.add(name);
-    _refreshRow(name);
-
+    _globalScanning = true;
+    render();
     try {
       const startResp = await fetch('/api/apify/alumni/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ company: name, cookie, token: _apifyToken(), maxAlumni: 50 }),
+        body: JSON.stringify({ cookie, token: _apifyToken(), maxAlumni: 1000 }),
       });
       const startData = await startResp.json();
       if (!startData.ok) throw new Error(startData.error || 'Failed to start scan');
-
-      const { runId } = startData;
-      const alumni = await _pollAlumni(runId);
-
-      const cache = _alumniCache();
-      cache[name] = { alumni, ts: Date.now(), schools: ['USC Marshall', 'UofA Eller'] };
-      _saveAlumniCache(cache);
+      const alumni = await _pollAlumni(startData.runId);
+      _saveAllAlumni({ alumni, ts: Date.now() });
+      UI.notify(`Found ${alumni.length} USC/Eller alumni in your network`, 'success');
     } catch (err) {
       UI.notify(`Alumni scan failed: ${err.message}`, 'error');
     } finally {
-      _scanningSet.delete(name);
-      _refreshRow(name);
+      _globalScanning = false;
+      render();
     }
+  }
+
+  function toggleAlumni(name) {
+    if (_expandedSet.has(name)) _expandedSet.delete(name);
+    else _expandedSet.add(name);
+    _refreshRow(name);
   }
 
   async function _pollAlumni(runId, attempts = 0) {
     const token = _apifyToken();
-    if (attempts > 60) throw new Error('Scan timed out after 5 minutes');
+    if (attempts > 120) throw new Error('Scan timed out after 10 minutes');
     await new Promise(r => setTimeout(r, 5000));
     const resp = await fetch(`/api/apify/alumni/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`);
     const data = await resp.json();
@@ -551,5 +568,5 @@ const JobTargetTracker = (() => {
     el.scrollTop = el.scrollHeight;
   }
 
-  return { render, cycleStatus, toggleWarm, addCompany, scanAlumni, filterTier, applyFilters, sendChat };
+  return { render, cycleStatus, toggleWarm, addCompany, scanAllAlumni, toggleAlumni, filterTier, applyFilters, sendChat };
 })();

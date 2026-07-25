@@ -9,33 +9,20 @@ export interface AlumniProfile {
   location:       string;
   profileUrl:     string;
   school:         string;
-  fieldOfStudy:   string;
-  graduationYear: string;
 }
 
 function normaliseProfile(item: Record<string, unknown>): AlumniProfile {
-  const name    = String(item.fullName || item.name || '').trim();
-  const url     = String(item.profileUrl || item.linkedinUrl || item.url || '').trim();
-  const company = String(
-    (item.currentPositions as Record<string, unknown>[])?.[0]?.companyName ||
-    item.currentCompany || item.company || ''
-  ).trim();
+  const name     = String(item.fullName || item.name || '').trim();
+  const url      = String(item.profileUrl || item.linkedinUrl || item.url || '').trim();
   const headline = String(item.headline || item.title || '').trim();
   const location = String(item.location || item.geoLocationName || '').trim();
-  const school   = String(
-    (item.schools as Record<string, unknown>[])?.[0]?.schoolName ||
-    item.school || item.schoolName || ''
-  ).trim();
-  const field = String(
-    (item.schools as Record<string, unknown>[])?.[0]?.fieldOfStudy ||
-    item.fieldOfStudy || ''
-  ).trim();
-  const gradYear = String(
-    (item.schools as Record<string, unknown>[])?.[0]?.endYear ||
-    item.graduationYear || ''
-  ).trim();
+  const school   = String(item.schoolName || item.school || '').trim();
 
-  return { name, headline, currentCompany: company, location, profileUrl: url, school, fieldOfStudy: field, graduationYear: gradYear };
+  // Actor returns company inside the headline: "Title at Company | ..."
+  const m = headline.match(/\bat\s+([^|·•\-–—]+)/i);
+  const company = m ? m[1].trim() : '';
+
+  return { name, headline, currentCompany: company, location, profileUrl: url, school };
 }
 
 export async function GET(req: Request) {
@@ -64,16 +51,16 @@ export async function GET(req: Request) {
     }
 
     const itemsResp = await fetch(
-      `${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=500`,
+      `${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=2000`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!itemsResp.ok) {
       return NextResponse.json({ ok: false, error: `Could not fetch dataset: ${itemsResp.status}` }, { status: 500 });
     }
 
-    const raw     = await itemsResp.json();
-    const items   = Array.isArray(raw) ? raw : [];
-    const alumni  = items
+    const raw    = await itemsResp.json();
+    const items  = Array.isArray(raw) ? raw : [];
+    const alumni = items
       .map(item => normaliseProfile(item as Record<string, unknown>))
       .filter(p => p.name && p.profileUrl);
 
