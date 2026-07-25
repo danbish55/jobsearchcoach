@@ -1,4 +1,4 @@
-/* Job Target Tracker — compact row layout with alumni scan */
+﻿/* Job Target Tracker — compact row layout with alumni scan */
 const JobTargetTracker = (() => {
   const STORAGE_KEY    = 'job_target_tracker';
   const ALUMNI_CACHE   = 'jtt_alumni_cache';
@@ -102,14 +102,6 @@ const JobTargetTracker = (() => {
       <style>
         .jtt-shell { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
 
-        /* ── Hero: quote + context ── */
-        .jtt-hero { display: flex; gap: 18px; align-items: stretch; margin-bottom: 20px; }
-        .jtt-hero-quote { flex: 0 0 44%; background: #9D2235; border-radius: 10px; padding: 22px 20px; display: flex; align-items: center; justify-content: center; }
-        .jtt-hero-quote p { color: #fff; font-weight: 700; font-style: italic; font-size: 17px; line-height: 1.45; text-align: center; margin: 0; }
-        .jtt-hero-context { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
-        .jtt-context-title { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; }
-        .jtt-context-body  { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0; }
-        .jtt-context-body li { margin-bottom: 3px; }
 
         .jtt-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
         .jtt-search  { flex: 1; min-width: 160px; max-width: 260px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); font-size: 13px; }
@@ -190,17 +182,13 @@ const JobTargetTracker = (() => {
 
       <div class="jtt-shell">
 
-        <div class="jtt-hero">
-          <div class="jtt-hero-quote">
-            <p>“70% of jobs are never publicly posted. Use alumni connections to create a warm path before applying cold.”</p>
+        <div class="workflow-hero-row">
+          <div class="resume-quote-card workflow-quote-card">
+            <p class="resume-quote-text">&ldquo;70% of jobs are never publicly posted. Use alumni connections to create a warm path before applying cold.&rdquo;</p>
           </div>
-          <div class="jtt-hero-context">
-            <p class="jtt-context-title">Your LA-Area Target List</p>
-            <ul class="jtt-context-body">
-              <li>These are the Greater Los Angeles companies most likely to value a USC/Eller MIS background — sorted by realistic entry-level comp.</li>
-              <li>Tier 1 is where you apply first and hardest. Tier 3 is year-two move territory.</li>
-              <li>Use the Alumni button to find USC Marshall and Eller grads already at each company — a warm intro beats a cold application every time.</li>
-            </ul>
+          <div class="card workflow-section">
+            <div class="card-title">Your LA-Area Target List</div>
+            <p>These are the Greater Los Angeles companies most likely to value a USC/Eller MIS background, sorted by realistic entry-level comp. Work Tier 1 first and hardest. Use the Alumni button to find USC Marshall and Eller grads already at each company — a warm intro beats a cold application every time.</p>
           </div>
         </div>
 
