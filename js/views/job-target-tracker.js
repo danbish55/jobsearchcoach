@@ -70,8 +70,6 @@ const JobTargetTracker = (() => {
   function _saveAlumniCache(name, data){ Storage.set(_alumniCacheKey(name), data); }
   function _alumniForCompany(name)     { return _alumniCache(name)?.alumni || []; }
   function _customCompanies(){ return Storage.get(CUSTOM_KEY, []); }
-  function _apifyToken() { return 'APIFY_TOKEN_REMOVED'; }
-  function _liCookie()   { return Storage.get('linkedin_li_at', ''); }
 
   function _allCompanies(tier) {
     const hardcoded = COMPANIES[tier] || [];
@@ -224,13 +222,7 @@ const JobTargetTracker = (() => {
     applyFilters();
   }
 
-  function _cookieWarningHTML() {
-    if (_liCookie()) return '';
-    return `<div class="jtt-no-cookie">
-      ⚠️ Alumni scanning requires your LinkedIn cookie.
-      <a onclick="App.navigate('settings')">Add it in Settings → LinkedIn Alumni</a> to enable the Alumni button on each company.
-    </div><br>`;
-  }
+  function _cookieWarningHTML() { return ''; }
 
   function _tierHTML(tier) {
     const meta      = TIER_META[tier];
@@ -260,7 +252,6 @@ const JobTargetTracker = (() => {
     const matchedAlumni = _alumniForCompany(company.name);
     const color   = TIER_META[tier].color;
     const liUrl   = _linkedInUrl(company.name, company.role);
-    const hasCookie = !!_liCookie();
 
     const statusColor = STATUS_COLORS[status] || '';
     const statusStyle = statusColor
@@ -287,13 +278,11 @@ const JobTargetTracker = (() => {
             title="Click to change status">${_esc(status)}</span>
         </div>
         <div class="jtt-co-actions">
-          ${hasCookie
-            ? `<button class="jtt-btn alumni ${isExpanded && hasScan ? 'active' : ''}"
-                ${isScanning ? 'disabled' : ''}
-                onclick="JobTargetTracker.${hasScan ? `toggleAlumni` : `scanAlumni`}('${_escAttr(company.name)}')"
-                title="${hasScan ? 'Toggle alumni panel' : 'Find USC/Eller alumni at this company'}"
-                >${alumniLabel}</button>`
-            : ''}
+          <button class="jtt-btn alumni ${isExpanded && hasScan ? 'active' : ''}"
+            ${isScanning ? 'disabled' : ''}
+            onclick="JobTargetTracker.${hasScan ? `toggleAlumni` : `scanAlumni`}('${_escAttr(company.name)}')"
+            title="${hasScan ? 'Toggle alumni panel' : 'Find USC/Eller alumni at this company'}"
+            >${alumniLabel}</button>
           <button class="jtt-btn ${warm ? 'warm' : ''}" onclick="JobTargetTracker.toggleWarm('${_escAttr(company.name)}')" title="${warm ? 'Warm path — click to clear' : 'Mark as warm path'}">${warm ? '🔥' : '🤝'}</button>
           <a class="jtt-btn" href="${_escAttr(liUrl)}" target="_blank" rel="noopener" title="LinkedIn Jobs">LI</a>
           <a class="jtt-btn" href="${_escAttr(company.careers)}" target="_blank" rel="noopener" title="Careers page">↗</a>
@@ -440,47 +429,16 @@ const JobTargetTracker = (() => {
 
   // ── Alumni scan ───────────────────────────────────────────────────────────
 
-  async function scanAlumni(name) {
-    if (_scanningSet.has(name)) return;
-    const cookie = _liCookie();
-    if (!cookie) { UI.notify('Add your LinkedIn cookie in Settings → LinkedIn Alumni first', 'error'); return; }
-    _scanningSet.add(name);
-    _refreshRow(name);
-    try {
-      const startResp = await fetch('/api/apify/alumni/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cookie, token: _apifyToken(), keyword: name, maxAlumni: 200 }),
-      });
-      const startData = await startResp.json();
-      if (!startData.ok) throw new Error(startData.error || 'Failed to start scan');
-      const alumni = await _pollAlumni(startData.runId);
-      _saveAlumniCache(name, { alumni, ts: Date.now() });
-      _expandedSet.add(name);
-      UI.notify(`Found ${alumni.length} USC/Eller alumni at ${name}`, 'success');
-    } catch (err) {
-      UI.notify(`Alumni scan failed: ${err.message}`, 'error');
-    } finally {
-      _scanningSet.delete(name);
-      _refreshRow(name);
-    }
+  function scanAlumni(name) {
+    const url = `https://www.linkedin.com/school/university-of-southern-california/people/?keywords=${encodeURIComponent(name)}`;
+    window.open(url, '_blank', 'noopener');
+    UI.notify('LinkedIn opened — click your Alumni Scanner bookmarklet to import results. Set it up once in Settings → LinkedIn Alumni.', 'info', 9000);
   }
 
   function toggleAlumni(name) {
     if (_expandedSet.has(name)) _expandedSet.delete(name);
     else _expandedSet.add(name);
     _refreshRow(name);
-  }
-
-  async function _pollAlumni(runId, attempts = 0) {
-    const token = _apifyToken();
-    if (attempts > 120) throw new Error('Scan timed out after 10 minutes');
-    await new Promise(r => setTimeout(r, 5000));
-    const resp = await fetch(`/api/apify/alumni/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`);
-    const data = await resp.json();
-    if (!data.ok) throw new Error(data.error || 'Poll failed');
-    if (data.status === 'running') return _pollAlumni(runId, attempts + 1);
-    return data.alumni || [];
   }
 
   // ── Filters ───────────────────────────────────────────────────────────────

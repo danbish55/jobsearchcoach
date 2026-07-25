@@ -2,6 +2,7 @@
 const App = (() => {
   let _currentView = 'dashboard';
   let _chatEnhancementObserver = null;
+  let _pendingImportNotify = null;
   const CHAT_VIEWS = new Set([
     'coach',
     'resume-deep-dive',
@@ -51,7 +52,22 @@ const App = (() => {
     launch();
   }
 
+  function _handleAlumniImport() {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('_alumni_import');
+    if (!raw) return;
+    history.replaceState({}, '', location.pathname);
+    try {
+      const data = JSON.parse(decodeURIComponent(raw));
+      if (!data.company || !Array.isArray(data.alumni)) return;
+      const cacheKey = 'jtt_alumni_' + data.company.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      Storage.set(cacheKey, { alumni: data.alumni, ts: data.ts || Date.now() });
+      _pendingImportNotify = `Imported ${data.alumni.length} USC/Eller alumni at ${data.company}`;
+    } catch {}
+  }
+
   async function launch() {
+    _handleAlumniImport();
     _setStartupPreloader('Loading coaching context...');
     // Load coaching context file fresh from disk
     await Claude.loadContext();
@@ -87,6 +103,10 @@ const App = (() => {
 
     // Initialize UI (wires sidebar nav, gauge, etc.)
     UI.init();
+    if (_pendingImportNotify) {
+      setTimeout(() => UI.notify(_pendingImportNotify, 'success', 7000), 600);
+      _pendingImportNotify = null;
+    }
 
     // Initialize coach (but don't render yet — happens on navigate)
     Coach.init();

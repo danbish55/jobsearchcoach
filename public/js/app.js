@@ -2,6 +2,7 @@
 const App = (() => {
   let _currentView = 'dashboard';
   let _chatEnhancementObserver = null;
+  let _pendingImportNotify = null;
   const CHAT_VIEWS = new Set([
     'coach',
     'resume-deep-dive',
@@ -51,7 +52,22 @@ const App = (() => {
     launch();
   }
 
+  function _handleAlumniImport() {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('_alumni_import');
+    if (!raw) return;
+    history.replaceState({}, '', location.pathname);
+    try {
+      const data = JSON.parse(decodeURIComponent(raw));
+      if (!data.company || !Array.isArray(data.alumni)) return;
+      const cacheKey = 'jtt_alumni_' + data.company.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      Storage.set(cacheKey, { alumni: data.alumni, ts: data.ts || Date.now() });
+      _pendingImportNotify = `Imported ${data.alumni.length} USC/Eller alumni at ${data.company}`;
+    } catch {}
+  }
+
   async function launch() {
+    _handleAlumniImport();
     _setStartupPreloader('Loading coaching context...');
     // Load coaching context file fresh from disk
     await Claude.loadContext();
@@ -74,9 +90,6 @@ const App = (() => {
 
     await SampleData.seedIfEmpty();
 
-    // Sync job applications from Neon (overwrites sample data with real data)
-    await Jobs.initFromServer();
-
     // Initialize milestone data
     Milestones.init();
 
@@ -90,6 +103,10 @@ const App = (() => {
 
     // Initialize UI (wires sidebar nav, gauge, etc.)
     UI.init();
+    if (_pendingImportNotify) {
+      setTimeout(() => UI.notify(_pendingImportNotify, 'success', 7000), 600);
+      _pendingImportNotify = null;
+    }
 
     // Initialize coach (but don't render yet — happens on navigate)
     Coach.init();
@@ -136,6 +153,7 @@ const App = (() => {
       case 'resources': Resources.render(); break;
       case 'leads':     JobLeads.render(); break;
       case 'apify-radar': ApifyRadar.render(); break;
+      case 'job-leads-tool': JobLeadsTool.render(); break;
       case 'report':    Report.render(); break;
       case 'settings':  Settings.render(); break;
       case 'mission-discussion': MissionDiscussion.render(); break;
@@ -176,11 +194,38 @@ const App = (() => {
   }
 
   async function _resetJobSearchProfile() {
-    // Job Leads Tool not available in cloud mode — no-op
+    try {
+      const response = await fetch('/api/jl/reset-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Job Search Profile reset failed');
+      }
+    } catch (err) {
+      console.warn('JobSearchCoach could not restore the current Job Search Profile:', err);
+    }
   }
 
   async function _syncCandidateProfileToServer() {
-    // Job Leads Tool not available in cloud mode — no-op
+    const profile = Storage.get('candidate_profile', {});
+    const hasProfile = profile && typeof profile === 'object' && Object.keys(profile).length > 0;
+    if (!hasProfile) return;
+    try {
+      const response = await fetch('/api/jl/save-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Job Search Profile sync failed');
+      }
+    } catch (err) {
+      console.warn('JobSearchCoach could not sync the Job Search Profile to Job Leads:', err);
+    }
   }
 
   function _afterRender(viewId) {

@@ -338,32 +338,34 @@ const Settings = (() => {
           ${_sectionHeaderHTML('linkedin-alumni', 'LinkedIn Alumni')}
           <div id="linkedin-alumni-panel" style="display:none">
           <div class="setting-row" style="align-items:flex-start">
-            <span class="setting-label" style="padding-top:4px">Session Cookie</span>
+            <span class="setting-label" style="padding-top:4px">Alumni Scanner</span>
             <div class="setting-control">
-              <p style="font-size:13px;color:var(--text);margin:0 0 12px">
-                This lets the app find USC Marshall and Eller alumni at your target companies — one click per company instead of searching manually.
-                The cookie is stored only on this device and never sent anywhere except the alumni scraper.
+              <p style="font-size:13px;color:var(--text);margin:0 0 14px">
+                Install this bookmarklet once. After that, click <strong>Scan</strong> on any company in the Job Target Tracker
+                — LinkedIn opens, you click the bookmarklet, and the alumni list imports automatically.
+                No cookie copying. Uses your existing LinkedIn login.
               </p>
 
               <div style="background:var(--card-hover);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px">
-                <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">How to get it — takes about 30 seconds</div>
-                <ol style="font-size:13px;color:var(--text);line-height:1.8;margin:0;padding-left:18px">
-                  <li>Open <strong>LinkedIn.com</strong> in Chrome and make sure you're logged in.</li>
-                  <li>Press <strong>F12</strong> to open Developer Tools. (Or right-click anywhere → Inspect.)</li>
-                  <li>Click the <strong>Application</strong> tab at the top of the panel that opened. <em style="color:var(--text-muted)">(If you don't see it, click the &rsaquo;&rsaquo; arrow to find more tabs.)</em></li>
-                  <li>In the left sidebar, expand <strong>Cookies</strong> and click <strong>https://www.linkedin.com</strong>.</li>
-                  <li>In the table, find the row named <strong>li_at</strong>.</li>
-                  <li>Click on that row, then <strong>double-click the Value column</strong> to select the whole value. Copy it (Ctrl+C).</li>
-                  <li>Paste it into the box below and click Save.</li>
+                <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">One-time setup — takes 10 seconds</div>
+                <ol style="font-size:13px;color:var(--text);line-height:1.9;margin:0;padding-left:18px">
+                  <li>Make sure your bookmarks bar is visible in Chrome: <strong>View → Always Show Bookmarks Bar</strong></li>
+                  <li>Drag the button below onto your bookmarks bar.</li>
+                  <li>Done. The bookmarklet lives in your bar and works every time.</li>
                 </ol>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:10px">⚠️ The cookie expires every few weeks. If alumni scanning stops working, just repeat these steps to refresh it.</div>
               </div>
 
-              <input id="li-cookie" type="password" placeholder="Paste the li_at value here…" autocomplete="off" style="font-family:monospace;font-size:12px;width:100%;margin-bottom:8px">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <button class="btn btn-primary btn-sm" onclick="Settings.saveLinkedInCookie()">Save Cookie</button>
-                <button class="btn btn-ghost btn-sm" id="li-test-btn" onclick="Settings.testLinkedInCookie()">Test Connection</button>
-                <span id="li-cookie-status" style="font-size:12px;color:var(--text-muted)"></span>
+              <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+                <a id="li-bookmarklet-link" class="btn btn-primary" style="cursor:grab;text-decoration:none"
+                  title="Drag this to your bookmarks bar">
+                  📥 Import Alumni
+                </a>
+                <span style="font-size:12px;color:var(--text-muted)">← Drag to bookmarks bar</span>
+              </div>
+
+              <div style="font-size:12px;color:var(--text-muted);line-height:1.6">
+                <strong>How it works:</strong> The bookmarklet reads the LinkedIn alumni page you're already viewing
+                and sends the profiles directly to this app. LinkedIn never sees a third-party IP — it's just your browser.
               </div>
             </div>
           </div>
@@ -1113,12 +1115,12 @@ const Settings = (() => {
       // Populate simple inputs
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
 
-      // Pre-fill LinkedIn cookie indicator
-      const savedCookie = Storage.get('linkedin_li_at', '');
-      const cookieStatus = document.getElementById('li-cookie-status');
-      if (cookieStatus && savedCookie) {
-        cookieStatus.textContent = '✓ Cookie saved';
-        cookieStatus.style.color = 'var(--success)';
+      // Wire up bookmarklet with current origin
+      const bookmarkletEl = document.getElementById('li-bookmarklet-link');
+      if (bookmarkletEl) {
+        const base = location.origin;
+        const bm = `javascript:(function(){var url=new URL(location.href);if(!url.href.includes('linkedin.com/school')){alert('Navigate to a LinkedIn school alumni page first (open via the Scan button in Job Target Tracker).');return;}var kw=url.searchParams.get('keywords')||prompt('Company name?','');if(!kw)return;var school=url.href.includes('university-of-southern-california')?'USC':'UA';var items=document.querySelectorAll('.org-people-profiles-module__profile-list-item,.reusable-search__result-container');var profiles=[];items.forEach(function(el){var n=(el.querySelector('.org-people-profile-card__profile-title,.artdeco-entity-lockup__title span')||{}).innerText||'';var h=(el.querySelector('.org-people-profile-card__profile-position,.artdeco-entity-lockup__subtitle')||{}).innerText||'';var a=el.querySelector('a[href*=\\"/in/\\"]');var p=a?a.href.split('?')[0]:'';n=n.trim();if(n&&p&&n!=='LinkedIn Member')profiles.push({name:n,headline:h.trim(),profileUrl:p,school:school,currentCompany:kw});});if(!profiles.length){alert('No profiles found. Scroll down on LinkedIn to load results, then click the bookmarklet again.');return;}var d=encodeURIComponent(JSON.stringify({company:kw,alumni:profiles,ts:Date.now()}));location.href='${base}/?_alumni_import='+d;})();`;
+        bookmarkletEl.href = bm;
       }
 
       set('ar-role-keyword',   cfg.role_keyword || 'Data Analyst');
