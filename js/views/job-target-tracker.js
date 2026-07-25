@@ -309,11 +309,16 @@ const JobTargetTracker = (() => {
   function _jobsForCompany(name) {
     let jobs = [];
     try { jobs = JSON.parse(localStorage.getItem('jsc_apify_jobs') || '[]'); } catch {}
+    if (!jobs.length) return [];
     const needle = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (needle.length < 3) return [];
     return jobs.filter(j => {
       const co = String(j.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      return co.includes(needle) || needle.includes(co.slice(0, 6));
-    }).slice(0, 5); // cap at 5 per company
+      if (co.length < 3) return false;
+      // job company contains target name (e.g. "googlellc" ⊃ "google")
+      // or target name contains job company name (e.g. "tiktokbytedance" ⊃ "tiktok")
+      return co.includes(needle) || needle.includes(co);
+    }).slice(0, 5);
   }
 
   function _jobsPanelHTML(jobs) {
