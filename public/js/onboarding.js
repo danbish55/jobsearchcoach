@@ -15,7 +15,6 @@ const Onboarding = (() => {
     'welcome',
     'profile',
     'apikey',
-    'drive',
     'complete',
   ];
 
@@ -52,7 +51,7 @@ const Onboarding = (() => {
     switch (name) {
       case 'welcome':
         return `
-          <div class="onboarding-step-label">Step 1 of 5</div>
+          <div class="onboarding-step-label">Step 1 of 4</div>
           <div class="onboarding-title">Welcome to<br>JobSearchCoach 🎯</div>
           <div class="onboarding-desc">
             Your personal AI career coach. We'll get you set up in about a minute.<br><br>
@@ -67,7 +66,7 @@ const Onboarding = (() => {
       case 'profile':
         const saved = Storage.get('profile', {});
         return `
-          <div class="onboarding-step-label">Step 2 of 5 — Contact Info</div>
+          <div class="onboarding-step-label">Step 2 of 4 — Contact Info</div>
           <div class="onboarding-title">Confirm contact info</div>
           <div class="onboarding-desc">These are already filled in. Corinne can change them later in Settings if needed.</div>
 
@@ -99,7 +98,7 @@ const Onboarding = (() => {
 
       case 'apikey':
         return `
-          <div class="onboarding-step-label">Step 3 of 5 — Access Key</div>
+          <div class="onboarding-step-label">Step 3 of 4 — Access Key</div>
           <div class="onboarding-title">Enter your coach access key</div>
           <div class="onboarding-desc">
             Dad will give you this key. Paste it here to turn on the AI coach.
@@ -120,29 +119,6 @@ const Onboarding = (() => {
           <div class="onboarding-nav">
             <button class="btn btn-ghost" id="ob-back">← Back</button>
             <button class="btn btn-gold" id="ob-next">Save & Continue →</button>
-          </div>
-          ${_buildProgress()}`;
-
-      case 'drive':
-        const status = Config.get() || {};
-        return `
-          <div class="onboarding-step-label">Step 4 of 5 — Google Drive</div>
-          <div class="onboarding-title">Connect Google Drive</div>
-          <div class="onboarding-desc">
-            JobSearchCoach saves your job applications, coaching sessions, goal progress, resume notes, and gauges to your private Google Drive app data.
-          </div>
-
-          <div class="security-note">
-            Sign in with the Google account where you want to save app data. Google will ask for permission to store JobSearchCoach data in Drive.
-          </div>
-
-          <div id="drive-connect-status" style="font-size:13px;margin-bottom:10px;color:var(--text-muted)">
-            ${status.google_client_id ? 'Ready to connect.' : 'Google Drive setup is missing. Ask Dad for the prepared package.'}
-          </div>
-
-          <div class="onboarding-nav">
-            <button class="btn btn-ghost" id="ob-back">← Back</button>
-            <button class="btn btn-gold" id="ob-drive-connect" ${status.google_client_id ? '' : 'disabled'}>Connect Google Drive</button>
           </div>
           ${_buildProgress()}`;
 
@@ -228,36 +204,6 @@ const Onboarding = (() => {
             setTimeout(() => { _step++; render(); }, 600);
           } catch {
             statusEl.textContent = 'Error saving key. Is the server running?';
-            statusEl.style.color = 'var(--danger)';
-          }
-        });
-        break;
-
-      case 'drive':
-        document.getElementById('ob-drive-connect')?.addEventListener('click', async () => {
-          const statusEl = document.getElementById('drive-connect-status');
-          const clientId = Config.get()?.google_client_id || '';
-          if (!clientId) {
-            statusEl.textContent = 'Google Drive setup is missing. Ask Dad for the prepared package.';
-            statusEl.style.color = 'var(--danger)';
-            return;
-          }
-          statusEl.textContent = 'Opening Google sign-in...';
-          statusEl.style.color = 'var(--text-muted)';
-          try {
-            const result = await Drive.startOAuth(clientId);
-            if (!result.ok) throw new Error(result.error || 'Google Drive connection failed.');
-            await Config.load();
-            const connected = await Drive.init();
-            if (!connected) throw new Error('Google Drive connection could not be verified.');
-            const storageState = await SampleData.prepareStorage(true, { preserveLocal: true });
-            if (!storageState.ready) throw new Error('Google Drive cleanup could not be completed.');
-            await Storage.syncAllToDrive();
-            statusEl.textContent = '✓ Google Drive connected';
-            statusEl.style.color = 'var(--success)';
-            setTimeout(() => { _step++; render(); }, 700);
-          } catch (err) {
-            statusEl.textContent = `Drive connection failed: ${err.message}`;
             statusEl.style.color = 'var(--danger)';
           }
         });
