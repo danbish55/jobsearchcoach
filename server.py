@@ -842,6 +842,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self._apify_state(body)
         elif path == '/api/apify/delete':
             self._apify_delete(body)
+        elif path == '/api/apify/add-manual':
+            self._apify_add_manual(body)
         elif path == '/api/apify/config':
             self._apify_config_save(body)
         else:
@@ -3592,6 +3594,50 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         states.pop(lead_id, None)
         self._apify_save_states(states)
         self._json({'ok': True})
+
+    def _apify_add_manual(self, body):
+        url      = str(body.get('url')      or '').strip()
+        raw_text = str(body.get('raw_text') or '').strip()
+        title    = str(body.get('title')    or '').strip()
+        company  = str(body.get('company')  or '').strip()
+        location = str(body.get('location') or '').strip()
+
+        if not title or not company:
+            self._json({'ok': False, 'error': 'title and company are required'}, 400)
+            return
+
+        description = raw_text
+        if url and not description:
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    html = resp.read().decode('utf-8', errors='ignore')
+                description = re.sub(r'<[^>]+>', ' ', html)
+            except Exception:
+                pass
+
+        item = {
+            'title':       title,
+            'company':     company,
+            'location':    location,
+            'job_url':     url,
+            'description': description,
+            'site':        'manual',
+        }
+        cfg_raw = load_config()
+        cfg = _deep_merge(_default_apify_config(), cfg_raw.get('apify_config') or {})
+        scored = _score_apify_job(item, cfg)
+        if not scored.get('id'):
+            import time
+            scored['id'] = f'manual_{int(time.time() * 1000)}'
+        scored['approval_state'] = 'pending_review'
+
+        jobs = self._apify_load_scored()
+        jobs.insert(0, scored)
+        with open(self._apify_scored_path(), 'w', encoding='utf-8') as f:
+            json.dump(jobs, f, indent=2)
+
+        self._json({'ok': True, 'job': scored})
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')

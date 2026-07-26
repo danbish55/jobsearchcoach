@@ -258,6 +258,81 @@ const ApifyRadar = (() => {
         border-color: var(--gold, #ffc107); background: rgba(255,204,0,0.1);
         color: var(--text);
       }
+
+      /* ── Manual job modal ── */
+      .ar-manual-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        z-index: 2000; display: flex; align-items: center; justify-content: center;
+      }
+      .ar-manual-card {
+        background: var(--card-bg, #1e1e1e); border: 1px solid var(--border);
+        border-radius: 10px; padding: 24px 28px; width: 520px; max-width: 95vw;
+        max-height: 85vh; overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      }
+      .ar-manual-card h3 { margin: 0 0 4px; font-size: 17px; }
+      .ar-manual-card p  { margin: 0 0 18px; font-size: 13px; color: var(--text-muted); }
+      .ar-manual-field   { margin-bottom: 14px; }
+      .ar-manual-field label { display: block; font-size: 12px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+        margin-bottom: 5px; }
+      .ar-manual-field input, .ar-manual-field textarea {
+        width: 100%; box-sizing: border-box; padding: 7px 10px;
+        border: 1px solid var(--border); border-radius: 6px;
+        background: var(--input-bg, rgba(255,255,255,0.05)); color: var(--text);
+        font-size: 13px; font-family: inherit;
+      }
+      .ar-manual-field textarea { min-height: 90px; resize: vertical; }
+      .ar-manual-tip {
+        background: rgba(52,152,219,0.12); border: 1px solid rgba(52,152,219,0.25);
+        border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #3498db;
+        margin-bottom: 16px;
+      }
+      .ar-manual-error {
+        background: rgba(231,76,60,0.12); border: 1px solid rgba(231,76,60,0.3);
+        border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #e74c3c;
+        margin-bottom: 14px; display: none;
+      }
+      .ar-manual-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+      /* ── USC connections modal ── */
+      .ar-usc-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        z-index: 2000; display: flex; align-items: center; justify-content: center;
+      }
+      .ar-usc-card {
+        background: var(--card-bg, #1e1e1e); border: 1px solid var(--border);
+        border-radius: 10px; padding: 22px 26px; width: 440px; max-width: 95vw;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      }
+      .ar-usc-card h3 { margin: 0 0 4px; font-size: 16px; }
+      .ar-usc-card p  { margin: 0 0 14px; font-size: 12px; color: var(--text-muted); }
+      .ar-usc-links   { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+      .ar-usc-link {
+        display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+        border-radius: 7px; border: 1px solid var(--border);
+        background: transparent; color: var(--text); font-size: 13px;
+        cursor: pointer; text-align: left; transition: all 0.13s; text-decoration: none;
+      }
+      .ar-usc-link:hover { border-color: var(--gold, #ffc107); color: var(--gold, #ffc107); }
+      .ar-usc-link-icon { font-size: 16px; flex-shrink: 0; }
+      .ar-usc-copy-msg {
+        padding: 9px 12px; border-radius: 7px; border: 1px solid var(--border);
+        background: rgba(255,204,0,0.08); color: var(--text); font-size: 13px;
+        cursor: pointer; width: 100%; text-align: left; transition: all 0.13s;
+        margin-bottom: 8px;
+      }
+      .ar-usc-copy-msg:hover { border-color: var(--gold, #ffc107); }
+      .ar-usc-msg-preview {
+        font-size: 11px; color: var(--text-muted); margin: -4px 0 12px;
+        font-style: italic; line-height: 1.5;
+      }
+      .ar-usc-close {
+        width: 100%; padding: 8px; border-radius: 6px;
+        border: 1px solid var(--border); background: transparent;
+        color: var(--text-muted); cursor: pointer; font-size: 13px;
+      }
+      .ar-usc-close:hover { border-color: var(--border); color: var(--text); }
     `;
     document.head.appendChild(s);
   }
@@ -275,6 +350,7 @@ const ApifyRadar = (() => {
           <div class="ar-subtitle" id="ar-subtitle">Loading…</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost btn-sm" onclick="ApifyRadar.openManualJobModal()">➕ Add Job Manually</button>
           <button class="btn btn-ghost btn-sm" id="ar-rescrape-btn" onclick="ApifyRadar.reScrape()">📡 Re-Scrape All Boards</button>
         </div>
       </div>
@@ -556,7 +632,7 @@ const ApifyRadar = (() => {
       <td class="ar-posted">${posted}</td>
       <td><span class="ar-state-pill ${stateCls}">${stateLabel}</span></td>
       <td class="ar-actions">
-        <button class="ar-btn" onclick="window.open('${_esc(_alumniUrl(job.company))}','_blank','noopener,noreferrer')" title="USC alumni at ${_esc(job.company || '')}">👥 Alumni</button>
+        <button class="ar-btn" onclick="ApifyRadar.openUscModal('${id}')" title="Find USC connections at ${_esc(job.company || '')}">👥 USC</button>
         <button class="ar-btn approve ${approveActive}" onclick="ApifyRadar.approveJob('${id}')" title="Approve">✓</button>
         <button class="ar-btn reject  ${rejectActive}"  onclick="ApifyRadar.rejectJob('${id}')"  title="Reject">✗</button>
         <button class="ar-btn apply-btn ${applyActive}" onclick="ApifyRadar.applyJob('${id}')"   title="Open &amp; mark Applied">Apply</button>
@@ -988,6 +1064,155 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
+  // ── USC Connections modal ─────────────────────────────────────────────────
+
+  function openUscModal(jobId) {
+    const job = _jobs.find(j => j.id === jobId);
+    const company = job ? (job.company || '') : '';
+    _arFindUscConnections(company);
+  }
+
+  function _arFindUscConnections(company) {
+    const enc = encodeURIComponent(company);
+    const encQ = encodeURIComponent(`${company} USC alumni`);
+    const outreach = `Hi! I'm a recent USC Marshall MSBA grad and noticed you work at ${company}. I'd love to connect and hear about your experience there — would you be open to a quick chat?`;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ar-usc-overlay';
+    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+      <div class="ar-usc-card">
+        <h3>👥 USC Connections at ${_esc(company)}</h3>
+        <p>Find Trojans and reach out for an informational chat.</p>
+        <button class="ar-usc-copy-msg" id="ar-usc-copy-btn">
+          📋 Copy Outreach Message
+        </button>
+        <div class="ar-usc-msg-preview">"${_esc(outreach)}"</div>
+        <div class="ar-usc-links">
+          <a class="ar-usc-link" target="_blank" rel="noopener"
+            href="https://www.linkedin.com/school/university-of-southern-california/people/?keywords=${enc}">
+            <span class="ar-usc-link-icon">in</span> LinkedIn — USC Alumni at ${_esc(company)}
+          </a>
+          <a class="ar-usc-link" target="_blank" rel="noopener"
+            href="https://www.linkedin.com/search/results/people/?keywords=${enc}%20USC">
+            <span class="ar-usc-link-icon">🔍</span> LinkedIn — Search "${_esc(company)} USC"
+          </a>
+          <a class="ar-usc-link" target="_blank" rel="noopener"
+            href="https://www.google.com/search?q=${encQ}">
+            <span class="ar-usc-link-icon">🌐</span> Google — "${_esc(company)} USC alumni"
+          </a>
+          <a class="ar-usc-link" target="_blank" rel="noopener"
+            href="https://careers.usc.edu/">
+            <span class="ar-usc-link-icon">🎓</span> USC Career Services
+          </a>
+          <a class="ar-usc-link" target="_blank" rel="noopener"
+            href="https://www.uscalumni.org/">
+            <span class="ar-usc-link-icon">🏛️</span> USC Alumni Association
+          </a>
+          <a class="ar-usc-link" target="_blank" rel="noopener"
+            href="https://www.marshall.usc.edu/alumni">
+            <span class="ar-usc-link-icon">📊</span> Marshall Alumni Network
+          </a>
+        </div>
+        <button class="ar-usc-close" onclick="this.closest('.ar-usc-overlay').remove()">Close</button>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#ar-usc-copy-btn').onclick = () => {
+      navigator.clipboard.writeText(outreach).then(() => {
+        const btn = overlay.querySelector('#ar-usc-copy-btn');
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => { btn.textContent = '📋 Copy Outreach Message'; }, 2000);
+      });
+    };
+  }
+
+  // ── Add Job Manually modal ────────────────────────────────────────────────
+
+  function openManualJobModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'ar-manual-overlay';
+    overlay.id = 'ar-manual-overlay';
+    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+      <div class="ar-manual-card">
+        <h3>➕ Add Job Manually</h3>
+        <p>Found a job not in the scraper? Add it here to score and track it.</p>
+        <div class="ar-manual-tip">
+          Paste the job URL — the server will try to fetch the description automatically.
+          Or paste the description text below if the URL is behind a login wall.
+        </div>
+        <div class="ar-manual-error" id="ar-manual-error"></div>
+        <div class="ar-manual-field">
+          <label>Job Title *</label>
+          <input type="text" id="ar-manual-title" placeholder="e.g. Data Analyst">
+        </div>
+        <div class="ar-manual-field">
+          <label>Company *</label>
+          <input type="text" id="ar-manual-company" placeholder="e.g. Accenture">
+        </div>
+        <div class="ar-manual-field">
+          <label>Location</label>
+          <input type="text" id="ar-manual-location" placeholder="e.g. Los Angeles, CA (or Remote)">
+        </div>
+        <div class="ar-manual-field">
+          <label>Job URL</label>
+          <input type="url" id="ar-manual-url" placeholder="https://…">
+        </div>
+        <div class="ar-manual-field">
+          <label>Job Description (paste if URL is gated)</label>
+          <textarea id="ar-manual-desc" placeholder="Paste the full job description here…"></textarea>
+        </div>
+        <div class="ar-manual-actions">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ar-manual-overlay').remove()">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="ar-manual-submit-btn" onclick="ApifyRadar.submitManualJob()">Add Job</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  async function submitManualJob() {
+    const title    = (document.getElementById('ar-manual-title')?.value   || '').trim();
+    const company  = (document.getElementById('ar-manual-company')?.value || '').trim();
+    const location = (document.getElementById('ar-manual-location')?.value || '').trim();
+    const url      = (document.getElementById('ar-manual-url')?.value     || '').trim();
+    const raw_text = (document.getElementById('ar-manual-desc')?.value    || '').trim();
+    const errEl    = document.getElementById('ar-manual-error');
+    const submitBtn = document.getElementById('ar-manual-submit-btn');
+
+    if (!title || !company) {
+      errEl.textContent = 'Job title and company are required.';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Adding…';
+
+    try {
+      const resp = await fetch('/api/apify/add-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, company, location, url, raw_text }),
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || 'Server error');
+
+      // Prepend to local list
+      _jobs.unshift(data.job);
+      _invalidateCache();
+
+      document.getElementById('ar-manual-overlay')?.remove();
+      _renderBody();
+      UI.notify(`Added "${title}" — scored ${data.job.score || 0}`, 'success');
+    } catch (err) {
+      errEl.textContent = 'Error: ' + err.message;
+      errEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Add Job';
+    }
+  }
+
   function _esc(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
@@ -1006,5 +1231,8 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     copyCoverLetter,
     saveCoverLetter,
     confirmApplied,
+    openUscModal,
+    openManualJobModal,
+    submitManualJob,
   };
 })();
