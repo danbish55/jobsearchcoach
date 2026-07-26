@@ -991,11 +991,12 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
       UI.showModal(
         'Use Apify Credits?',
         `<p style="margin:0 0 12px">Re-scraping runs two Apify actors and counts against your monthly credit allocation.</p>
-         <p style="margin:0;color:var(--text-muted);font-size:13px">Only scrape when you want fresh job listings — once a week is plenty.</p>`,
+         <p style="margin:0;color:var(--text-muted);font-size:13px">Only scrape when you want fresh job listings — once a day is plenty.</p>`,
         [
-          { label: 'Yes, Scrape Now', class: 'btn-primary', action: () => resolve(true) },
-          { label: 'Cancel',          class: 'btn-ghost',   action: () => resolve(false) },
-        ]
+          { id: 'scrape', label: 'Yes, Scrape Now', class: 'btn-primary', action: () => resolve(true) },
+          { id: 'cancel', label: 'Cancel',           class: 'btn-ghost',   action: () => resolve(false) },
+        ],
+        { closeOnBackdrop: false }
       );
     });
     if (!confirmed) return;
