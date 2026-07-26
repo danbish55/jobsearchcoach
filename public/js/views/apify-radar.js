@@ -63,7 +63,20 @@ const ApifyRadar = (() => {
         table-layout: fixed;
         border-collapse: collapse;
         font-size: 13px;
-        min-width: 1100px;
+        min-width: 780px;
+      }
+
+      /* ── Responsive: hide low-priority columns at smaller widths ── */
+      @media (max-width: 1150px) {
+        #apify-radar-content .ar-table .ar-col-type,
+        #apify-radar-content .ar-table .ar-col-level  { display: none; }
+      }
+      @media (max-width: 950px) {
+        #apify-radar-content .ar-table .ar-col-salary,
+        #apify-radar-content .ar-table .ar-col-posted { display: none; }
+      }
+      @media (max-width: 820px) {
+        #apify-radar-content .ar-table .ar-col-applied { display: none; }
       }
 
       /* ── Sticky header ── */
@@ -528,11 +541,12 @@ const ApifyRadar = (() => {
     return s ? `<span class="ar-board-badge unknown" title="${_esc(site)}">${_esc(site.substring(0,2).toUpperCase())}</span>` : '<span class="ar-muted">—</span>';
   }
 
-  function _thHTML(col, label, defaultW) {
+  function _thHTML(col, label, defaultW, extraClass) {
     const w        = _colWidths[col] ? _colWidths[col] + 'px' : defaultW;
     const isActive = _sortBy === col;
     const arrow    = isActive ? (` <span class="ar-sort-arrow">${_sortDir === 'desc' ? '↓' : '↑'}</span>`) : '';
-    return `<th class="ar-sortable${isActive ? ' ar-col-active' : ''}"
+    const cls      = ['ar-sortable', isActive ? 'ar-col-active' : '', extraClass || ''].filter(Boolean).join(' ');
+    return `<th class="${cls}"
         data-col="${col}" style="width:${w};min-width:${w}"
         onclick="ApifyRadar.sortBy('${col}')">
       ${_esc(label)}${arrow}
@@ -551,19 +565,19 @@ const ApifyRadar = (() => {
     const header = `
       <thead>
         <tr>
-          <th style="width:36px;min-width:36px">#<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_rank"></span></th>
-          ${_thHTML('score',          'Score',      '62px')}
-          ${_thHTML('site',           'Src',        '52px')}
-          ${_thHTML('title',          'Job Title',  '220px')}
-          ${_thHTML('company',        'Company',    '130px')}
-          ${_thHTML('location',       'Location',   '140px')}
-          ${_thHTML('employmentType', 'Type',       '90px')}
-          ${_thHTML('seniorityLevel', 'Level',      '90px')}
-          ${_thHTML('salary',         'Salary',     '110px')}
-          ${_thHTML('applicantsCount','Applied',    '62px')}
-          ${_thHTML('postedAt',       'Posted',     '80px')}
-          ${_thHTML('approval_state', 'Status',     '80px')}
-          <th style="width:155px;min-width:155px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
+          <th style="width:34px;min-width:34px">#<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_rank"></span></th>
+          ${_thHTML('score',          'Score',      '52px')}
+          ${_thHTML('site',           'Src',        '40px')}
+          ${_thHTML('title',          'Job Title',  '190px')}
+          ${_thHTML('company',        'Company',    '120px')}
+          ${_thHTML('location',       'Location',   '120px')}
+          ${_thHTML('employmentType', 'Type',       '72px',  'ar-col-type')}
+          ${_thHTML('seniorityLevel', 'Level',      '72px',  'ar-col-level')}
+          ${_thHTML('salary',         'Salary',     '90px',  'ar-col-salary')}
+          ${_thHTML('applicantsCount','Applied',    '54px',  'ar-col-applied')}
+          ${_thHTML('postedAt',       'Posted',     '64px',  'ar-col-posted')}
+          ${_thHTML('approval_state', 'Status',     '72px')}
+          <th style="width:140px;min-width:140px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
         </tr>
       </thead>`;
 
@@ -625,11 +639,11 @@ const ApifyRadar = (() => {
       <td class="ar-job-title" title="${_esc(job.title || '')}">${titleLink}</td>
       <td class="ar-muted"    title="${_esc(job.company  || '')}">${_esc(job.company  || '—')}</td>
       <td class="ar-muted"    title="${_esc(job.location || '')}">${_esc(job.location || '—')}</td>
-      <td class="ar-muted">${_esc(job.employmentType || '—')}</td>
-      <td class="ar-muted">${_esc(job.seniorityLevel || _inferLevel(job.title) || '—')}</td>
-      <td>${salary}</td>
-      <td style="font-variant-numeric:tabular-nums;font-size:12px">${applicants}${fire}</td>
-      <td class="ar-posted">${posted}</td>
+      <td class="ar-muted ar-col-type">${_esc(job.employmentType || '—')}</td>
+      <td class="ar-muted ar-col-level">${_esc(job.seniorityLevel || _inferLevel(job.title) || '—')}</td>
+      <td class="ar-col-salary">${salary}</td>
+      <td class="ar-col-applied" style="font-variant-numeric:tabular-nums;font-size:12px">${applicants}${fire}</td>
+      <td class="ar-posted ar-col-posted">${posted}</td>
       <td><span class="ar-state-pill ${stateCls}">${stateLabel}</span></td>
       <td class="ar-actions">
         <button class="ar-btn" onclick="ApifyRadar.openUscModal('${id}')" title="Find USC connections at ${_esc(job.company || '')}">👥 USC</button>
@@ -957,6 +971,18 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
 
   async function reScrape() {
     if (_scraping) return;
+    const confirmed = await new Promise(resolve => {
+      UI.showModal(
+        'Use Apify Credits?',
+        `<p style="margin:0 0 12px">Re-scraping runs two Apify actors and counts against your monthly credit allocation.</p>
+         <p style="margin:0;color:var(--text-muted);font-size:13px">Only scrape when you want fresh job listings — once a week is plenty.</p>`,
+        [
+          { label: 'Yes, Scrape Now', class: 'btn-primary', action: () => resolve(true) },
+          { label: 'Cancel',          class: 'btn-ghost',   action: () => resolve(false) },
+        ]
+      );
+    });
+    if (!confirmed) return;
     _scraping = true;
     const btn = document.getElementById('ar-rescrape-btn');
     if (btn) { btn.innerHTML = '<span class="ar-scrape-spinner"></span> Starting scrape…'; btn.disabled = true; }
