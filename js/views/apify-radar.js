@@ -94,8 +94,7 @@ const ApifyRadar = (() => {
         color: var(--text-muted);
         border-bottom: 2px solid var(--border);
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        overflow: visible;
         box-shadow: 0 2px 4px rgba(0,0,0,0.25);
         user-select: none;
       }
@@ -113,16 +112,17 @@ const ApifyRadar = (() => {
       /* ── Column resize handle ── */
       #apify-radar-content .ar-col-resize {
         position: absolute;
-        right: 0; top: 0; bottom: 0;
-        width: 5px;
+        right: -5px; top: 20%; bottom: 20%;
+        width: 10px;
         cursor: col-resize;
-        z-index: 11;
+        z-index: 20;
+        border-right: 2px solid rgba(255,255,255,0.12);
       }
       #apify-radar-content .ar-col-resize:hover,
       #apify-radar-content .ar-col-resize:active {
-        background: rgba(255,204,0,0.35);
+        border-right-color: var(--gold, #FFCC00);
+        background: rgba(255,204,0,0.15);
       }
-      /* position:sticky creates a containing block, so the resize handle (absolute) works without overriding it */
 
       /* ── Body rows ── */
       #apify-radar-content .ar-table td {
