@@ -239,12 +239,19 @@ const ApifyRadar = (() => {
 
       /* ── Apply modal overrides ── */
       .job-lead-apply-shell.modal {
-        max-width: 700px;
-        max-height: calc(100vh - 64px);
+        max-width: 900px;
+        max-height: calc(100vh - 48px);
       }
       .job-lead-apply-shell .modal-body {
-        overflow-y: visible;
-        max-height: none;
+        overflow-y: auto;
+        max-height: calc(100vh - 200px);
+      }
+      .job-lead-apply-shell .job-lead-apply-instructions ol {
+        padding-left: 20px;
+        margin-top: 6px;
+      }
+      .job-lead-apply-shell .job-lead-apply-instructions li {
+        margin-bottom: 4px;
       }
 
       /* ── Board source badges ── */
