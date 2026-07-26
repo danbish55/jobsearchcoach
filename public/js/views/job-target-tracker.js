@@ -287,13 +287,12 @@ const JobTargetTracker = (() => {
     const rows = jobs.map(j => {
       const salary = j.salary ? `<span class="jtt-job-salary">${_esc(j.salary)}</span><span class="jtt-job-sep">·</span>` : '';
       const site   = siteLabel[j.site] || j.site || '';
-      const link   = j.urlDirect || j.url || '';
       return `<div class="jtt-job-row">
         <span class="jtt-job-title">${_esc(j.title)}</span>
         <span class="jtt-job-sep">·</span>
         ${salary}
         <span class="jtt-job-site">${_esc(site)}</span>
-        ${link ? `<a class="jtt-job-link" href="${_escAttr(link)}" target="_blank" rel="noopener">Apply →</a>` : ''}
+        ${j.id ? `<button class="jtt-job-link" style="background:none;border:none;padding:0;cursor:pointer;font-size:11px;" onclick="ApifyRadar.applyJob('${_escAttr(j.id)}')">Apply →</button>` : ''}
       </div>`;
     }).join('');
     return `<div class="jtt-jobs-panel has-jobs">

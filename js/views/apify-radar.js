@@ -253,6 +253,9 @@ const ApifyRadar = (() => {
       .job-lead-apply-shell .job-lead-apply-instructions li {
         margin-bottom: 4px;
       }
+      .job-lead-apply-shell .job-lead-cover-text {
+        min-height: 480px;
+      }
 
       /* ── Board source badges ── */
       #apify-radar-content .ar-board-badge {
@@ -832,9 +835,8 @@ Candidate profile:
 - Target roles: ${roles}
 
 Write a professional, specific, and concise cover letter for the following job.
-Start with a simple contact header using the available exact candidate details above.
-If email, phone, or LinkedIn is not available, omit that missing field entirely.
-Sign the letter with the candidate's full name.
+Do not include a contact header, sender name block, date, or separator lines. Begin directly with the opening paragraph.
+Sign the letter with the candidate's full name only — no address block below the signature.
 Never use placeholders such as [Last Name], [Email], [Phone], [LinkedIn], or "your phone number".
 Do not use generic filler phrases. Reference the specific company and role.
 Avoid AI-sounding polish, generic enthusiasm, and formulaic phrasing where possible.
