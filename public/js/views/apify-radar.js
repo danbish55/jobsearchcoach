@@ -616,8 +616,11 @@ const ApifyRadar = (() => {
     return '';
   }
 
-  function _alumniUrl(company) {
-    return 'https://www.linkedin.com/school/university-of-southern-california/people/?keywords=' + encodeURIComponent(company || '');
+  function _alumniUrl(company, school) {
+    const slug = school === 'eller'
+      ? 'eller-college-of-management'
+      : 'university-of-southern-california';
+    return 'https://www.linkedin.com/school/' + slug + '/people/?keywords=' + encodeURIComponent(company || '');
   }
 
   function _jobRowHTML(job) {
@@ -661,7 +664,8 @@ const ApifyRadar = (() => {
       <td class="ar-posted ar-col-posted">${posted}</td>
       <td><span class="ar-state-pill ${stateCls}">${stateLabel}</span></td>
       <td class="ar-actions">
-        <button class="ar-btn" onclick="ApifyRadar.openUscAlumni('${id}')" title="Find USC connections at ${_esc(job.company || '')}">👥 USC</button>
+        <button class="ar-btn" onclick="ApifyRadar.openUscAlumni('${id}','usc')"   title="Find USC alumni at ${_esc(job.company || '')}">USC</button>
+        <button class="ar-btn" onclick="ApifyRadar.openUscAlumni('${id}','eller')" title="Find Eller alumni at ${_esc(job.company || '')}">Eller</button>
         <button class="ar-btn approve ${approveActive}" onclick="ApifyRadar.approveJob('${id}')" title="Approve">✓</button>
         <button class="ar-btn reject  ${rejectActive}"  onclick="ApifyRadar.rejectJob('${id}')"  title="Reject">✗</button>
         <button class="ar-btn apply-btn ${applyActive}" onclick="ApifyRadar.applyJob('${id}')"   title="Open &amp; mark Applied">Apply</button>
@@ -1099,9 +1103,9 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
-  function openUscAlumni(jobId) {
+  function openUscAlumni(jobId, school) {
     const job = _jobs.find(j => j.id === jobId);
-    window.open(_alumniUrl(job ? job.company : ''), '_blank', 'noopener');
+    window.open(_alumniUrl(job ? job.company : '', school), '_blank', 'noopener');
   }
 
   // ── Add Job Manually modal ────────────────────────────────────────────────
