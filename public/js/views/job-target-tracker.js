@@ -71,6 +71,13 @@ const JobTargetTracker = (() => {
     return [...hardcoded, ...custom];
   }
 
+  function _careersSearchUrl(company) {
+    try {
+      const host = new URL(company.careers).hostname;
+      return 'https://www.google.com/search?q=' + encodeURIComponent('site:' + host + ' "Data Analyst" "Los Angeles"');
+    } catch { return company.careers; }
+  }
+
   function _linkedInUrl(name, role) {
     const p = new URLSearchParams({ keywords: `${name} ${role}`, location: 'Los Angeles, CA', f_TPR: 'r2592000' });
     return `https://www.linkedin.com/jobs/search/?${p}`;
@@ -252,7 +259,7 @@ const JobTargetTracker = (() => {
           <button class="jtt-btn" onclick="JobTargetTracker.copyOutreach('${_escAttr(company.name)}')" title="Copy LinkedIn outreach message">📝</button>
           <button class="jtt-btn ${warm ? 'warm' : ''}" onclick="JobTargetTracker.toggleWarm('${_escAttr(company.name)}')" title="${warm ? 'Warm path — click to clear' : 'Mark as warm path'}">${warm ? '🔥' : '🤝'}</button>
           <a class="jtt-btn" href="${_escAttr(liUrl)}" target="_blank" rel="noopener" title="LinkedIn Jobs">LI</a>
-          <a class="jtt-btn" href="${_escAttr(company.careers)}" target="_blank" rel="noopener" title="Careers page">↗</a>
+          <a class="jtt-btn" href="${_escAttr(_careersSearchUrl(company))}" target="_blank" rel="noopener" title="Search careers page for Data Analyst roles">↗</a>
         </div>
       </div>
       ${matchedJobs.length ? _jobsPanelHTML(matchedJobs) : ''}`;
