@@ -253,7 +253,8 @@ const JobTargetTracker = (() => {
             title="Click to change status">${_esc(status)}</span>
         </div>
         <div class="jtt-co-actions">
-          <button class="jtt-btn alumni" onclick="JobTargetTracker.scanAlumni('${_escAttr(company.name)}')" title="Find USC/Eller alumni at this company on LinkedIn">👥 Alumni</button>
+          <button class="jtt-btn alumni" onclick="JobTargetTracker.scanAlumni('${_escAttr(company.name)}')" title="Find USC alumni at this company on LinkedIn">👥 USC</button>
+          <button class="jtt-btn alumni" onclick="JobTargetTracker.scanEllerAlumni('${_escAttr(company.name)}')" title="Find Eller alumni at this company on LinkedIn">👥 Eller</button>
           <button class="jtt-btn" onclick="JobTargetTracker.copyOutreach('${_escAttr(company.name)}')" title="Copy LinkedIn outreach message">📝</button>
           <button class="jtt-btn ${warm ? 'warm' : ''}" onclick="JobTargetTracker.toggleWarm('${_escAttr(company.name)}')" title="${warm ? 'Warm path — click to clear' : 'Mark as warm path'}">${warm ? '🔥' : '🤝'}</button>
           <a class="jtt-btn" href="${_escAttr(liUrl)}" target="_blank" rel="noopener" title="LinkedIn Jobs">LI</a>
@@ -370,6 +371,12 @@ const JobTargetTracker = (() => {
     UI.notify('LinkedIn opened to USC alumni filtered by company. Find someone relevant and use the 📝 button for a ready-to-send message.', 'info', 7000);
   }
 
+  function scanEllerAlumni(name) {
+    const url = `https://www.linkedin.com/school/eller-college-of-management/people/?keywords=${encodeURIComponent(name)}`;
+    window.open(url, '_blank', 'noopener');
+    UI.notify('LinkedIn opened to Eller alumni filtered by company. Find someone relevant and use the 📝 button for a ready-to-send message.', 'info', 7000);
+  }
+
   function copyOutreach(name) {
     const msg = `Hi! I'm a recent USC Marshall MSBA grad and noticed you work at ${name}. I'd love to connect and hear about your experience there — would you be open to a quick chat?`;
     navigator.clipboard.writeText(msg).then(() => {
@@ -446,5 +453,5 @@ const JobTargetTracker = (() => {
     el.scrollTop = el.scrollHeight;
   }
 
-  return { render, cycleStatus, toggleWarm, addCompany, scanAlumni, copyOutreach, filterTier, applyFilters, sendChat };
+  return { render, cycleStatus, toggleWarm, addCompany, scanAlumni, scanEllerAlumni, copyOutreach, filterTier, applyFilters, sendChat };
 })();
