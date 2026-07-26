@@ -236,6 +236,24 @@ const ApifyRadar = (() => {
       }
       @keyframes ar-spin { to { transform: rotate(360deg); } }
 
+      /* ── Scrape progress overlay ── */
+      .ar-scrape-overlay {
+        position: fixed; inset: 0; z-index: 1000;
+        background: rgba(0,0,0,0.55);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .ar-scrape-popup {
+        background: var(--card-bg); border: 1px solid var(--border);
+        border-radius: 14px; padding: 36px 44px; text-align: center; max-width: 360px; width: 90%;
+      }
+      .ar-scrape-popup-spinner {
+        display: inline-block; width: 32px; height: 32px;
+        border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent);
+        border-radius: 50%; animation: ar-spin 0.8s linear infinite; margin-bottom: 16px;
+      }
+      .ar-scrape-popup-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+      .ar-scrape-popup-msg   { font-size: 13px; color: var(--text-muted); }
+
       /* ── Apply modal overrides ── */
       .job-lead-apply-shell.modal {
         max-width: 900px;
@@ -530,6 +548,30 @@ const ApifyRadar = (() => {
     );
     const countEl = document.getElementById('ar-count');
     if (countEl) countEl.textContent = `${visibleCount} of ${total}`;
+  }
+
+  function _showScrapeProgress(msg) {
+    let overlay = document.getElementById('ar-scrape-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'ar-scrape-overlay';
+      overlay.className = 'ar-scrape-overlay';
+      overlay.innerHTML = `
+        <div class="ar-scrape-popup">
+          <div class="ar-scrape-popup-spinner"></div>
+          <div class="ar-scrape-popup-title">Scraping Job Boards…</div>
+          <div class="ar-scrape-popup-msg" id="ar-scrape-popup-msg"></div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+    const msgEl = document.getElementById('ar-scrape-popup-msg');
+    if (msgEl) msgEl.textContent = msg;
+  }
+
+  function _hideScrapeProgress() {
+    const el = document.getElementById('ar-scrape-overlay');
+    if (el) el.style.display = 'none';
   }
 
   function _setSubtitle(text) {
@@ -1003,7 +1045,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     _scraping = true;
     const btn = document.getElementById('ar-rescrape-btn');
     if (btn) { btn.innerHTML = '<span class="ar-scrape-spinner"></span> Starting scrape…'; btn.disabled = true; }
-    _setSubtitle('Starting Job Board Scraper via Apify…');
+    _showScrapeProgress('Starting up — this takes a few minutes…');
 
     try {
       const token = (localStorage.getItem('jsc_apify_token') || 'APIFY_TOKEN_REMOVED').trim();
@@ -1022,8 +1064,8 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
       if (!startResp.ok || startData.ok === false) throw new Error(startData.error || 'Failed to start scrape');
 
       const { runId, laRunId, googleRunId } = startData;
-      if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping all boards (may take a few minutes)…';
-      _setSubtitle('Job Board Scraper running via Apify — please wait…');
+      if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping all boards…';
+      _showScrapeProgress('Running — checking every 15 seconds…');
 
       for (let i = 0; i < 28; i++) {
         await _sleep(15000);
@@ -1035,7 +1077,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
         if (!pollResp.ok || pollData.ok === false) throw new Error(pollData.error || 'Poll error');
 
         if (pollData.status === 'running') {
-          _setSubtitle(`Scraping all boards — ${Math.round((i + 1) * 15 / 60 * 10) / 10} min elapsed…`);
+          _showScrapeProgress(`${Math.round((i + 1) * 15 / 60 * 10) / 10} min elapsed — still running…`);
           continue;
         }
         if (pollData.status === 'succeeded') {
@@ -1073,6 +1115,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
       _setSubtitle('Scrape failed — ' + err.message);
     } finally {
       _scraping = false;
+      _hideScrapeProgress();
       if (btn) { btn.innerHTML = '📡 Re-Scrape All Boards'; btn.disabled = false; }
     }
   }
