@@ -1041,30 +1041,25 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     _showScrapeProgress('Starting up — this takes a few minutes…');
 
     try {
-      const token = (localStorage.getItem('jsc_apify_token') || 'APIFY_TOKEN_REMOVED').trim();
+      const token = (localStorage.getItem('jsc_apify_token') || '').trim();
       let cfg = {};
       try { cfg = JSON.parse(localStorage.getItem('jsc_apify_cfg') || '{}'); } catch {}
 
-      const searchCities = Array.isArray(cfg.search_cities) && cfg.search_cities.length
-        ? cfg.search_cities
-        : ['Los Angeles CA','Dallas TX','Houston TX','Austin TX','Denver CO','Salt Lake City UT','Portland OR','Phoenix AZ','Las Vegas NV','St. Louis MO','Kansas City MO'];
       const startResp = await fetch('/api/apify/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, role_keyword: cfg.role_keyword || 'Data Analyst', min_results: cfg.min_results || 50, searchCities }),
+        body: JSON.stringify({ token, role_keyword: cfg.role_keyword || 'Data Analyst', min_results: cfg.min_results || 50 }),
       });
       const startData = await startResp.json();
       if (!startResp.ok || startData.ok === false) throw new Error(startData.error || 'Failed to start scrape');
 
-      const { runId, laRunId, googleRunId } = startData;
+      const { runId } = startData;
       if (btn) btn.innerHTML = '<span class="ar-scrape-spinner"></span> Scraping all boards…';
       _showScrapeProgress('Running — checking every 15 seconds…');
 
       for (let i = 0; i < 28; i++) {
         await _sleep(15000);
-        let pollUrl = `/api/apify/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`;
-        if (laRunId)     pollUrl += `&laRunId=${encodeURIComponent(laRunId)}`;
-        if (googleRunId) pollUrl += `&googleRunId=${encodeURIComponent(googleRunId)}`;
+        const pollUrl = `/api/apify/poll?runId=${encodeURIComponent(runId)}&token=${encodeURIComponent(token)}`;
         const pollResp = await fetch(pollUrl);
         const pollData = await pollResp.json();
         if (!pollResp.ok || pollData.ok === false) throw new Error(pollData.error || 'Poll error');

@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
 
-// Actor 1: openclawai/job-board-scraper — returns LinkedIn + Indeed reliably
-const LI_IN_ACTOR  = 'DYFzkdbYmMF6x7QMG';
-// Actor 2: gio21/google-jobs-scraper — Google Jobs meta-aggregator (Glassdoor, company ATSes, and more)
-const GOOGLE_ACTOR = 'WJwHh23YVZFh9CIx6';
-const APIFY_BASE   = 'https://api.apify.com/v2';
+const ACTOR_ID   = 'jpraRc4MCUh5ehbHV'; // agentx/all-jobs-scraper — 39 boards
+const APIFY_BASE = 'https://api.apify.com/v2';
 
 export async function POST(req: Request) {
   try {
     const body  = await req.json().catch(() => ({}));
-    const token = String(body.token || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
+    const token = String(body.token || process.env.APIFY_TOKEN || '').trim();
     if (!token) {
       return NextResponse.json(
         { ok: false, error: 'Apify token not found. Save it in Settings → Job Board Scraper first.' },
@@ -17,76 +14,34 @@ export async function POST(req: Request) {
       );
     }
 
-    const maxResults = Math.min(Number(body.min_results) || 50, 100);
-    const roleKw = String(body.role_keyword || 'entry level data analyst').trim();
-    const searchCities: string[] = Array.isArray(body.searchCities) && body.searchCities.length
-      ? body.searchCities
-      : ['Los Angeles CA','Dallas TX','Houston TX','Austin TX','Denver CO','Salt Lake City UT','Portland OR','Phoenix AZ','Las Vegas NV','St. Louis MO','Kansas City MO'];
+    // max_results is per-platform; 4 platforms × 25 = ~100 total
+    const perPlatform = Math.min(Math.ceil((Number(body.min_results) || 50) / 4), 50);
+    const roleKw      = String(body.role_keyword || 'Data Analyst').trim();
 
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
+    const resp = await fetch(`${APIFY_BASE}/acts/${ACTOR_ID}/runs`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        keyword:     roleKw,
+        country:     'United States',
+        max_results: perPlatform,
+        job_type:    'fulltime',
+        platforms:   ['LinkedIn', 'Indeed', 'Glassdoor', 'ZipRecruiter'],
+      }),
+    });
 
-    // Pass 1a: LinkedIn + Indeed, US-wide with salary filter (catches national remote + posted-pay roles)
-    const liUsPayload = {
-      searchTerm: roleKw,
-      location: 'United States',
-      sites: ['linkedin', 'indeed'],
-      maxResults,
-      enforceAnnualSalary: true,
-      descriptionFormat: 'markdown',
-      countryIndeed: 'usa',
-    };
-
-    // Pass 1b: LinkedIn + Indeed, LA-targeted, no salary filter (catches local listings that don't post pay)
-    const liLaPayload = {
-      searchTerm: roleKw,
-      location: 'Los Angeles, CA',
-      sites: ['linkedin', 'indeed'],
-      maxResults,
-      enforceAnnualSalary: false,
-      descriptionFormat: 'markdown',
-      countryIndeed: 'usa',
-    };
-
-    // Pass 2: Google Jobs — one query per search city, aggregates Glassdoor, Greenhouse, Lever, ATS pages
-    const googlePayload = {
-      queries: searchCities.map(city => `${roleKw} ${city}`),
-      countryCode: 'us',
-      datePosted: 'week',
-      jobType: ['FULLTIME'],
-      maxItems: maxResults,
-    };
-
-    // Start all three in parallel
-    const [liUsResp, liLaResp, googleResp] = await Promise.all([
-      fetch(`${APIFY_BASE}/acts/${LI_IN_ACTOR}/runs`, { method: 'POST', headers, body: JSON.stringify(liUsPayload) }),
-      fetch(`${APIFY_BASE}/acts/${LI_IN_ACTOR}/runs`, { method: 'POST', headers, body: JSON.stringify(liLaPayload) }),
-      fetch(`${APIFY_BASE}/acts/${GOOGLE_ACTOR}/runs`, { method: 'POST', headers, body: JSON.stringify(googlePayload) }),
-    ]);
-
-    const liUsData   = await liUsResp.json();
-    const liLaData   = await liLaResp.json();
-    const googleData = await googleResp.json();
-
-    if (!liUsResp.ok) {
-      const msg = liUsData?.error?.message || JSON.stringify(liUsData);
-      return NextResponse.json({ ok: false, error: `LI/IN (US) actor error ${liUsResp.status}: ${msg}` }, { status: 500 });
+    const data = await resp.json();
+    if (!resp.ok) {
+      const msg = data?.error?.message || JSON.stringify(data);
+      return NextResponse.json({ ok: false, error: `Actor error ${resp.status}: ${msg}` }, { status: 500 });
     }
 
-    const runId = liUsData?.data?.id || '';
+    const runId = data?.data?.id || '';
     if (!runId) {
-      return NextResponse.json({ ok: false, error: 'No run ID returned from Apify (LI/IN US actor).' }, { status: 500 });
+      return NextResponse.json({ ok: false, error: 'No run ID returned from Apify.' }, { status: 500 });
     }
 
-    const laRunId     = liLaResp.ok     ? (liLaData?.data?.id    || '') : '';
-    const googleRunId = googleResp.ok   ? (googleData?.data?.id  || '') : '';
-
-    if (!liLaResp.ok)   console.warn('[apify/run] LI/IN LA actor failed to start:',    liLaData?.error?.message);
-    if (!googleResp.ok) console.warn('[apify/run] Google Jobs actor failed to start:', googleData?.error?.message);
-
-    return NextResponse.json({ ok: true, runId, laRunId, googleRunId, count: maxResults });
+    return NextResponse.json({ ok: true, runId, count: perPlatform * 4 });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

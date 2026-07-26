@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const ACTOR_ID   = 'DYFzkdbYmMF6x7QMG'; // iskoren/multi-job-board-scraper
 const APIFY_BASE = 'https://api.apify.com/v2';
 
-// Mirrors app/api/apify/config/route.ts DEFAULT_CONFIG scoring rules.
 const SCORING = {
   skills_max: 40, experience_max: 30, trajectory_max: 20, preference_max: 10,
   title_tier1_pts: 20, title_tier2_pts: 12, title_tier3_pts: 5,
@@ -46,15 +44,20 @@ interface ScoredJob {
   description: string; isRemoteFlag: boolean;
   score: number; score_breakdown: { skills: number; experience: number; trajectory: number; preference: number };
   skills_matched: string[]; approval_state: string;
-  applicantsCount: number | null;
 }
 
 function scoreJob(item: Record<string, unknown>): ScoredJob {
-  // New actor field names
-  const rawDesc    = String(item.description || '');
-  const desc       = rawDesc.toLowerCase();
-  const title      = String(item.title    || '').toLowerCase();
-  const location   = String(item.location || '').toLowerCase();
+  const rawDesc = String(item.description || '');
+  const desc    = rawDesc.toLowerCase();
+  const title   = String(item.title || '').toLowerCase();
+
+  // agentx returns location as {raw, locality, region, ...}; openclawai returns a string
+  const rawLoc  = item.location;
+  const locStr  = typeof rawLoc === 'object' && rawLoc !== null
+    ? String((rawLoc as Record<string, unknown>).raw || '')
+    : String(rawLoc || '');
+  const location = locStr.toLowerCase();
+
   const seniority  = String(item.job_level || item.seniority || item.seniorityLevel || '').toLowerCase();
   const isRemoteRaw = item.is_remote === true || location.includes('remote');
 
@@ -126,17 +129,15 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
   } else {
     prefScore = SCORING.location_non_preferred_pts;
   }
-  // Bonus point if salary is known
-  const salaryMin = typeof item.salary_min === 'number' ? item.salary_min : null;
-  const salaryMax = typeof item.salary_max === 'number' ? item.salary_max : null;
+  const salaryMin = typeof item.salary_minimum === 'number' ? item.salary_minimum
+                  : typeof item.salary_min     === 'number' ? item.salary_min : null;
+  const salaryMax = typeof item.salary_maximum === 'number' ? item.salary_maximum
+                  : typeof item.salary_max     === 'number' ? item.salary_max : null;
   if (salaryMin || salaryMax) prefScore = Math.min(prefScore + 1, SCORING.preference_max);
   prefScore = Math.min(prefScore, SCORING.preference_max);
 
   const total = Math.max(0, Math.min(100, skillsScore + expScore + trajScore + prefScore));
 
-  // Build a human-readable salary string
-  const salaryCurrency = String(item.salary_currency || 'USD');
-  const salaryInterval = String(item.salary_interval || '');
   let salaryDisplay: string | null = null;
   if (salaryMin && salaryMax) {
     salaryDisplay = `$${Math.round(salaryMin / 1000)}K–$${Math.round(salaryMax / 1000)}K/yr`;
@@ -146,36 +147,39 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
     salaryDisplay = `Up to $${Math.round(salaryMax / 1000)}K/yr`;
   }
 
-  const url       = String(item.job_url || '');
-  const urlDirect = String(item.job_url_direct || '') || null;
+  // agentx uses platform/platform_url; openclawai uses site/job_url
+  const url       = String(item.platform_url || item.job_url || '');
+  const urlDirect = String(item.official_url || item.job_url_direct || '') || null;
+  const site      = String(item.platform || item.site || '').toLowerCase();
+
+  // agentx uses company_name (flat string); openclawai uses company/companyName
+  const companyRaw = item.company_name ?? item.company ?? item.companyName ?? '';
+  const company    = typeof companyRaw === 'object' && companyRaw !== null
+    ? String((companyRaw as Record<string, unknown>).name || '')
+    : String(companyRaw);
 
   return {
     id: url || String(item.id || ''),
     title: String(item.title || ''),
-    company: String(item.company || item.companyName || ''),
-    location: String(item.location || ''),
-    url, urlDirect,
-    site: String(item.site || ''),
+    company,
+    location: locStr,
+    url, urlDirect, site,
     salary: salaryDisplay,
-    salaryMin, salaryMax, salaryCurrency, salaryInterval,
+    salaryMin, salaryMax,
+    salaryCurrency: String(item.salary_currency || 'USD'),
+    salaryInterval: String(item.salary_period || item.salary_interval || ''),
     seniorityLevel: String(item.job_level || item.seniority || item.seniorityLevel || ''),
     employmentType: String(item.job_type || item.employmentType || ''),
-    postedAt: String(item.date_posted || item.postedAt || ''),
+    postedAt: String(item.posted_date || item.date_posted || item.postedAt || ''),
     description: rawDesc.substring(0, 4000),
     isRemoteFlag: isRemote,
     score: total,
     score_breakdown: { skills: skillsScore, experience: expScore, trajectory: trajScore, preference: prefScore },
     skills_matched: matchedSkills, approval_state: 'pending_review',
-    applicantsCount: (typeof item.num_applicants === 'number' ? item.num_applicants
-      : typeof item.applicantsCount === 'number' ? item.applicantsCount
-      : typeof item.numApplicants === 'number' ? item.numApplicants
-      : typeof item.applicantCount === 'number' ? item.applicantCount
-      : null),
   };
 }
 
 const EXCLUDED_SENIORITIES = ['mid-senior level', 'senior level', 'director', 'executive', 'management'];
-
 const SENIOR_TITLE_RE = /\b(senior|sr\.?|lead|manager|director|principal|head of|vp|vice president|chief|staff)\b/i;
 
 function isExcluded(job: ScoredJob): boolean {
@@ -191,62 +195,6 @@ function isExcluded(job: ScoredJob): boolean {
   return false;
 }
 
-// Map gio21/google-jobs-scraper fields to the same shape scoreJob() expects,
-// then score through the same pipeline so both actor outputs are treated identically.
-function scoreGoogleJob(item: Record<string, unknown>): ScoredJob {
-  // Annualise salary (gio21 can return HOUR / MONTH / YEAR)
-  const period = String(item.salaryPeriod || 'YEAR').toUpperCase();
-  const mult   = period === 'HOUR' ? 2080 : period === 'MONTH' ? 12 : 1;
-  const rawMin = typeof item.salaryMin === 'number' ? item.salaryMin * mult : null;
-  const rawMax = typeof item.salaryMax === 'number' ? item.salaryMax * mult : null;
-
-  // postedVia or via — field name varies by actor version
-  const via  = String(item.postedVia || item.via || '').toLowerCase();
-  const site = via.includes('linkedin')     ? 'linkedin'
-             : via.includes('indeed')       ? 'indeed'
-             : via.includes('glassdoor')    ? 'glassdoor'
-             : via.includes('ziprecruiter') ? 'zip_recruiter'
-             : 'google';
-
-  // Build the best URL: cast wide across every field gio21 might populate
-  const applyOptions  = Array.isArray(item.applyOptions)  ? item.applyOptions  as Record<string, unknown>[] : [];
-  const relatedLinks  = Array.isArray(item.relatedLinks)  ? item.relatedLinks  as Record<string, unknown>[] : [];
-
-  const directUrl = String(
-    applyOptions[0]?.link          ||   // primary gio21 field
-    applyOptions[0]?.url           ||
-    applyOptions[0]?.applicationLink ||
-    item.url                       ||   // root-level Google canonical URL
-    item.jobUrl                    ||
-    item.link                      ||
-    relatedLinks[0]?.link          ||   // sometimes populated when applyOptions is empty
-    ''
-  );
-
-  // Last resort: a Google Jobs search for this title+company always lets the user find the posting
-  const title   = String(item.title       || '').trim();
-  const company = String(item.companyName || '').trim();
-  const bestUrl = directUrl || (title
-    ? `https://www.google.com/search?q=${encodeURIComponent(company ? `${title} ${company}` : title)}&ibp=htl;jobs`
-    : '');
-
-  return scoreJob({
-    title:           item.title,
-    company:         item.companyName,
-    location:        item.location,
-    description:     item.description,
-    salary_min:      rawMin,
-    salary_max:      rawMax,
-    salary_currency: item.salaryCurrency || 'USD',
-    salary_interval: period === 'YEAR' ? 'yearly' : period.toLowerCase(),
-    is_remote:       item.workFromHome === true,
-    job_type:        item.jobType,
-    date_posted:     item.postedAtIso,
-    job_url:         bestUrl,
-    site,
-  });
-}
-
 // Deduplicate by normalised title+company — keep the higher-scored copy.
 function deduplicateJobs(jobs: ScoredJob[]): ScoredJob[] {
   const seen = new Map<string, ScoredJob>();
@@ -258,110 +206,56 @@ function deduplicateJobs(jobs: ScoredJob[]): ScoredJob[] {
   return Array.from(seen.values());
 }
 
-async function checkRun(runId: string, token: string): Promise<{ status: string; datasetId: string }> {
-  const resp = await fetch(`${APIFY_BASE}/actor-runs/${runId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!resp.ok) throw new Error(`Apify status check failed (${runId}): ${resp.status}`);
-  const data = await resp.json();
-  return {
-    status:    String(data?.data?.status || '').toUpperCase(),
-    datasetId: String(data?.data?.defaultDatasetId || ''),
-  };
-}
-
-async function fetchDataset(datasetId: string, token: string): Promise<Record<string, unknown>[]> {
-  const resp = await fetch(
-    `${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=400`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!resp.ok) throw new Error(`Could not fetch dataset ${datasetId}: ${resp.status}`);
-  const items = await resp.json();
-  return Array.isArray(items) ? items : [];
-}
-
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const runId       = searchParams.get('runId')       || '';
-    const laRunId     = searchParams.get('laRunId')     || '';
-    const googleRunId = searchParams.get('googleRunId') || '';
-    const token       = String(searchParams.get('token') || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
+    const runId = searchParams.get('runId') || '';
+    const token = String(searchParams.get('token') || process.env.APIFY_TOKEN || '').trim();
 
-    if (!runId) return NextResponse.json({ ok: false, error: 'Missing runId' }, { status: 400 });
-    if (!token) return NextResponse.json({ ok: false, error: 'Missing token' }, { status: 400 });
+    if (!runId)  return NextResponse.json({ ok: false, error: 'Missing runId' },  { status: 400 });
+    if (!token)  return NextResponse.json({ ok: false, error: 'Missing token' },  { status: 400 });
 
-    // Poll all three actors in parallel — LA and Google are optional
-    const [liUsCheck, liLaCheck, googleCheck] = await Promise.all([
-      checkRun(runId, token),
-      laRunId     ? checkRun(laRunId,     token) : Promise.resolve({ status: 'SUCCEEDED', datasetId: '' }),
-      googleRunId ? checkRun(googleRunId, token) : Promise.resolve({ status: 'SUCCEEDED', datasetId: '' }),
-    ]);
+    const authHeaders = { Authorization: `Bearer ${token}` };
 
-    const PENDING = new Set(['RUNNING', 'READY', '']);
-    if (
-      PENDING.has(liUsCheck.status) ||
-      (laRunId     && PENDING.has(liLaCheck.status)) ||
-      (googleRunId && PENDING.has(googleCheck.status))
-    ) {
+    const runResp = await fetch(`${APIFY_BASE}/actor-runs/${runId}`, { headers: authHeaders });
+    if (!runResp.ok) throw new Error(`Apify status check failed: ${runResp.status}`);
+    const runData = await runResp.json();
+    const status    = String(runData?.data?.status || '').toUpperCase();
+    const datasetId = String(runData?.data?.defaultDatasetId || '');
+
+    if (['RUNNING', 'READY', ''].includes(status)) {
       return NextResponse.json({ ok: true, status: 'running' });
     }
-    if (liUsCheck.status !== 'SUCCEEDED') {
-      return NextResponse.json({ ok: false, error: `LI/IN (US) run ended: ${liUsCheck.status}` }, { status: 500 });
+    if (status !== 'SUCCEEDED') {
+      return NextResponse.json({ ok: false, error: `Run ended: ${status}` }, { status: 500 });
     }
 
-    // Fetch all three datasets in parallel
-    const [liUsItems, liLaItems, googleItems] = await Promise.all([
-      fetchDataset(liUsCheck.datasetId, token),
-      (laRunId && liLaCheck.status === 'SUCCEEDED' && liLaCheck.datasetId)
-        ? fetchDataset(liLaCheck.datasetId, token)
-        : Promise.resolve([] as Record<string, unknown>[]),
-      (googleRunId && googleCheck.status === 'SUCCEEDED' && googleCheck.datasetId)
-        ? fetchDataset(googleCheck.datasetId, token)
-        : Promise.resolve([] as Record<string, unknown>[]),
-    ]);
+    const dsResp = await fetch(`${APIFY_BASE}/datasets/${datasetId}/items?format=json&limit=400`, { headers: authHeaders });
+    if (!dsResp.ok) throw new Error(`Could not fetch dataset ${datasetId}: ${dsResp.status}`);
+    const raw  = await dsResp.json();
+    const items: Record<string, unknown>[] = Array.isArray(raw) ? raw : [];
 
-    // Per-site raw counts for debug
     const rawBySite: Record<string, number> = {};
-    for (const item of [...liUsItems, ...liLaItems]) {
-      const s = String(item.site || 'unknown');
-      rawBySite[s] = (rawBySite[s] || 0) + 1;
-    }
-    for (const item of googleItems) {
-      const via = String(item.postedVia || '').toLowerCase();
-      const s   = via.includes('linkedin')     ? 'linkedin'
-                : via.includes('indeed')       ? 'indeed'
-                : via.includes('glassdoor')    ? 'glassdoor'
-                : via.includes('ziprecruiter') ? 'zip_recruiter'
-                : 'google';
+    for (const item of items) {
+      const s = String(item.platform || item.site || 'unknown').toLowerCase();
       rawBySite[s] = (rawBySite[s] || 0) + 1;
     }
 
-    // Score all three sets through the same pipeline
-    const liUsScored  = liUsItems.map(item => scoreJob(item));
-    const liLaScored  = liLaItems.map(item => scoreJob(item));
-    const googleScored = googleItems.map(item => scoreGoogleJob(item));
-
-    // Merge → exclude seniors → deduplicate → score threshold → sort
-    const merged   = [...liUsScored, ...liLaScored, ...googleScored];
-    const afterExcl = merged.filter(j => !isExcluded(j));
-    const deduped   = deduplicateJobs(afterExcl);
-    const scored    = deduped
+    const scored = items
+      .map(item => scoreJob(item))
+      .filter(j => !isExcluded(j));
+    const deduped = deduplicateJobs(scored)
       .filter(j => j.score >= SCORING.min_score_threshold)
       .sort((a, b) => b.score - a.score);
 
     const debug = {
-      rawTotal:         liUsItems.length + liLaItems.length + googleItems.length,
-      rawLiUs:          liUsItems.length,
-      rawLiLa:          liLaItems.length,
-      rawGoogle:        googleItems.length,
+      rawTotal:       items.length,
       rawBySite,
-      afterExclusion:   afterExcl.length,
-      afterDedup:       deduped.length,
-      afterScoreFilter: scored.length,
+      afterExclusion: scored.length,
+      afterDedup:     deduped.length,
     };
 
-    return NextResponse.json({ ok: true, status: 'succeeded', jobs: scored, count: scored.length, debug });
+    return NextResponse.json({ ok: true, status: 'succeeded', jobs: deduped, count: deduped.length, debug });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
