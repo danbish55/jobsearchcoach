@@ -72,10 +72,8 @@ const JobTargetTracker = (() => {
   }
 
   function _careersSearchUrl(company) {
-    try {
-      const host = new URL(company.careers).hostname;
-      return 'https://www.google.com/search?q=' + encodeURIComponent('site:' + host + ' "Data Analyst" "Los Angeles"');
-    } catch { return company.careers; }
+    const q = '"' + company.name + '" "Data Analyst" "Los Angeles" careers';
+    return 'https://www.google.com/search?q=' + encodeURIComponent(q);
   }
 
   function _linkedInUrl(name, role) {
