@@ -679,10 +679,7 @@ const ApifyRadar = (() => {
     const job = _jobs.find(j => j.id === jobId);
     if (!job) return;
 
-    // 1. Open the posting
-    if (job.url) window.open(job.url, '_blank', 'noopener');
-
-    // 2. Copy profile info to clipboard
+    // 1. Copy profile info to clipboard
     try {
       await _arCopyText(_arProfileClipboard());
       UI.notify('Profile info copied to clipboard', 'success');
@@ -690,7 +687,7 @@ const ApifyRadar = (() => {
       UI.notify('Could not copy profile info automatically', 'error');
     }
 
-    // 3. Show the apply modal
+    // 2. Show the apply modal (user opens the posting from within)
     _arShowApplyModal(job);
   }
 
@@ -704,15 +701,16 @@ const ApifyRadar = (() => {
         <section class="job-lead-apply-section">
           <div class="job-lead-apply-section-title">Quick Actions</div>
           <div class="job-lead-apply-actions">
-            <button class="btn btn-primary btn-sm" onclick="ApifyRadar.openResumeFolder()">Open Resume Folder</button>
+            ${job.url ? `<button class="btn btn-primary btn-sm" onclick="window.open('${_esc(job.url)}','_blank','noopener')">Open Job Posting</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="ApifyRadar.openResumeFolder()">Open Resume Folder</button>
             <button class="btn btn-gold btn-sm" onclick="ApifyRadar.draftCoverLetter()">Draft Cover Letter</button>
           </div>
           <p class="job-lead-apply-note">Profile info copied to clipboard &#10003;</p>
           <div class="job-lead-apply-instructions">
             <strong>Suggested application flow:</strong>
             <ol>
+              <li>Click "Open Job Posting" above to open the listing.</li>
               <li>Draft the cover letter here and save a copy if you want to keep it.</li>
-              <li>The job posting is already open — follow the employer's application steps.</li>
               <li>Select the best resume from the resume folder and paste the cover letter if the form asks for one.</li>
               <li>Submit on the job site first, then come back here and click "Yes, I Applied."</li>
             </ol>
