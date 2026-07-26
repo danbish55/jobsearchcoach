@@ -1756,10 +1756,22 @@ body.light .startup-preloader-bar {
 .task-label.done { color: var(--text-muted); text-decoration: line-through; }
 
 /* === Coach View === */
+#view-coach { padding-top: 16px; padding-bottom: 0; }
+
+.coach-quote {
+  font-style: italic;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 10px 16px 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
 .coach-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 56px);
+  height: calc(100vh - 140px);
   gap: 0;
 }
 .coach-header {
