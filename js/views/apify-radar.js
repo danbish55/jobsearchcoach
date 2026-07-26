@@ -617,10 +617,12 @@ const ApifyRadar = (() => {
   }
 
   function _alumniUrl(company, school) {
-    const slug = school === 'eller'
-      ? 'eller-college-of-management'
-      : 'university-of-southern-california';
-    return 'https://www.linkedin.com/school/' + slug + '/people/?keywords=' + encodeURIComponent(company || '');
+    const kw = school === 'eller'
+      ? encodeURIComponent((company || '') + ' Eller College of Management')
+      : encodeURIComponent(company || '');
+    return school === 'eller'
+      ? 'https://www.linkedin.com/search/results/people/?keywords=' + kw
+      : 'https://www.linkedin.com/school/university-of-southern-california/people/?keywords=' + kw;
   }
 
   function _jobRowHTML(job) {
