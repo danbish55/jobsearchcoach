@@ -46,6 +46,7 @@ interface ScoredJob {
   description: string; isRemoteFlag: boolean;
   score: number; score_breakdown: { skills: number; experience: number; trajectory: number; preference: number };
   skills_matched: string[]; approval_state: string;
+  applicantsCount: number | null;
 }
 
 function scoreJob(item: Record<string, unknown>): ScoredJob {
@@ -165,6 +166,11 @@ function scoreJob(item: Record<string, unknown>): ScoredJob {
     score: total,
     score_breakdown: { skills: skillsScore, experience: expScore, trajectory: trajScore, preference: prefScore },
     skills_matched: matchedSkills, approval_state: 'pending_review',
+    applicantsCount: (typeof item.num_applicants === 'number' ? item.num_applicants
+      : typeof item.applicantsCount === 'number' ? item.applicantsCount
+      : typeof item.numApplicants === 'number' ? item.numApplicants
+      : typeof item.applicantCount === 'number' ? item.applicantCount
+      : null),
   };
 }
 

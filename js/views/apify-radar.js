@@ -560,7 +560,7 @@ const ApifyRadar = (() => {
           ${_thHTML('employmentType', 'Type',       '90px')}
           ${_thHTML('seniorityLevel', 'Level',      '90px')}
           ${_thHTML('salary',         'Salary',     '110px')}
-          ${_thHTML('applicantsCount','Applicants', '85px')}
+          ${_thHTML('applicantsCount','Applied',    '62px')}
           ${_thHTML('postedAt',       'Posted',     '80px')}
           ${_thHTML('approval_state', 'Status',     '80px')}
           <th style="width:155px;min-width:155px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
