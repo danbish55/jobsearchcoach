@@ -3,8 +3,6 @@ const JobTargetTracker = (() => {
   const STORAGE_KEY  = 'job_target_tracker';
   const CUSTOM_KEY   = 'jtt_custom_companies';
   let _activeTier    = 'all';
-  let _expandedSet   = new Set();
-  let _scanningSet   = new Set();
   let _chat          = [];
 
   // ── Hardcoded company list ────────────────────────────────────────────────
@@ -65,10 +63,6 @@ const JobTargetTracker = (() => {
   function _escAttr(str) { return _esc(str).replace(/'/g,'&#39;'); }
   function _state()      { return Storage.get(STORAGE_KEY, {}); }
   function _save(state)  { Storage.set(STORAGE_KEY, state); }
-  function _alumniCacheKey(name)       { return 'jtt_alumni_' + _rowId(name); }
-  function _alumniCache(name)          { return Storage.get(_alumniCacheKey(name), null); }
-  function _saveAlumniCache(name, data){ Storage.set(_alumniCacheKey(name), data); }
-  function _alumniForCompany(name)     { return _alumniCache(name)?.alumni || []; }
   function _customCompanies(){ return Storage.get(CUSTOM_KEY, []); }
 
   function _allCompanies(tier) {
@@ -152,23 +146,6 @@ const JobTargetTracker = (() => {
         .jtt-job-link:hover { text-decoration: underline; }
         .jtt-jobs-header { padding: 4px 12px 4px 26px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); opacity: 0.7; }
 
-        /* ── Alumni panel ── */
-        .jtt-alumni-panel { border-bottom: 1px solid var(--border); background: rgba(10,102,194,0.04); padding: 10px 14px 10px 20px; display: none; }
-        .jtt-alumni-panel.open { display: block; }
-        .jtt-alumni-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .jtt-alumni-title  { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0A66C2; }
-        .jtt-alumni-meta   { font-size: 11px; color: var(--text-muted); margin-left: auto; }
-        .jtt-alumni-rescan { font-size: 11px; color: #0A66C2; cursor: pointer; font-weight: 600; }
-        .jtt-alumni-list   { display: flex; flex-direction: column; gap: 5px; }
-        .jtt-alumni-person { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-        .jtt-alumni-name   { font-weight: 600; color: var(--text); }
-        .jtt-alumni-hl     { color: var(--text-muted); font-size: 11px; }
-        .jtt-alumni-school { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; color: #fff; flex-shrink: 0; }
-        .jtt-alumni-school.usc { background: #9D2235; }
-        .jtt-alumni-school.ua  { background: #003B73; }
-        .jtt-alumni-link   { color: #0A66C2; text-decoration: none; font-size: 11px; flex-shrink: 0; }
-        .jtt-alumni-link:hover { text-decoration: underline; }
-        .jtt-alumni-empty  { font-size: 12px; color: var(--text-muted); font-style: italic; }
 
         .jtt-add-row { display: flex; gap: 8px; align-items: center; padding: 8px 14px; border-top: 1px dashed var(--border); flex-wrap: wrap; }
         .jtt-add-row input, .jtt-add-row select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text); font-size: 12px; }
@@ -245,11 +222,6 @@ const JobTargetTracker = (() => {
     const state   = _state()[company.name] || {};
     const status  = state.status  || '—';
     const warm    = state.warm    || false;
-    const isScanning    = _scanningSet.has(company.name);
-    const cache         = _alumniCache(company.name);
-    const hasScan       = cache != null;
-    const isExpanded    = _expandedSet.has(company.name);
-    const matchedAlumni = _alumniForCompany(company.name);
     const color   = TIER_META[tier].color;
     const liUrl   = _linkedInUrl(company.name, company.role);
 
@@ -257,8 +229,6 @@ const JobTargetTracker = (() => {
     const statusStyle = statusColor
       ? `background:${statusColor}20;border-color:${statusColor};color:${statusColor}`
       : 'background:var(--card-hover);border-color:var(--border);color:var(--text-muted)';
-
-    const alumniLabel = isScanning ? '⏳' : hasScan ? `👥 ${matchedAlumni.length}` : '👥 Scan';
 
     const matchedJobs = _jobsForCompany(company.name);
 
@@ -278,20 +248,14 @@ const JobTargetTracker = (() => {
             title="Click to change status">${_esc(status)}</span>
         </div>
         <div class="jtt-co-actions">
-          <button class="jtt-btn alumni ${isExpanded && hasScan ? 'active' : ''}"
-            ${isScanning ? 'disabled' : ''}
-            onclick="JobTargetTracker.${hasScan ? `toggleAlumni` : `scanAlumni`}('${_escAttr(company.name)}')"
-            title="${hasScan ? 'Toggle alumni panel' : 'Find USC/Eller alumni at this company'}"
-            >${alumniLabel}</button>
+          <button class="jtt-btn alumni" onclick="JobTargetTracker.scanAlumni('${_escAttr(company.name)}')" title="Find USC/Eller alumni at this company on LinkedIn">👥 Alumni</button>
+          <button class="jtt-btn" onclick="JobTargetTracker.copyOutreach('${_escAttr(company.name)}')" title="Copy LinkedIn outreach message">📝</button>
           <button class="jtt-btn ${warm ? 'warm' : ''}" onclick="JobTargetTracker.toggleWarm('${_escAttr(company.name)}')" title="${warm ? 'Warm path — click to clear' : 'Mark as warm path'}">${warm ? '🔥' : '🤝'}</button>
           <a class="jtt-btn" href="${_escAttr(liUrl)}" target="_blank" rel="noopener" title="LinkedIn Jobs">LI</a>
           <a class="jtt-btn" href="${_escAttr(company.careers)}" target="_blank" rel="noopener" title="Careers page">↗</a>
         </div>
       </div>
-      ${matchedJobs.length ? _jobsPanelHTML(matchedJobs) : ''}
-      <div class="jtt-alumni-panel ${isExpanded && hasScan ? 'open' : ''}" id="jtt-alumni-${_rowId(company.name)}">
-        ${isExpanded && hasScan ? _alumniPanelInnerHTML(company.name, matchedAlumni, cache.ts) : ''}
-      </div>`;
+      ${matchedJobs.length ? _jobsPanelHTML(matchedJobs) : ''}`;
   }
 
   function _rowId(name) {
@@ -333,33 +297,6 @@ const JobTargetTracker = (() => {
     </div>`;
   }
 
-  function _alumniPanelInnerHTML(name, alumni, ts) {
-    const schoolLabel = (s) => {
-      if (!s) return '';
-      const sl = s.toLowerCase();
-      if (sl.includes('marshall') || sl.includes('usc')) return '<span class="jtt-alumni-school usc">USC</span>';
-      if (sl.includes('eller') || sl.includes('arizona')) return '<span class="jtt-alumni-school ua">UA</span>';
-      return '';
-    };
-    return `
-      <div class="jtt-alumni-header">
-        <span class="jtt-alumni-title">Alumni at ${_esc(name)}</span>
-        <span class="jtt-alumni-meta">Scanned ${_timeAgo(ts)}</span>
-        <span class="jtt-alumni-rescan" onclick="JobTargetTracker.scanAlumni('${_esc(name)}')">↻ Rescan</span>
-      </div>
-      <div class="jtt-alumni-list">
-        ${alumni.length === 0
-          ? '<div class="jtt-alumni-empty">No recent USC/Eller alumni found at this company.</div>'
-          : alumni.map(p => `
-            <div class="jtt-alumni-person">
-              ${schoolLabel(p.school)}
-              <span class="jtt-alumni-name">${_esc(p.name)}</span>
-              <span class="jtt-alumni-hl">${_esc(p.headline)}</span>
-              ${p.profileUrl ? `<a class="jtt-alumni-link" href="${_escAttr(p.profileUrl)}" target="_blank" rel="noopener">View →</a>` : ''}
-            </div>`).join('')}
-      </div>`;
-  }
-
   function _addRowHTML(tier) {
     return `
       <div class="jtt-add-row" id="jtt-add-${tier}">
@@ -396,17 +333,11 @@ const JobTargetTracker = (() => {
       const all = _allCompanies(tier);
       const co  = all.find(c => c.name === name);
       if (co) {
-        const rid     = _rowId(name);
-        const rowEl   = document.getElementById(`jtt-row-${rid}`);
-        const panelEl = document.getElementById(`jtt-alumni-${rid}`);
+        const rowEl = document.getElementById(`jtt-row-${_rowId(name)}`);
         if (!rowEl) return;
         const tmp = document.createElement('div');
         tmp.innerHTML = _rowHTML(co, tier);
-        // Capture refs before replaceWith moves nodes out of the live collection
-        const newRow    = tmp.firstElementChild;
-        const newAlumni = tmp.querySelector(`#jtt-alumni-${rid}`);
-        rowEl.replaceWith(newRow);
-        if (panelEl && newAlumni) panelEl.replaceWith(newAlumni);
+        rowEl.replaceWith(tmp.firstElementChild);
         return;
       }
     }
@@ -427,18 +358,21 @@ const JobTargetTracker = (() => {
     render();
   }
 
-  // ── Alumni scan ───────────────────────────────────────────────────────────
+  // ── Alumni ────────────────────────────────────────────────────────────────
 
   function scanAlumni(name) {
     const url = `https://www.linkedin.com/school/university-of-southern-california/people/?keywords=${encodeURIComponent(name)}`;
     window.open(url, '_blank', 'noopener');
-    UI.notify('LinkedIn opened — click your Alumni Scanner bookmarklet to import results. Set it up once in Settings → LinkedIn Alumni.', 'info', 9000);
+    UI.notify('LinkedIn opened to USC alumni filtered by company. Find someone relevant and use the 📝 button for a ready-to-send message.', 'info', 7000);
   }
 
-  function toggleAlumni(name) {
-    if (_expandedSet.has(name)) _expandedSet.delete(name);
-    else _expandedSet.add(name);
-    _refreshRow(name);
+  function copyOutreach(name) {
+    const msg = `Hi! I'm a recent USC Marshall MSBA grad and noticed you work at ${name}. I'd love to connect and hear about your experience there — would you be open to a quick chat?`;
+    navigator.clipboard.writeText(msg).then(() => {
+      UI.notify('Outreach message copied — paste into a LinkedIn connection request or InMail.', 'success', 6000);
+    }).catch(() => {
+      UI.showModal('Outreach Message', `<p style="font-size:13px;line-height:1.7;color:var(--text);margin:0">${msg}</p>`, [{ label: 'Close', class: 'btn-ghost' }]);
+    });
   }
 
   // ── Filters ───────────────────────────────────────────────────────────────
@@ -457,9 +391,6 @@ const JobTargetTracker = (() => {
       const matchTier = _activeTier === 'all' || row.dataset.tier === _activeTier;
       const matchName = (row.dataset.name || '').includes(q);
       row.classList.toggle('hidden', !(matchTier && matchName));
-      const id     = row.id.replace('jtt-row-', '');
-      const panel  = document.getElementById(`jtt-alumni-${id}`);
-      if (panel) panel.style.display = (matchTier && matchName && panel.classList.contains('open')) ? 'block' : (matchTier && matchName ? '' : 'none');
     });
     document.querySelectorAll('.jtt-tier').forEach(section => {
       const visible = [...section.querySelectorAll('.jtt-row:not(.hidden)')].length > 0;
@@ -511,5 +442,5 @@ const JobTargetTracker = (() => {
     el.scrollTop = el.scrollHeight;
   }
 
-  return { render, cycleStatus, toggleWarm, addCompany, scanAlumni, toggleAlumni, filterTier, applyFilters, sendChat };
+  return { render, cycleStatus, toggleWarm, addCompany, scanAlumni, copyOutreach, filterTier, applyFilters, sendChat };
 })();

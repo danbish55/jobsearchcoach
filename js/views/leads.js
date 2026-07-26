@@ -293,14 +293,20 @@ const JobLeads = (() => {
     const uscAlumni = 'https://alumni.usc.edu/';
     const marshall  = 'https://usc.peoplegrove.com/auth/sign-in?postLoginRedirect=/hub/marshall/home-v3';
     const open = url => window.open(url, '_blank', 'noopener,noreferrer');
+    const copyMsg = () => {
+      const msg = `Hi! I'm a recent USC Marshall MSBA grad and noticed you work at ${name}. I'd love to connect and hear about your experience there — would you be open to a quick chat?`;
+      navigator.clipboard.writeText(msg).catch(() => {});
+      UI.notify('Outreach message copied — paste into a LinkedIn connection request or InMail.', 'success', 6000);
+    };
     const body = '<p style=”margin:0 0 8px;font-size:13px;color:var(--text-muted)”>Tier A — LinkedIn &amp; Google &nbsp;|&nbsp; Tier B — USC official channels</p>';
     UI.showModal('USC connections — ' + _esc(name), body, [
       { id: 'u0', label: '🎓 LinkedIn USC Alumni',   class: 'btn-primary',           close: false, action: () => open(liAlumni) },
-      { id: 'u1', label: '🔍 LinkedIn Search',       class: 'btn-ghost',             close: false, action: () => open(liSearch) },
-      { id: 'u2', label: '🌐 Google — USC alumni',   class: 'btn-ghost',             close: false, action: () => open(gSearch) },
-      { id: 'u3', label: '🤝 USC Career Services',   class: 'job-lead-usc-trojan-btn', close: false, action: () => open(uscCareer) },
-      { id: 'u4', label: '🏛 USC Alumni Assoc.',     class: 'btn-ghost',             close: false, action: () => open(uscAlumni) },
-      { id: 'u5', label: '📊 Marshall Alumni',       class: 'btn-ghost',             close: false, action: () => open(marshall) },
+      { id: 'u1', label: '📝 Copy Outreach Message', class: 'btn-ghost',             close: false, action: copyMsg },
+      { id: 'u2', label: '🔍 LinkedIn Search',       class: 'btn-ghost',             close: false, action: () => open(liSearch) },
+      { id: 'u3', label: '🌐 Google — USC alumni',   class: 'btn-ghost',             close: false, action: () => open(gSearch) },
+      { id: 'u4', label: '🤝 USC Career Services',   class: 'job-lead-usc-trojan-btn', close: false, action: () => open(uscCareer) },
+      { id: 'u5', label: '🏛 USC Alumni Assoc.',     class: 'btn-ghost',             close: false, action: () => open(uscAlumni) },
+      { id: 'u6', label: '📊 Marshall Alumni',       class: 'btn-ghost',             close: false, action: () => open(marshall) },
       { id: 'ux', label: 'Close',                    class: 'btn-ghost' },
     ]);
     document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');

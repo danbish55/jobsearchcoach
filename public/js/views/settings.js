@@ -333,45 +333,6 @@ const Settings = (() => {
           </div>
         </div>
 
-        <!-- LinkedIn Alumni -->
-        <div class="settings-section">
-          ${_sectionHeaderHTML('linkedin-alumni', 'LinkedIn Alumni')}
-          <div id="linkedin-alumni-panel" style="display:none">
-          <div class="setting-row" style="align-items:flex-start">
-            <span class="setting-label" style="padding-top:4px">Alumni Scanner</span>
-            <div class="setting-control">
-              <p style="font-size:13px;color:var(--text);margin:0 0 14px">
-                Install this bookmarklet once. After that, click <strong>Scan</strong> on any company in the Job Target Tracker
-                — LinkedIn opens, you click the bookmarklet, and the alumni list imports automatically.
-                No cookie copying. Uses your existing LinkedIn login.
-              </p>
-
-              <div style="background:var(--card-hover);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px">
-                <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">One-time setup — takes 10 seconds</div>
-                <ol style="font-size:13px;color:var(--text);line-height:1.9;margin:0;padding-left:18px">
-                  <li>Make sure your bookmarks bar is visible in Chrome: <strong>View → Always Show Bookmarks Bar</strong></li>
-                  <li>Drag the button below onto your bookmarks bar.</li>
-                  <li>Done. The bookmarklet lives in your bar and works every time.</li>
-                </ol>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
-                <a id="li-bookmarklet-link" class="btn btn-primary" style="cursor:grab;text-decoration:none"
-                  title="Drag this to your bookmarks bar">
-                  📥 Import Alumni
-                </a>
-                <span style="font-size:12px;color:var(--text-muted)">← Drag to bookmarks bar</span>
-              </div>
-
-              <div style="font-size:12px;color:var(--text-muted);line-height:1.6">
-                <strong>How it works:</strong> The bookmarklet reads the LinkedIn alumni page you're already viewing
-                and sends the profiles directly to this app. LinkedIn never sees a third-party IP — it's just your browser.
-              </div>
-            </div>
-          </div>
-          </div>
-        </div>
-
         <!-- LinkedIn Radar -->
         <div class="settings-section">
           ${_sectionHeaderHTML('linkedin-radar', 'Job Board Scraper')}
@@ -1116,13 +1077,6 @@ const Settings = (() => {
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
 
       // Wire up bookmarklet with current origin
-      const bookmarkletEl = document.getElementById('li-bookmarklet-link');
-      if (bookmarkletEl) {
-        const base = location.origin;
-        const bm = `javascript:(function(){var u=location.href;if(u.indexOf('linkedin.com/school')<0){alert('Navigate to a LinkedIn school alumni page first.');return;}var kw=new URL(u).searchParams.get('keywords')||prompt('Company name?','');if(!kw)return;var school=u.indexOf('university-of-southern-california')>=0?'USC':'UA';var seen={};var profiles=[];document.querySelectorAll('a[href*="/in/"]').forEach(function(a){var p=a.href.split('?')[0];if(p.indexOf('linkedin.com/in/')<0||seen[p])return;seen[p]=1;var lbl=a.getAttribute('aria-label')||'';var name='';if(lbl.slice(0,5)==='View '){var cut=lbl.indexOf("'s profile");if(cut<0)cut=lbl.indexOf(String.fromCharCode(8217)+'s profile');if(cut<0)cut=lbl.indexOf(' profile');name=cut>5?lbl.slice(5,cut).trim():lbl.slice(5).trim();}if(!name){var card=a.closest('li')||a.parentElement;var el=card&&(card.querySelector('[class*="title"] span')||card.querySelector('[class*="name"] span'));if(el)name=(el.innerText||'').split(String.fromCharCode(183))[0].trim();if(!name)name=(a.innerText||'').split(String.fromCharCode(183))[0].trim();}if(!name||name==='LinkedIn Member'||name.length<2)return;var c=a.closest('li')||a.parentElement;var hEl=c&&(c.querySelector('[class*="subtitle"]')||c.querySelector('[class*="position"]')||c.querySelector('[class*="headline"]'));var hl=hEl?(hEl.innerText||'').split(String.fromCharCode(10))[0].trim():'';profiles.push({name:name,headline:hl,profileUrl:p,school:school,currentCompany:kw});});if(!profiles.length){alert('No profiles found. Scroll down to load more alumni, then click the bookmarklet again.');return;}var d=encodeURIComponent(JSON.stringify({company:kw,alumni:profiles,ts:Date.now()}));location.href='${base}/?_alumni_import='+d;})();`;
-        bookmarkletEl.href = bm;
-      }
-
       set('ar-role-keyword',   cfg.role_keyword || 'Data Analyst');
       set('ar-min-results',    cfg.min_results  || 50);
       set('ar-score-excellent', cfg.score_excellent_threshold || 90);

@@ -132,7 +132,6 @@ const JobLeads = (() => {
             >
           </label>
           <div class="job-leads-count">${_filteredLeads().length} of ${_leads.length} leads</div>
-          <button class="btn btn-sm job-lead-delete-btn" onclick="JobLeads.removeAllRejected()" title="Permanently remove every rejected lead">Remove All Rejected</button>
         </div>
 
         <div class="job-leads-list" role="table" aria-label="Job leads">
@@ -294,14 +293,20 @@ const JobLeads = (() => {
     const uscAlumni = 'https://alumni.usc.edu/';
     const marshall  = 'https://usc.peoplegrove.com/auth/sign-in?postLoginRedirect=/hub/marshall/home-v3';
     const open = url => window.open(url, '_blank', 'noopener,noreferrer');
+    const copyMsg = () => {
+      const msg = `Hi! I'm a recent USC Marshall MSBA grad and noticed you work at ${name}. I'd love to connect and hear about your experience there — would you be open to a quick chat?`;
+      navigator.clipboard.writeText(msg).catch(() => {});
+      UI.notify('Outreach message copied — paste into a LinkedIn connection request or InMail.', 'success', 6000);
+    };
     const body = '<p style=”margin:0 0 8px;font-size:13px;color:var(--text-muted)”>Tier A — LinkedIn &amp; Google &nbsp;|&nbsp; Tier B — USC official channels</p>';
     UI.showModal('USC connections — ' + _esc(name), body, [
       { id: 'u0', label: '🎓 LinkedIn USC Alumni',   class: 'btn-primary',           close: false, action: () => open(liAlumni) },
-      { id: 'u1', label: '🔍 LinkedIn Search',       class: 'btn-ghost',             close: false, action: () => open(liSearch) },
-      { id: 'u2', label: '🌐 Google — USC alumni',   class: 'btn-ghost',             close: false, action: () => open(gSearch) },
-      { id: 'u3', label: '🤝 USC Career Services',   class: 'job-lead-usc-trojan-btn', close: false, action: () => open(uscCareer) },
-      { id: 'u4', label: '🏛 USC Alumni Assoc.',     class: 'btn-ghost',             close: false, action: () => open(uscAlumni) },
-      { id: 'u5', label: '📊 Marshall Alumni',       class: 'btn-ghost',             close: false, action: () => open(marshall) },
+      { id: 'u1', label: '📝 Copy Outreach Message', class: 'btn-ghost',             close: false, action: copyMsg },
+      { id: 'u2', label: '🔍 LinkedIn Search',       class: 'btn-ghost',             close: false, action: () => open(liSearch) },
+      { id: 'u3', label: '🌐 Google — USC alumni',   class: 'btn-ghost',             close: false, action: () => open(gSearch) },
+      { id: 'u4', label: '🤝 USC Career Services',   class: 'job-lead-usc-trojan-btn', close: false, action: () => open(uscCareer) },
+      { id: 'u5', label: '🏛 USC Alumni Assoc.',     class: 'btn-ghost',             close: false, action: () => open(uscAlumni) },
+      { id: 'u6', label: '📊 Marshall Alumni',       class: 'btn-ghost',             close: false, action: () => open(marshall) },
       { id: 'ux', label: 'Close',                    class: 'btn-ghost' },
     ]);
     document.querySelector('#active-modal .modal')?.classList.add('job-lead-usc-shell');
@@ -433,7 +438,7 @@ const JobLeads = (() => {
       await _fetchJSON('/api/jl/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: leadId }),
+        body: JSON.stringify({ lead_id: leadId }),
       });
       UI.notify('Job lead deleted.', 'success');
     } catch (err) {
@@ -444,23 +449,6 @@ const JobLeads = (() => {
       _renderBodyOnly();
       _updateCount();
     }
-  }
-
-  async function removeAllRejected() {
-    const rejectedCount = _leads.filter(item => _leadState(item) === 'rejected').length;
-    if (!rejectedCount) {
-      UI.notify('No rejected leads to remove.', 'info');
-      return;
-    }
-    if (!confirm(`Permanently remove all ${rejectedCount} rejected lead${rejectedCount === 1 ? '' : 's'}? This cannot be undone.`)) return;
-    try {
-      const result = await _fetchJSON('/api/jl/delete-rejected', { method: 'POST' });
-      _leads = _leads.filter(item => _leadState(item) !== 'rejected');
-      UI.notify(`Removed ${result.removed ?? rejectedCount} rejected leads.`, 'success');
-    } catch (err) {
-      UI.notify(err.message || 'Could not remove rejected leads.', 'error');
-    }
-    render();
   }
 
   function _bodyHTML() {
@@ -777,7 +765,7 @@ const JobLeads = (() => {
       const updated = await _fetchJSON(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: leadId }),
+        body: JSON.stringify({ lead_id: leadId }),
       });
       _leads[index] = _mergeUpdatedLead(_leads[index], updated);
       delete _actionErrors[leadId];
@@ -1662,7 +1650,6 @@ Description: ${lead.description || ''}`;
     approveLead,
     rejectLead,
     deleteLead,
-    removeAllRejected,
     __testRecordJscApplication: _recordJscApplication,
   };
 })();
