@@ -290,7 +290,7 @@ const JobTargetTracker = (() => {
       </div>
       ${matchedJobs.length ? _jobsPanelHTML(matchedJobs) : ''}
       <div class="jtt-alumni-panel ${isExpanded && hasScan ? 'open' : ''}" id="jtt-alumni-${_rowId(company.name)}">
-        ${isExpanded && hasScan ? _alumniPanelInnerHTML(company.name, matchedAlumni, allCache.ts) : ''}
+        ${isExpanded && hasScan ? _alumniPanelInnerHTML(company.name, matchedAlumni, cache.ts) : ''}
       </div>`;
   }
 
