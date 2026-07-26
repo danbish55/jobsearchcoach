@@ -205,7 +205,6 @@ const ApifyRadar = (() => {
       #apify-radar-content .ar-muted  { color: var(--text-muted); font-size: 12px; }
       #apify-radar-content .ar-salary { font-size: 12px; color: #2ecc71; }
       #apify-radar-content .ar-posted { font-size: 12px; color: var(--text-muted); }
-      #apify-radar-content .ar-fire   { margin-left: 3px; }
 
       /* ── Action buttons ── */
       #apify-radar-content .ar-actions { display: flex; gap: 4px; flex-wrap: nowrap; }
@@ -502,7 +501,6 @@ const ApifyRadar = (() => {
       case 'employmentType': return (job.employmentType  || '').toLowerCase();
       case 'seniorityLevel': return (job.seniorityLevel  || '').toLowerCase();
       case 'salary':         return (job.salary   || '');
-      case 'applicantsCount': return job.applicantsCount ?? -1;
       case 'site':           return (job.site || '').toLowerCase();
       case 'postedAt':       return job.postedAt  || '';
       case 'approval_state': return job.approval_state || '';
@@ -515,7 +513,7 @@ const ApifyRadar = (() => {
       _sortDir = _sortDir === 'desc' ? 'asc' : 'desc';
     } else {
       _sortBy  = col;
-      _sortDir = (col === 'score' || col === 'applicantsCount') ? 'desc' : 'asc';
+      _sortDir = col === 'score' ? 'desc' : 'asc';
     }
     _invalidateCache();
     _renderBody();
@@ -634,7 +632,6 @@ const ApifyRadar = (() => {
           ${_thHTML('employmentType', 'Type',       '66px',  'ar-col-type')}
           ${_thHTML('seniorityLevel', 'Level',      '66px',  'ar-col-level')}
           ${_thHTML('salary',         'Salary',     '86px',  'ar-col-salary')}
-          ${_thHTML('applicantsCount','Applied',    '50px',  'ar-col-applied')}
           ${_thHTML('postedAt',       'Posted',     '60px',  'ar-col-posted')}
           ${_thHTML('approval_state', 'Status',     '66px')}
           <th style="width:130px;min-width:130px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
@@ -676,9 +673,6 @@ const ApifyRadar = (() => {
     const stateCls   = { approved: 'approved', rejected: 'rejected', applied: 'applied' }[state] || 'pending';
     const stateLabel = { approved: 'Approved', rejected: 'Rejected', applied: 'Applied' }[state]  || 'Pending';
 
-    const rawApplicants = job.applicantsCount ?? job.num_applicants ?? job.numApplicants ?? null;
-    const applicants = rawApplicants != null ? rawApplicants : '—';
-    const fire       = (rawApplicants || 0) >= 200 ? '<span class="ar-fire" title="200+ applicants">🔥</span>' : '';
     const salary     = job.salary ? `<span class="ar-salary">${_esc(job.salary)}</span>` : '<span class="ar-muted">—</span>';
     const posted     = _formatPosted(job.postedAt);
     const jobUrl     = job.url || job.urlDirect || '';
@@ -701,7 +695,6 @@ const ApifyRadar = (() => {
       <td class="ar-muted ar-col-type">${_esc(job.employmentType || '—')}</td>
       <td class="ar-muted ar-col-level">${_esc(job.seniorityLevel || _inferLevel(job.title) || '—')}</td>
       <td class="ar-col-salary">${salary}</td>
-      <td class="ar-col-applied" style="font-variant-numeric:tabular-nums;font-size:12px">${applicants}${fire}</td>
       <td class="ar-posted ar-col-posted">${posted}</td>
       <td><span class="ar-state-pill ${stateCls}">${stateLabel}</span></td>
       <td class="ar-actions">
