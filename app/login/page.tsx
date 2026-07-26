@@ -34,25 +34,25 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#0d0d0d',
+      background: '#1a0000',
       fontFamily: "'Inter', system-ui, sans-serif",
     }}>
       <div style={{
-        background: '#1a1a1a',
-        border: '1px solid #2a2a2a',
+        background: '#990000',
+        border: '2px solid #FFCC00',
         borderRadius: '12px',
         padding: '48px 40px',
         width: '100%',
         maxWidth: '380px',
         textAlign: 'center',
       }}>
-        <div style={{ fontSize: '32px', fontWeight: '800', color: '#c9a84c', letterSpacing: '4px', marginBottom: '8px' }}>
-          007
+        <div style={{ fontSize: '13px', fontWeight: '700', color: '#FFCC00', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '6px' }}>
+          USC
         </div>
-        <div style={{ fontSize: '18px', fontWeight: '700', color: '#e8e8e8', marginBottom: '6px' }}>
+        <div style={{ fontSize: '22px', fontWeight: '800', color: '#ffffff', marginBottom: '6px' }}>
           JobSearchCoach
         </div>
-        <div style={{ fontSize: '13px', color: '#666', marginBottom: '32px' }}>
+        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '32px' }}>
           Enter your access code to continue
         </div>
 
@@ -67,10 +67,10 @@ export default function LoginPage() {
               style={{
                 width: '100%',
                 padding: '12px 40px 12px 16px',
-                background: '#111',
-                border: `1px solid ${error ? '#c0392b' : '#333'}`,
+                background: 'rgba(0,0,0,0.3)',
+                border: `1px solid ${error ? '#ff6b6b' : 'rgba(255,204,0,0.4)'}`,
                 borderRadius: '8px',
-                color: '#e8e8e8',
+                color: '#ffffff',
                 fontSize: '14px',
                 outline: 'none',
                 boxSizing: 'border-box',
@@ -86,7 +86,7 @@ export default function LoginPage() {
                 transform: 'translateY(-50%)',
                 background: 'none',
                 border: 'none',
-                color: '#666',
+                color: 'rgba(255,255,255,0.5)',
                 cursor: 'pointer',
                 fontSize: '12px',
                 padding: 0,
@@ -97,7 +97,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div style={{ color: '#e74c3c', fontSize: '13px', marginBottom: '16px' }}>
+            <div style={{ color: '#ff6b6b', fontSize: '13px', marginBottom: '16px' }}>
               {error}
             </div>
           )}
@@ -108,18 +108,18 @@ export default function LoginPage() {
             style={{
               width: '100%',
               padding: '12px',
-              background: loading || !password ? '#2a2a2a' : '#c9a84c',
-              color: loading || !password ? '#555' : '#0d0d0d',
+              background: loading || !password ? 'rgba(255,204,0,0.3)' : '#FFCC00',
+              color: loading || !password ? 'rgba(255,255,255,0.4)' : '#990000',
               border: 'none',
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: '700',
+              fontWeight: '800',
               cursor: loading || !password ? 'not-allowed' : 'pointer',
               transition: 'all 0.15s',
               letterSpacing: '1px',
             }}
           >
-            {loading ? 'Entering...' : 'ENTER'}
+            {loading ? 'Entering...' : 'FIGHT ON'}
           </button>
         </form>
       </div>
