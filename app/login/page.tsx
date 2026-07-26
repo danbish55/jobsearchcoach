@@ -108,7 +108,7 @@ export default function LoginPage() {
             style={{
               width: '100%',
               padding: '12px',
-              background: loading || !password ? '#6b0000' : '#FFCC00',
+              background: loading || !password ? '#111' : '#FFCC00',
               color: loading || !password ? 'rgba(255,255,255,0.35)' : '#990000',
               border: 'none',
               borderRadius: '8px',
