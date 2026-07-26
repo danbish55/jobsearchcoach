@@ -63,7 +63,7 @@ const ApifyRadar = (() => {
         table-layout: fixed;
         border-collapse: collapse;
         font-size: 13px;
-        min-width: 780px;
+        min-width: 720px;
       }
 
       /* ── Responsive: hide low-priority columns at smaller widths ── */
@@ -235,7 +235,6 @@ const ApifyRadar = (() => {
         vertical-align: middle; margin-right: 5px;
       }
       @keyframes ar-spin { to { transform: rotate(360deg); } }
-      #apify-radar-content .ar-rank { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
       /* ── Apply modal overrides ── */
       .job-lead-apply-shell.modal {
@@ -585,23 +584,22 @@ const ApifyRadar = (() => {
     const header = `
       <thead>
         <tr>
-          <th style="width:34px;min-width:34px">#<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_rank"></span></th>
-          ${_thHTML('score',          'Score',      '52px')}
-          ${_thHTML('site',           'Src',        '40px')}
-          ${_thHTML('title',          'Job Title',  '190px')}
-          ${_thHTML('company',        'Company',    '120px')}
-          ${_thHTML('location',       'Location',   '120px')}
-          ${_thHTML('employmentType', 'Type',       '72px',  'ar-col-type')}
-          ${_thHTML('seniorityLevel', 'Level',      '72px',  'ar-col-level')}
-          ${_thHTML('salary',         'Salary',     '90px',  'ar-col-salary')}
-          ${_thHTML('applicantsCount','Applied',    '54px',  'ar-col-applied')}
-          ${_thHTML('postedAt',       'Posted',     '64px',  'ar-col-posted')}
-          ${_thHTML('approval_state', 'Status',     '72px')}
-          <th style="width:140px;min-width:140px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
+          ${_thHTML('score',          'Score',      '46px')}
+          ${_thHTML('site',           'Src',        '38px')}
+          ${_thHTML('title',          'Job Title',  '175px')}
+          ${_thHTML('company',        'Company',    '110px')}
+          ${_thHTML('location',       'Location',   '110px')}
+          ${_thHTML('employmentType', 'Type',       '66px',  'ar-col-type')}
+          ${_thHTML('seniorityLevel', 'Level',      '66px',  'ar-col-level')}
+          ${_thHTML('salary',         'Salary',     '86px',  'ar-col-salary')}
+          ${_thHTML('applicantsCount','Applied',    '50px',  'ar-col-applied')}
+          ${_thHTML('postedAt',       'Posted',     '60px',  'ar-col-posted')}
+          ${_thHTML('approval_state', 'Status',     '66px')}
+          <th style="width:130px;min-width:130px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
         </tr>
       </thead>`;
 
-    const rows = filtered.map((job, idx) => _jobRowHTML(job, idx + 1)).join('');
+    const rows = filtered.map(job => _jobRowHTML(job)).join('');
     body.innerHTML = `
       <div class="ar-table-wrap">
         <table class="ar-table">${header}<tbody>${rows}</tbody></table>
@@ -620,7 +618,7 @@ const ApifyRadar = (() => {
     return 'https://www.linkedin.com/school/university-of-southern-california/people/?keywords=' + encodeURIComponent(company || '');
   }
 
-  function _jobRowHTML(job, rank) {
+  function _jobRowHTML(job) {
     const score = job.score || 0;
     const state = job.approval_state || 'pending_review';
     const bd    = job.score_breakdown || {};
@@ -653,7 +651,6 @@ const ApifyRadar = (() => {
     const applyActive   = state === 'applied'  ? 'active-apply'   : '';
 
     return `<tr class="${rowCls}">
-      <td class="ar-rank">${rank}</td>
       <td><span class="ar-score-pill ${pillCls}" title="${tipText}">${score}</span></td>
       <td style="text-align:center">${_boardBadge(job.site)}</td>
       <td class="ar-job-title" title="${_esc(job.title || '')}">${titleLink}</td>

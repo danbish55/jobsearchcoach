@@ -131,7 +131,6 @@ const App = (() => {
       case 'resume-deep-dive': ResumeDeepDive.render(); break;
       case 'jobs':      Jobs.render(); break;
       case 'resources': Resources.render(); break;
-      case 'leads':     JobLeads.render(); break;
       case 'apify-radar': ApifyRadar.render(); break;
       case 'job-leads-tool': JobLeadsTool.render(); break;
       case 'report':    Report.render(); break;
