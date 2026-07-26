@@ -3,6 +3,7 @@ const ApifyRadar = (() => {
   let _jobs        = [];
   let _filterText  = '';
   let _filterState = 'all';
+  let _siteFilter  = 'all';
   let _sortBy      = 'score';
   let _sortDir     = 'desc';
   let _scraping         = false;
@@ -108,8 +109,7 @@ const ApifyRadar = (() => {
       #apify-radar-content .ar-col-resize:active {
         background: rgba(255,204,0,0.35);
       }
-      /* Each th needs relative so the resize handle positions inside it */
-      #apify-radar-content .ar-table th { position: relative; }
+      /* position:sticky creates a containing block, so the resize handle (absolute) works without overriding it */
 
       /* ── Body rows ── */
       #apify-radar-content .ar-table td {
@@ -248,6 +248,15 @@ const ApifyRadar = (() => {
       }
       #apify-radar-content .ar-board-legend-item {
         display: flex; align-items: center; gap: 5px;
+        cursor: pointer; padding: 3px 7px; border-radius: 5px;
+        border: 1px solid transparent; user-select: none; transition: all 0.13s;
+      }
+      #apify-radar-content .ar-board-legend-item:hover {
+        border-color: var(--border); background: rgba(255,255,255,0.06);
+      }
+      #apify-radar-content .ar-board-legend-item.active {
+        border-color: var(--gold, #ffc107); background: rgba(255,204,0,0.1);
+        color: var(--text);
       }
     `;
     document.head.appendChild(s);
@@ -281,11 +290,11 @@ const ApifyRadar = (() => {
       </div>
       <div class="ar-board-legend">
         <span style="font-weight:600">Sources:</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge li">LI</span> LinkedIn</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge in">IN</span> Indeed</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge gd">GD</span> Glassdoor</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge go">GO</span> Google Jobs</span>
-        <span class="ar-board-legend-item"><span class="ar-board-badge zr">ZR</span> ZipRecruiter</span>
+        <span class="ar-board-legend-item" id="ar-legend-linkedin"     onclick="ApifyRadar.setSiteFilter('linkedin')"    title="Filter to LinkedIn only"><span class="ar-board-badge li">LI</span> LinkedIn</span>
+        <span class="ar-board-legend-item" id="ar-legend-indeed"       onclick="ApifyRadar.setSiteFilter('indeed')"      title="Filter to Indeed only"><span class="ar-board-badge in">IN</span> Indeed</span>
+        <span class="ar-board-legend-item" id="ar-legend-glassdoor"    onclick="ApifyRadar.setSiteFilter('glassdoor')"   title="Filter to Glassdoor only"><span class="ar-board-badge gd">GD</span> Glassdoor</span>
+        <span class="ar-board-legend-item" id="ar-legend-google"       onclick="ApifyRadar.setSiteFilter('google')"      title="Filter to Google Jobs only"><span class="ar-board-badge go">GO</span> Google Jobs</span>
+        <span class="ar-board-legend-item" id="ar-legend-zip_recruiter" onclick="ApifyRadar.setSiteFilter('zip_recruiter')" title="Filter to ZipRecruiter only"><span class="ar-board-badge zr">ZR</span> ZipRecruiter</span>
       </div>
       <div id="ar-body"></div>`;
     _loadJobs();
@@ -323,12 +332,18 @@ const ApifyRadar = (() => {
   // ── Filtering & sorting ──────────────────────────────────────────────────
 
   function _filteredAndSorted() {
-    const key = `${_filterText}|${_filterState}|${_sortBy}|${_sortDir}`;
+    const key = `${_filterText}|${_filterState}|${_siteFilter}|${_sortBy}|${_sortDir}`;
     if (key === _cacheKey && _cache) return _cache;
 
     const text = _filterText.toLowerCase();
     let result = _jobs.filter(job => {
       if (_filterState !== 'all' && job.approval_state !== _filterState) return false;
+      if (_siteFilter !== 'all') {
+        const site = (job.site || '').toLowerCase().replace(/[^a-z_]/g, '');
+        // google_jobs / googlejobs both map to 'google'
+        const normalized = site.startsWith('google') ? 'google' : site;
+        if (normalized !== _siteFilter) return false;
+      }
       if (!text) return true;
       return (
         (job.title    || '').toLowerCase().includes(text) ||
@@ -381,6 +396,18 @@ const ApifyRadar = (() => {
   }
 
   function _invalidateCache() { _cache = null; _cacheKey = ''; }
+
+  function setSiteFilter(site) {
+    _siteFilter = _siteFilter === site ? 'all' : site;   // second click resets
+    _invalidateCache();
+    _renderBody();
+    // Update active state on legend items
+    document.querySelectorAll('.ar-board-legend-item').forEach(el => {
+      el.classList.toggle('active', el.id === `ar-legend-${_siteFilter}`);
+    });
+    const countEl = document.getElementById('ar-count');
+    if (countEl) countEl.textContent = `${_filteredAndSorted().length} of ${_jobs.length}`;
+  }
 
   // ── Subtitle ─────────────────────────────────────────────────────────────
 
@@ -973,6 +1000,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     startColResize,
     applyFilter,
     setStateFilter,
+    setSiteFilter,
     openResumeFolder,
     draftCoverLetter,
     copyCoverLetter,
