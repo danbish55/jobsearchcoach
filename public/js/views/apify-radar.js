@@ -237,6 +237,16 @@ const ApifyRadar = (() => {
       @keyframes ar-spin { to { transform: rotate(360deg); } }
       #apify-radar-content .ar-rank { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
+      /* ── Apply modal overrides ── */
+      .job-lead-apply-shell.modal {
+        max-width: 700px;
+        max-height: calc(100vh - 64px);
+      }
+      .job-lead-apply-shell .modal-body {
+        overflow-y: visible;
+        max-height: none;
+      }
+
       /* ── Board source badges ── */
       #apify-radar-content .ar-board-badge {
         display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
