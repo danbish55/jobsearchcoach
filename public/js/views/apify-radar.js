@@ -344,44 +344,7 @@ const ApifyRadar = (() => {
       }
       .ar-manual-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
-      /* ── USC connections modal ── */
-      .ar-usc-overlay {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
-        z-index: 2000; display: flex; align-items: center; justify-content: center;
-      }
-      .ar-usc-card {
-        background: var(--card-bg, #1e1e1e); border: 1px solid var(--border);
-        border-radius: 10px; padding: 22px 26px; width: 440px; max-width: 95vw;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-      }
-      .ar-usc-card h3 { margin: 0 0 4px; font-size: 16px; }
-      .ar-usc-card p  { margin: 0 0 14px; font-size: 12px; color: var(--text-muted); }
-      .ar-usc-links   { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-      .ar-usc-link {
-        display: flex; align-items: center; gap: 10px; padding: 9px 12px;
-        border-radius: 7px; border: 1px solid var(--border);
-        background: transparent; color: var(--text); font-size: 13px;
-        cursor: pointer; text-align: left; transition: all 0.13s; text-decoration: none;
-      }
-      .ar-usc-link:hover { border-color: var(--gold, #ffc107); color: var(--gold, #ffc107); }
-      .ar-usc-link-icon { font-size: 16px; flex-shrink: 0; }
-      .ar-usc-copy-msg {
-        padding: 9px 12px; border-radius: 7px; border: 1px solid var(--border);
-        background: rgba(255,204,0,0.08); color: var(--text); font-size: 13px;
-        cursor: pointer; width: 100%; text-align: left; transition: all 0.13s;
-        margin-bottom: 8px;
-      }
-      .ar-usc-copy-msg:hover { border-color: var(--gold, #ffc107); }
-      .ar-usc-msg-preview {
-        font-size: 11px; color: var(--text-muted); margin: -4px 0 12px;
-        font-style: italic; line-height: 1.5;
-      }
-      .ar-usc-close {
-        width: 100%; padding: 8px; border-radius: 6px;
-        border: 1px solid var(--border); background: transparent;
-        color: var(--text-muted); cursor: pointer; font-size: 13px;
-      }
-      .ar-usc-close:hover { border-color: var(--border); color: var(--text); }
+
     `;
     document.head.appendChild(s);
   }
@@ -698,7 +661,7 @@ const ApifyRadar = (() => {
       <td class="ar-posted ar-col-posted">${posted}</td>
       <td><span class="ar-state-pill ${stateCls}">${stateLabel}</span></td>
       <td class="ar-actions">
-        <button class="ar-btn" onclick="ApifyRadar.openUscModal('${id}')" title="Find USC connections at ${_esc(job.company || '')}">👥 USC</button>
+        <button class="ar-btn" onclick="ApifyRadar.openUscAlumni('${id}')" title="Find USC connections at ${_esc(job.company || '')}">👥 USC</button>
         <button class="ar-btn approve ${approveActive}" onclick="ApifyRadar.approveJob('${id}')" title="Approve">✓</button>
         <button class="ar-btn reject  ${rejectActive}"  onclick="ApifyRadar.rejectJob('${id}')"  title="Reject">✗</button>
         <button class="ar-btn apply-btn ${applyActive}" onclick="ApifyRadar.applyJob('${id}')"   title="Open &amp; mark Applied">Apply</button>
@@ -1136,67 +1099,9 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
-  // ── USC Connections modal ─────────────────────────────────────────────────
-
-  function openUscModal(jobId) {
+  function openUscAlumni(jobId) {
     const job = _jobs.find(j => j.id === jobId);
-    const company = job ? (job.company || '') : '';
-    _arFindUscConnections(company);
-  }
-
-  function _arFindUscConnections(company) {
-    const enc = encodeURIComponent(company);
-    const encQ = encodeURIComponent(`${company} USC alumni`);
-    const outreach = `Hi! I'm a recent USC Marshall MSBA grad and noticed you work at ${company}. I'd love to connect and hear about your experience there — would you be open to a quick chat?`;
-
-    const overlay = document.createElement('div');
-    overlay.className = 'ar-usc-overlay';
-    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
-    overlay.innerHTML = `
-      <div class="ar-usc-card">
-        <h3>👥 USC Connections at ${_esc(company)}</h3>
-        <p>Find Trojans and reach out for an informational chat.</p>
-        <button class="ar-usc-copy-msg" id="ar-usc-copy-btn">
-          📋 Copy Outreach Message
-        </button>
-        <div class="ar-usc-msg-preview">"${_esc(outreach)}"</div>
-        <div class="ar-usc-links">
-          <a class="ar-usc-link" target="_blank" rel="noopener"
-            href="https://www.linkedin.com/school/university-of-southern-california/people/?keywords=${enc}">
-            <span class="ar-usc-link-icon">in</span> LinkedIn — USC Alumni at ${_esc(company)}
-          </a>
-          <a class="ar-usc-link" target="_blank" rel="noopener"
-            href="https://www.linkedin.com/search/results/people/?keywords=${enc}%20USC">
-            <span class="ar-usc-link-icon">🔍</span> LinkedIn — Search "${_esc(company)} USC"
-          </a>
-          <a class="ar-usc-link" target="_blank" rel="noopener"
-            href="https://www.google.com/search?q=${encQ}">
-            <span class="ar-usc-link-icon">🌐</span> Google — "${_esc(company)} USC alumni"
-          </a>
-          <a class="ar-usc-link" target="_blank" rel="noopener"
-            href="https://careers.usc.edu/">
-            <span class="ar-usc-link-icon">🎓</span> USC Career Services
-          </a>
-          <a class="ar-usc-link" target="_blank" rel="noopener"
-            href="https://www.uscalumni.org/">
-            <span class="ar-usc-link-icon">🏛️</span> USC Alumni Association
-          </a>
-          <a class="ar-usc-link" target="_blank" rel="noopener"
-            href="https://www.marshall.usc.edu/alumni">
-            <span class="ar-usc-link-icon">📊</span> Marshall Alumni Network
-          </a>
-        </div>
-        <button class="ar-usc-close" onclick="this.closest('.ar-usc-overlay').remove()">Close</button>
-      </div>`;
-    document.body.appendChild(overlay);
-
-    overlay.querySelector('#ar-usc-copy-btn').onclick = () => {
-      navigator.clipboard.writeText(outreach).then(() => {
-        const btn = overlay.querySelector('#ar-usc-copy-btn');
-        btn.textContent = '✅ Copied!';
-        setTimeout(() => { btn.textContent = '📋 Copy Outreach Message'; }, 2000);
-      });
-    };
+    window.open(_alumniUrl(job ? job.company : ''), '_blank', 'noopener');
   }
 
   // ── Add Job Manually modal ────────────────────────────────────────────────
@@ -1303,7 +1208,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
     copyCoverLetter,
     saveCoverLetter,
     confirmApplied,
-    openUscModal,
+    openUscAlumni,
     openManualJobModal,
     submitManualJob,
   };
