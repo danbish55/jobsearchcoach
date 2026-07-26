@@ -489,7 +489,8 @@ def _score_apify_job(item, cfg):
             'trajectory': traj_score,
             'preference': pref_score,
         },
-        'skills_matched': matched_skills,
+        'skills_matched':  matched_skills,
+        'applicantsCount': (item.get('num_applicants') or item.get('applicantsCount') or item.get('numApplicants') or item.get('applicantCount') or None),
     }
 
 
@@ -3406,7 +3407,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     def _apify_run(self):
         import datetime
         cfg       = load_config()
-        token     = str(cfg.get('apify_token') or '').strip()
+        _DEFAULT_APIFY_TOKEN = 'APIFY_TOKEN_REMOVED'
+        token     = str(cfg.get('apify_token') or _DEFAULT_APIFY_TOKEN).strip()
         if not token:
             self._json({'ok': False, 'error': 'Apify token not configured. Add it in Settings → Job Board Scraper.'}, 400)
             return

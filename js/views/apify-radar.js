@@ -313,6 +313,18 @@ const ApifyRadar = (() => {
       </div>`;
   }
 
+  function _inferLevel(title) {
+    const t = (title || '').toLowerCase();
+    if (/intern|internship/.test(t))                              return 'Internship';
+    if (/entry.?level|early.?career|new.?grad|graduate|junior|jr\./.test(t)) return 'Entry Level';
+    if (/associate|coordinator/.test(t))                          return 'Associate';
+    return '';
+  }
+
+  function _alumniUrl(company) {
+    return 'https://www.linkedin.com/school/university-of-southern-california/people/?keywords=' + encodeURIComponent(company || '');
+  }
+
   function _jobRowHTML(job, rank) {
     const score   = job.score || 0;
     const state   = job.approval_state || 'pending_review';
@@ -327,8 +339,9 @@ const ApifyRadar = (() => {
     const stateCls   = state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : 'pending';
     const stateLabel = state === 'approved' ? 'Approved' : state === 'rejected' ? 'Rejected' : 'Pending';
 
-    const applicants = job.applicantsCount != null ? job.applicantsCount : '—';
-    const fire       = (job.applicantsCount || 0) >= 200 ? '<span class="ar-fire" title="200+ applicants">🔥</span>' : '';
+    const rawApplicants = job.applicantsCount ?? job.num_applicants ?? job.numApplicants ?? null;
+    const applicants = rawApplicants != null ? rawApplicants : '—';
+    const fire       = (rawApplicants || 0) >= 200 ? '<span class="ar-fire" title="200+ applicants">🔥</span>' : '';
 
     const salary  = job.salary  ? `<span class="ar-salary">${_esc(job.salary)}</span>` : '<span style="color:var(--text-muted)">—</span>';
     const posted  = _formatPosted(job.postedAt);
@@ -336,6 +349,7 @@ const ApifyRadar = (() => {
       ? `<a href="${_esc(job.url)}" target="_blank" rel="noopener">${_esc(job.title || 'Untitled')}</a>`
       : _esc(job.title || 'Untitled');
 
+    const level   = _esc(job.seniorityLevel || _inferLevel(job.title) || '—');
     const tipText = `Skills ${bd.skills||0} · Exp ${bd.experience||0} · Title ${bd.trajectory||0} · Pref ${bd.preference||0}`;
 
     const approveActive = state === 'approved' ? 'active-approve' : '';
@@ -350,12 +364,13 @@ const ApifyRadar = (() => {
       <td class="ar-company">${_esc(job.company || '—')}</td>
       <td class="ar-location">${_esc(job.location || '—')}</td>
       <td style="font-size:12px;color:var(--text-muted)">${_esc(job.employmentType || '—')}</td>
-      <td style="font-size:12px;color:var(--text-muted)">${_esc(job.seniorityLevel || '—')}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${level}</td>
       <td>${salary}</td>
       <td class="ar-applicants">${applicants}${fire}</td>
       <td class="ar-posted">${posted}</td>
       <td><span class="ar-state-pill ${stateCls}">${stateLabel}</span></td>
       <td class="ar-actions">
+        <button class="ar-btn" onclick="window.open('${_esc(_alumniUrl(job.company))}','_blank','noopener,noreferrer')" title="USC alumni at ${_esc(job.company || '')}">👥 Alumni</button>
         <button class="ar-btn approve ${approveActive}" onclick="ApifyRadar.approveJob('${_esc(job.id)}')" title="Approve">✓</button>
         <button class="ar-btn reject ${rejectActive}"  onclick="ApifyRadar.rejectJob('${_esc(job.id)}')"  title="Reject">✗</button>
         <button class="ar-btn"                         onclick="ApifyRadar.deleteJob('${_esc(job.id)}')"  title="Delete">🗑</button>
