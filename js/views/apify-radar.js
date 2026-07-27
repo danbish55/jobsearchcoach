@@ -64,7 +64,6 @@ const ApifyRadar = (() => {
         table-layout: fixed;
         border-collapse: collapse;
         font-size: 13px;
-        min-width: 720px;
       }
 
       /* ── Responsive: hide low-priority columns at smaller widths ── */
@@ -205,9 +204,9 @@ const ApifyRadar = (() => {
       #apify-radar-content .ar-posted { font-size: 12px; color: var(--text-muted); }
 
       /* ── Action buttons ── */
-      #apify-radar-content .ar-actions { display: flex; gap: 4px; flex-wrap: nowrap; }
+      #apify-radar-content .ar-actions { display: flex; gap: 3px; flex-wrap: wrap; }
       #apify-radar-content .ar-btn {
-        padding: 3px 8px; border-radius: 5px;
+        padding: 2px 5px; border-radius: 5px; font-size: 11px;
         border: 1px solid var(--border); background: transparent;
         color: var(--text-muted); font-size: 11px; cursor: pointer;
         transition: all 0.15s; white-space: nowrap;
@@ -585,17 +584,17 @@ const ApifyRadar = (() => {
     const header = `
       <thead>
         <tr>
-          ${_thHTML('score',          'Score',      '46px')}
-          ${_thHTML('site',           'Src',        '38px')}
-          ${_thHTML('title',          'Job Title',  '175px')}
-          ${_thHTML('company',        'Company',    '110px')}
-          ${_thHTML('location',       'Location',   '110px')}
-          ${_thHTML('employmentType', 'Type',       '66px',  'ar-col-type')}
-          ${_thHTML('seniorityLevel', 'Level',      '66px',  'ar-col-level')}
-          ${_thHTML('salary',         'Salary',     '86px',  'ar-col-salary')}
-          ${_thHTML('postedAt',       'Posted',     '60px',  'ar-col-posted')}
-          ${_thHTML('approval_state', 'Status',     '66px')}
-          <th style="width:130px;min-width:130px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
+          ${_thHTML('score',          'Score',      '40px')}
+          ${_thHTML('site',           'Src',        '32px')}
+          ${_thHTML('title',          'Job Title',  '155px')}
+          ${_thHTML('company',        'Company',    '100px')}
+          ${_thHTML('location',       'Location',   '100px')}
+          ${_thHTML('employmentType', 'Type',       '58px',  'ar-col-type')}
+          ${_thHTML('seniorityLevel', 'Level',      '58px',  'ar-col-level')}
+          ${_thHTML('salary',         'Salary',     '76px',  'ar-col-salary')}
+          ${_thHTML('postedAt',       'Posted',     '50px',  'ar-col-posted')}
+          ${_thHTML('approval_state', 'Status',     '56px')}
+          <th style="width:120px;min-width:120px">Actions<span class="ar-col-resize" onmousedown="ApifyRadar.startColResize(event,this)" data-col="_actions"></span></th>
         </tr>
       </thead>`;
 

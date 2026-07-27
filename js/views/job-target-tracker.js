@@ -185,7 +185,7 @@ const JobTargetTracker = (() => {
         <div class="jtt-toolbar">
           <input id="jtt-search" class="jtt-search" type="text" placeholder="Search companies..." oninput="JobTargetTracker.applyFilters()">
           ${['all','tier1','tier2','tier3'].map((t,i) => `<button class="jtt-filter ${_activeTier===t?'active':''}" onclick="JobTargetTracker.filterTier('${t}')">${['All Tiers','Tier 1','Tier 2','Tier 3'][i]}</button>`).join('')}
-          <button class="jtt-filter" style="margin-left:auto" onclick="JobTargetTracker.render()">↻ Refresh</button>
+          <button class="jtt-filter" style="margin-left:auto" onclick="JobTargetTracker.refresh()">↻ Refresh</button>
         </div>
 
         ${Object.keys(COMPANIES).map(tier => _tierHTML(tier)).join('')}
@@ -454,5 +454,7 @@ const JobTargetTracker = (() => {
     el.scrollTop = el.scrollHeight;
   }
 
-  return { render, cycleStatus, toggleWarm, addCompany, scanAlumni, scanEllerAlumni, copyOutreach, filterTier, applyFilters, sendChat };
+  function refresh() { render(); UI.notify('Job list refreshed', 'success', 1500); }
+
+  return { render, refresh, cycleStatus, toggleWarm, addCompany, scanAlumni, scanEllerAlumni, copyOutreach, filterTier, applyFilters, sendChat };
 })();
