@@ -1756,13 +1756,11 @@ body.light .startup-preloader-bar {
 .task-label.done { color: var(--text-muted); text-decoration: line-through; }
 
 /* === Coach View === */
-#view-coach {
-  display: flex !important;
+#view-coach { padding-bottom: 0; box-sizing: border-box; overflow: hidden; }
+#view-coach.active {
+  display: flex;
   flex-direction: column;
-  padding-bottom: 0;
   height: calc(100vh - 56px);
-  box-sizing: border-box;
-  overflow: hidden;
 }
 
 .coach-container {
