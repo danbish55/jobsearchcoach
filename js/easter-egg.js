@@ -1,8 +1,5 @@
-/* USC Fight On Easter egg — ↑↑↓↓←→←→FO */
+/* USC Fight On Easter egg — fires when any dashboard gauge hits its goal */
 (() => {
-  const SEQ = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown',
-               'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','f','o'];
-  let _pos = 0;
 
   function _play() {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -67,16 +64,8 @@
     setTimeout(() => { wrap.remove(); banner.remove(); style.remove(); }, 5000);
   }
 
-  document.addEventListener('keydown', e => {
-    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (key === SEQ[_pos]) {
-      if (++_pos === SEQ.length) {
-        _pos = 0;
-        try { _play(); } catch (_) {}
-        _confetti();
-      }
-    } else {
-      _pos = key === SEQ[0] ? 1 : 0;
-    }
+  document.addEventListener('gauge-goal-hit', () => {
+    try { _play(); } catch (_) {}
+    _confetti();
   });
 })();

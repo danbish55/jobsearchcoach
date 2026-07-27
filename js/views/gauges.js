@@ -1,5 +1,6 @@
 /* Gauges - read-only live activity counts */
 const Gauges = (() => {
+  let _prevAtCap = null; // null = first render, skip goal-hit check
   const GAUGE_DEFS = [
     {
       id: 'resume_variants',
@@ -306,6 +307,14 @@ const Gauges = (() => {
   }
 
   function _reRenderBand() {
+    const defs   = _gaugeDefs();
+    const counts = deriveCounts();
+    const nowAtCap = new Set(defs.filter(d => d.target && counts[d.id] >= d.target).map(d => d.id));
+    if (_prevAtCap !== null && [...nowAtCap].some(id => !_prevAtCap.has(id))) {
+      document.dispatchEvent(new CustomEvent('gauge-goal-hit'));
+    }
+    _prevAtCap = nowAtCap;
+
     const bandEl = document.getElementById('gauge-band-container');
     if (bandEl) bandEl.innerHTML = renderBand();
     const shEl = document.getElementById('side-hustle-panel');
