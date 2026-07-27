@@ -358,9 +358,12 @@ const ApifyRadar = (() => {
           <div class="ar-title">Job Board Scraper</div>
           <div class="ar-subtitle" id="ar-subtitle">Loading…</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-ghost btn-sm" onclick="ApifyRadar.openManualJobModal()">➕ Add Job Manually</button>
-          <button class="btn btn-ghost btn-sm" id="ar-rescrape-btn" onclick="ApifyRadar.reScrape()">📡 Re-Scrape All Boards</button>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="ApifyRadar.openManualJobModal()">➕ Add Job Manually</button>
+            <button class="btn btn-ghost btn-sm" id="ar-rescrape-btn" onclick="ApifyRadar.reScrape()">📡 Re-Scrape All Boards</button>
+          </div>
+          <div id="ar-last-scraped" style="font-size:11px;color:var(--text-muted)">${_lastScrapedLabel()}</div>
         </div>
       </div>
       <div class="ar-controls">
@@ -535,6 +538,13 @@ const ApifyRadar = (() => {
   function _setSubtitle(text) {
     const el = document.getElementById('ar-subtitle');
     if (el) el.textContent = text;
+  }
+
+  function _lastScrapedLabel() {
+    const ts = localStorage.getItem('jsc_apify_last_scraped');
+    if (!ts) return '';
+    const d = new Date(ts);
+    return `Last scraped ${d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })} at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }
 
   // ── Table rendering ──────────────────────────────────────────────────────
@@ -1041,6 +1051,9 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
           _jobs = scored;
           _invalidateCache();
           _saveJobsToLocalStorage();
+          localStorage.setItem('jsc_apify_last_scraped', new Date().toISOString());
+          const lsEl = document.getElementById('ar-last-scraped');
+          if (lsEl) lsEl.textContent = _lastScrapedLabel();
           _renderBody();
           const dbg = pollData.debug || {};
           const rawBySite = dbg.rawBySite || {};
