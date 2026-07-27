@@ -70,7 +70,11 @@
   document.addEventListener('keydown', e => {
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (key === SEQ[_pos]) {
-      if (++_pos === SEQ.length) { _pos = 0; _play(); _confetti(); }
+      if (++_pos === SEQ.length) {
+        _pos = 0;
+        try { _play(); } catch (_) {}
+        _confetti();
+      }
     } else {
       _pos = key === SEQ[0] ? 1 : 0;
     }
