@@ -51,6 +51,7 @@ const ApifyRadar = (() => {
 
       /* ── Table wrapper — scrolls both axes; sticky header lives here ── */
       #apify-radar-content .ar-table-wrap {
+        width: 100%;
         overflow: auto;
         max-height: calc(100vh - 210px);
         border-radius: 8px;
@@ -74,9 +75,6 @@ const ApifyRadar = (() => {
       @media (max-width: 950px) {
         #apify-radar-content .ar-table .ar-col-salary,
         #apify-radar-content .ar-table .ar-col-posted { display: none; }
-      }
-      @media (max-width: 820px) {
-        #apify-radar-content .ar-table .ar-col-applied { display: none; }
       }
 
       /* ── Sticky header ── */

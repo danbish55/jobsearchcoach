@@ -185,6 +185,7 @@ const JobTargetTracker = (() => {
         <div class="jtt-toolbar">
           <input id="jtt-search" class="jtt-search" type="text" placeholder="Search companies..." oninput="JobTargetTracker.applyFilters()">
           ${['all','tier1','tier2','tier3'].map((t,i) => `<button class="jtt-filter ${_activeTier===t?'active':''}" onclick="JobTargetTracker.filterTier('${t}')">${['All Tiers','Tier 1','Tier 2','Tier 3'][i]}</button>`).join('')}
+          <button class="jtt-filter" style="margin-left:auto" onclick="JobTargetTracker.render()">↻ Refresh</button>
         </div>
 
         ${Object.keys(COMPANIES).map(tier => _tierHTML(tier)).join('')}
