@@ -31,13 +31,23 @@ jobs:
           test -f dist/macos/JobSearchCoach-unsigned.dmg
 
       - name: Install pkg
-        run: sudo installer -pkg dist/macos/JobSearchCoach-unsigned.pkg -target /
-
-      - name: Validate installation layout
         run: |
-          test -d /Applications/JobSearchCoach.app
-          test -x /Applications/JobSearchCoach.app/Contents/MacOS/JobSearchCoach
-          test -f /Applications/JobSearchCoach.app/Contents/Resources/app/server.py
+          sudo installer -pkg dist/macos/JobSearchCoach-unsigned.pkg -target /
+          sync
+
+      - name: Validate app bundle exists
+        run: |
+          if ! test -d /Applications/JobSearchCoach.app; then
+            echo "ERROR: app bundle missing. /Applications contents:"
+            ls /Applications/ || true
+            exit 1
+          fi
+
+      - name: Validate launcher is executable
+        run: test -x /Applications/JobSearchCoach.app/Contents/MacOS/JobSearchCoach
+
+      - name: Validate server.py is present
+        run: test -f /Applications/JobSearchCoach.app/Contents/Resources/app/server.py
 
       - name: Python compile check in installed payload
         run: |
