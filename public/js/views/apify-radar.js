@@ -1054,6 +1054,7 @@ Length: 3 paragraphs. Tone: professional, confident, human, data-driven, and dir
           localStorage.setItem('jsc_apify_last_scraped', new Date().toISOString());
           const lsEl = document.getElementById('ar-last-scraped');
           if (lsEl) lsEl.textContent = _lastScrapedLabel();
+          document.dispatchEvent(new CustomEvent('apify-scrape-complete'));
           _renderBody();
           const dbg = pollData.debug || {};
           const rawBySite = dbg.rawBySite || {};
