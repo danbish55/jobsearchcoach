@@ -91,7 +91,7 @@ const PREFERRED_CITIES = [
   'palms, los angeles','palms, la','inglewood, ca','compton, ca',
 ];
 
-function isPreferredLocation(locL: string): boolean {
+export function isPreferredLocation(locL: string): boolean {
   // Check disambiguated cities FIRST — if the city name matches but the state context doesn't,
   // short-circuit immediately as wrong geography (prevents 'denver' in "Glendale, Denver" from
   // matching the PREFERRED_CITIES 'denver' entry and wrongly awarding +15)

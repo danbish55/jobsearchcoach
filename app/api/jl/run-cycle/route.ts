@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import { scoreJob } from '@/lib/jl-score';
+import { scoreJob, isPreferredLocation } from '@/lib/jl-score';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -45,10 +45,10 @@ const HIGH_GS_GRADE_RE = /\bGS-?(1[1-5])\b/i;
 // Non-US postings (remote listings from Canadian/international boards).
 const NON_US_LOCATION_RE = /\b(canada|united kingdom|\buk\b|australia|india|philippines|mexico|brazil|germany|france|ireland|singapore)\b/i;
 
-// Max years of experience required — entry-level only.
-// On-site/hybrid: up to 2 years (per spec, local roles are less competitive).
-// Remote: strictly 0-1 (remote roles draw national applicant pools).
-const MAX_EXPERIENCE_ONSITE = 2;
+// HARD RULE: entry-level only — no prior professional experience required.
+// A stated requirement of more than 1 year is an automatic reject, everywhere.
+// ("0-1 years" / "up to 1 year" phrasing passes; "2+ years" never does.)
+const MAX_EXPERIENCE_ONSITE = 1;
 const MAX_EXPERIENCE_REMOTE = 1;
 
 // Jobs requiring security clearance or firearm eligibility — not applicable to Corinne.
@@ -102,9 +102,10 @@ function minExperienceYears(description: string): number {
 }
 
 // Hard-reject if description contains explicit high-experience strings the parser might miss.
-// Hard-reject keyword regexes: remote bar starts at 2+ years, on-site/hybrid at 3+ years.
-const EXPERIENCE_KEYWORD_REMOTE_RE = /\b([2-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[2-9]\d*\s*years?|at\s+least\s+[2-9]\d*\s*years?|[2-9]\d*\s*or\s+more\s+years?|must\s+have\s+[2-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[2-9]\d*|requires?\s+[2-9]\d*\s*\+?\s*years?|[2-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
-const EXPERIENCE_KEYWORD_ONSITE_RE = /\b([3-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[3-9]\d*\s*years?|at\s+least\s+[3-9]\d*\s*years?|[3-9]\d*\s*or\s+more\s+years?|must\s+have\s+[3-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[3-9]\d*|requires?\s+[3-9]\d*\s*\+?\s*years?|[3-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
+// Hard-reject keyword regex: any explicit requirement of 2+ years, all work types.
+const EXPERIENCE_KEYWORD_RE = /\b([2-9]\d*\+\s*years?|10\+\s*years?|minimum\s+(?:of\s+)?[2-9]\d*\s*years?|at\s+least\s+[2-9]\d*\s*years?|[2-9]\d*\s*or\s+more\s+years?|must\s+have\s+[2-9]\d*\s*\+?\s*years?|candidates?\s+must\s+have\s+[2-9]\d*|requires?\s+[2-9]\d*\s*\+?\s*years?|[2-9]\d*\s*years?\s+(?:of\s+)?(?:relevant\s+|prior\s+|professional\s+)?experience\s+(?:required|minimum))\b/i;
+const EXPERIENCE_KEYWORD_REMOTE_RE = EXPERIENCE_KEYWORD_RE;
+const EXPERIENCE_KEYWORD_ONSITE_RE = EXPERIENCE_KEYWORD_RE;
 
 function stripHtml(html: string): string {
   // Decode common HTML entities first (Greenhouse returns entity-escaped HTML,
@@ -119,11 +120,11 @@ type EvalJob = { externalId: string; url: string; role: string; company: string;
 
 const SCREEN_PROMPT_HEADER = `You are screening job listings for Corinne, a recent USC Marshall MSBA graduate with NO prior professional work experience. She is looking for ENTRY-LEVEL data/business analyst roles. The goal is FEWER, MORE ACCURATE matches — when in doubt, REJECT.
 
-NOTE on federal (USAJOBS) roles: Corinne's master's degree satisfies education-based qualification paths. ACCEPT a federal GS-7 or GS-9 role if it can be qualified via a master's degree / 2 years of graduate education INSTEAD of specialized experience. REJECT it only if prior federal service or specialized work experience is strictly required with no education alternative, or the grade is GS-11+.
+NOTE on federal (USAJOBS) roles: Corinne's master's degree satisfies education-based qualification paths. ACCEPT a federal GS-7 or GS-9 role ONLY if it can be qualified via a master's degree / 2 years of graduate education INSTEAD of specialized experience AND its duty station passes the geography rule (telework-eligible does NOT make it remote — only a true nationwide-remote posting skips geography). REJECT if prior federal service or specialized work experience is strictly required, or the grade is GS-11+.
 
 REJECT a job if ANY of the following are true:
-- ON-SITE or HYBRID: requires 3 or more years of experience ("3+ years", "3-5 years", "minimum 3 years"). Up to 2 years is ACCEPTABLE for on-site/hybrid roles — "2 years preferred" or "0-2 years" is fine.
-- REMOTE jobs have a STRICTER bar: reject if they require 2 or more years, or use phrases like "proven experience" or "seasoned" (remote roles draw national applicant pools)
+- HARD RULE — EXPERIENCE: the job requires prior professional work experience. Any stated requirement of 2 or more years ("2+ years", "2-3 years", "minimum 2 years", "several years", "proven experience", "seasoned") is an automatic reject, for EVERY work type. "0-1 years", "entry level", "new grad", or no experience requirement passes.
+- HARD RULE — GEOGRAPHY: the job is on-site or hybrid ANYWHERE outside the listed regions below. No exceptions, no matter how good the job looks. Federal telework jobs count as tied to their duty station, NOT remote.
 - Title or description indicates a senior, lead, principal, staff, manager, director, experienced, or VP-level role
 - The role is not actually an analytics/business-analysis role (reject nurses, engineers, pharmacists, coordinators of physical operations, etc.)
 - Requires security clearance (top secret, TS/SCI, secret clearance, DOD clearance) — check the TITLE too
@@ -391,10 +392,11 @@ async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
       for (const item of data?.SearchResult?.SearchResultItems ?? []) {
         const pos = item.MatchedObjectDescriptor;
         if (!pos) continue;
-        const teleWorkEligible = pos.UserArea?.Details?.TeleworkEligible || '';
+        // TeleworkEligible does NOT mean remote — federal telework jobs are tied to
+        // the duty station. Only RemoteIndicator=Yes is a true remote job.
         const remoteIndicator  = pos.UserArea?.Details?.RemoteIndicator   || '';
-        const locationName = (teleWorkEligible === 'Yes' || remoteIndicator === 'Yes')
-          ? 'Remote / Telework'
+        const locationName = remoteIndicator === 'Yes'
+          ? 'Remote'
           : pos.PositionLocation?.[0]?.LocationName || '';
         // Assemble ALL available text fields so filters can scan conditions,
         // qualifications, duties, and requirements — not just the summary.
@@ -417,8 +419,8 @@ async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
         }
         const date_posted = pos.PublicationStartDate ? pos.PublicationStartDate.split('T')[0] : '';
         let work_type = detectWorkType(locationName, description);
-        if (teleWorkEligible === 'Yes' && work_type === 'On-site') work_type = 'Remote / Hybrid';
         if (remoteIndicator === 'Yes') work_type = 'Remote';
+        else if (work_type === 'Remote') work_type = 'Hybrid'; // desc mentioned telework, but duty station governs — geo gate must apply
         results.push({ externalId: `usajobs-${pos.PositionID}`, company: pos.OrganizationName || 'Federal Agency', role: pos.PositionTitle || '', url: pos.PositionURI || '', location: locationName, description, salary, date_posted, work_type });
       }
     } catch (e) { fetchErrors['usajobs'] = String(e); }
@@ -782,11 +784,10 @@ export async function POST() {
       // Clearance/firearm — check TITLE and description
       if (CLEARANCE_RE.test(job.role) || CLEARANCE_RE.test(job.description)) return false;
       if (FIREARM_RE.test(job.role) || FIREARM_RE.test(job.description)) return false;
-      // Geography: on-site/hybrid/unspecified must be in a preferred location.
-      // scoreJob gives +15 for preferred locations, -60 for wrong geography.
+      // HARD RULE — GEOGRAPHY: anything that is not a true Remote job must have a
+      // verified preferred-city location. Unknown/vague locations are rejected, period.
       if (job.work_type !== 'Remote') {
-        const { score } = scoreJob(job.role, job.description, job.location);
-        if (score < 30) return false;
+        if (!isPreferredLocation(job.location.toLowerCase().trim())) return false;
       }
       // Experience regex on longer descriptions (truncated ones are verified by Claude)
       if (job.description.length >= 600) {
