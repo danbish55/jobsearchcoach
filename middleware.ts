@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyToken, cookieName } from '@/lib/auth';
 
-const PUBLIC = ['/login', '/api/auth/login', '/api/auth/logout'];
+const PUBLIC = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/debug'];
 
 export async function middleware(req: NextRequest) {
   if (PUBLIC.some(p => req.nextUrl.pathname.startsWith(p))) return NextResponse.next();
