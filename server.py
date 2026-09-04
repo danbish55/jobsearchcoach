@@ -47,6 +47,35 @@ JL_LOCK = threading.Lock()
 ADZUNA_APP_ID = 'd785bcf0'
 
 
+def _read_local_env_files():
+    values = {}
+    for name in ('.env', '.env.local'):
+        path = os.path.join(BASE_DIR, name)
+        try:
+            with open(path, encoding='utf-8') as f:
+                for raw in f:
+                    line = raw.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key:
+                        values[key] = value
+        except FileNotFoundError:
+            continue
+    return values
+
+
+def _env_first(*names):
+    local_env = _read_local_env_files()
+    for name in names:
+        value = os.environ.get(name) or local_env.get(name)
+        if value:
+            return str(value).strip()
+    return ''
+
+
 def _desired_port():
     env_port = os.environ.get('JSC_PORT')
     if not env_port:
@@ -211,7 +240,12 @@ def save_config(updates):
 
 def _config_cache_key():
     parts = []
-    for path in (BUNDLED_CONFIG_FILE, CONFIG_FILE):
+    for path in (
+        BUNDLED_CONFIG_FILE,
+        CONFIG_FILE,
+        os.path.join(BASE_DIR, '.env'),
+        os.path.join(BASE_DIR, '.env.local'),
+    ):
         try:
             stat = os.stat(path)
             parts.append((path, stat.st_mtime_ns, stat.st_size))
@@ -233,6 +267,8 @@ def _load_config_unlocked():
     for key in ('google_client_id', 'google_client_secret'):
         if bundled.get(key):
             cfg[key] = bundled[key]
+    if not cfg.get('apify_token'):
+        cfg['apify_token'] = _env_first('APIFY_TOKEN', 'APIFY_API_TOKEN', 'APIFY_API_KEY', 'JSC_APIFY_TOKEN')
     _CONFIG_CACHE = dict(cfg)
     _CONFIG_CACHE_KEY = cache_key
     return dict(cfg)

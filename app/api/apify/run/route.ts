@@ -6,7 +6,7 @@ const APIFY_BASE = 'https://api.apify.com/v2';
 export async function POST(req: Request) {
   try {
     const body  = await req.json().catch(() => ({}));
-    const token = String(body.token || process.env.APIFY_TOKEN || '').trim();
+    const token = String(body.token || process.env.APIFY_TOKEN || process.env.APIFY_API_TOKEN || process.env.APIFY_API_KEY || process.env.JSC_APIFY_TOKEN || '').trim();
     if (!token) {
       return NextResponse.json(
         { ok: false, error: 'Apify token not found. Save it in Settings → Job Board Scraper first.' },

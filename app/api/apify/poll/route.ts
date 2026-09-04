@@ -210,7 +210,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const runId = searchParams.get('runId') || '';
-    const token = String(searchParams.get('token') || process.env.APIFY_TOKEN || '').trim();
+    const token = String(searchParams.get('token') || process.env.APIFY_TOKEN || process.env.APIFY_API_TOKEN || process.env.APIFY_API_KEY || process.env.JSC_APIFY_TOKEN || '').trim();
 
     if (!runId)  return NextResponse.json({ ok: false, error: 'Missing runId' },  { status: 400 });
     if (!token)  return NextResponse.json({ ok: false, error: 'Missing token' },  { status: 400 });

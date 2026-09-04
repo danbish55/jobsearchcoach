@@ -525,11 +525,10 @@ const Settings = (() => {
     if (btn) btn.disabled = true;
     try {
       const token = (localStorage.getItem('jsc_apify_token') || '').trim();
-      if (!token) throw new Error('Apify token not configured. Add it in Settings.');
       const startResp = await fetch('/api/apify/alumni/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cookie, token, maxAlumni: 1 }),
+        body: JSON.stringify({ cookie, ...(token ? { token } : {}), maxAlumni: 1 }),
       });
       const startData = await startResp.json();
       if (!startData.ok) throw new Error(startData.error || 'Failed to start test');
@@ -537,7 +536,8 @@ const Settings = (() => {
       // Poll until the run completes — this is the only way to know if the cookie is valid
       for (let i = 0; i < 12; i++) {
         await new Promise(r => setTimeout(r, 5000));
-        const pollResp = await fetch(`/api/apify/alumni/poll?runId=${encodeURIComponent(startData.runId)}&token=${encodeURIComponent(token)}`);
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+        const pollResp = await fetch(`/api/apify/alumni/poll?runId=${encodeURIComponent(startData.runId)}${tokenParam}`);
         const poll = await pollResp.json();
         if (!poll.ok) throw new Error(poll.error || 'Cookie validation failed');
         if (poll.status === 'succeeded') {

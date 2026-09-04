@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const datasetId = searchParams.get('datasetId') || '';
-    const token     = String(searchParams.get('token') || process.env.APIFY_TOKEN || '').trim();
+    const token     = String(searchParams.get('token') || process.env.APIFY_TOKEN || process.env.APIFY_API_TOKEN || process.env.APIFY_API_KEY || process.env.JSC_APIFY_TOKEN || '').trim();
 
     if (!datasetId) return NextResponse.json({ ok: false, error: 'Missing datasetId' }, { status: 400 });
     if (!token)     return NextResponse.json({ ok: false, error: 'Missing token' },     { status: 400 });
