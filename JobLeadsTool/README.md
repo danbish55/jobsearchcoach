@@ -18,10 +18,8 @@ Bring the repo from scaffold to a working **JobLeadsTool** pipeline:
 ## Confirmed technical decisions
 - We attempted WSL-native Playwright and hit browser-binary/platform friction.
 - Final decision: run Playwright on **Windows host**, orchestrate from WSL/Hermes.
-- Working capture runner is already validated:
-  - WSL launcher: `local-playwright-runner`
-  - Windows runner project: `local-ui-automation-runner`
-  - Example output location: `local-ui-automation-runner\screenshots`
+- Working capture runners can be configured locally when browser automation is
+  needed. Local machine paths are intentionally omitted from this public README.
 
 ## Product goals
 - Aggregate roles from approved target sources.

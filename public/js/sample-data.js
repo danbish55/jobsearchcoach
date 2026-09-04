@@ -101,16 +101,16 @@ const SampleData = (() => {
     const profile = Storage.get('profile', {});
     Storage.set('profile', {
       name: profile.name || 'Corinne',
-      student_email: profile.student_email || 'corinne@example.com',
+      student_email: profile.student_email || '',
       school: profile.school || 'USC Marshall',
       grad_year: profile.grad_year || '2026',
       major: profile.major || 'MSBA',
       target_roles: profile.target_roles?.length ? profile.target_roles : ['Data Analyst', 'Business Intelligence Analyst', 'Product Analyst'],
       target_industries: profile.target_industries?.length ? profile.target_industries : ['Technology', 'Entertainment', 'Healthcare', 'Aerospace'],
       parent1_name: profile.parent1_name || 'Dad',
-      parent1_email: profile.parent1_email || 'contact@example.com',
+      parent1_email: profile.parent1_email || '',
       parent2_name: profile.parent2_name || 'Mom',
-      parent2_email: profile.parent2_email || 'supporter@example.com',
+      parent2_email: profile.parent2_email || '',
       ...profile,
     });
   }

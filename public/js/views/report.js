@@ -2,8 +2,8 @@
 const Report = (() => {
   const DEFAULT_CONTACTS = {
     name: 'Corinne',
-    parent1_email: 'contact@example.com',
-    parent2_email: 'supporter@example.com',
+    parent1_email: '',
+    parent2_email: '',
   };
 
   const STATUSES = ['applied','phone','interview','offer','rejected'];

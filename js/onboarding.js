@@ -4,11 +4,11 @@ const Onboarding = (() => {
   let _answers = {};
   const DEFAULT_CONTACTS = {
     name: 'Corinne',
-    student_email: 'corinne@example.com',
+    student_email: '',
     parent1_name: 'Dad',
-    parent1_email: 'contact@example.com',
+    parent1_email: '',
     parent2_name: 'Mom',
-    parent2_email: 'supporter@example.com',
+    parent2_email: '',
   };
 
   const STEPS = [

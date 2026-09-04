@@ -385,7 +385,7 @@ async function fetchUSAJOBS(apiKey: string): Promise<JobResult[]> {
     try {
       // SortField=DatePosted&SortDirection=Desc returns freshest first
       const res = await fetch(`https://data.usajobs.gov/api/search?Keyword=${encodeURIComponent(kw)}&ResultsPerPage=25&SortField=DatePosted&SortDirection=Desc`, {
-        headers: { 'Authorization-Key': apiKey, 'User-Agent': 'contact@example.com', 'Host': 'data.usajobs.gov' },
+        headers: { 'Authorization-Key': apiKey, 'User-Agent': 'JobSearchCoach/1.0', 'Host': 'data.usajobs.gov' },
       });
       if (!res.ok) { fetchErrors['usajobs'] = `HTTP ${res.status} for "${kw}"`; continue; }
       const data = await res.json();
@@ -458,7 +458,7 @@ async function fetchTheMuse(): Promise<JobResult[]> {
   for (const page of [0, 1]) {
     try {
       const res = await fetch(`https://www.themuse.com/api/public/jobs?category=Data%20and%20Analytics&category=Business%20%26%20Strategy&page=${page}`, {
-        headers: { 'User-Agent': 'contact@example.com' },
+        headers: { 'User-Agent': 'JobSearchCoach/1.0' },
       });
       if (!res.ok) break;
       const data = await res.json();
@@ -477,7 +477,7 @@ async function fetchTheMuse(): Promise<JobResult[]> {
 async function fetchRemoteOK(): Promise<JobResult[]> {
   const results: JobResult[] = [];
   try {
-    const res = await fetch('https://remoteok.com/api', { headers: { 'User-Agent': 'contact@example.com' } });
+    const res = await fetch('https://remoteok.com/api', { headers: { 'User-Agent': 'JobSearchCoach/1.0' } });
     if (!res.ok) return results;
     const data = await res.json();
     const wanted = /(data analyst|business analyst|business intelligence|analytics|bi analyst|data analy)/i;
@@ -523,7 +523,7 @@ async function fetchGreenhouse(): Promise<JobResult[]> {
   await Promise.all(GREENHOUSE_BOARDS.map(async board => {
     try {
       const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${board}/jobs?content=true`, {
-        headers: { 'User-Agent': 'contact@example.com' },
+        headers: { 'User-Agent': 'JobSearchCoach/1.0' },
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -550,7 +550,7 @@ async function fetchLever(): Promise<JobResult[]> {
   await Promise.all(LEVER_BOARDS.map(async board => {
     try {
       const res = await fetch(`https://api.lever.co/v0/postings/${board}?mode=json`, {
-        headers: { 'User-Agent': 'contact@example.com' },
+        headers: { 'User-Agent': 'JobSearchCoach/1.0' },
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -582,7 +582,7 @@ async function fetchAshby(): Promise<JobResult[]> {
   await Promise.all(ASHBY_BOARDS.map(async board => {
     try {
       const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${board}?includeCompensation=true`, {
-        headers: { 'User-Agent': 'contact@example.com' },
+        headers: { 'User-Agent': 'JobSearchCoach/1.0' },
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -612,7 +612,7 @@ async function fetchWorkable(): Promise<JobResult[]> {
   await Promise.all(WORKABLE_BOARDS.map(async board => {
     try {
       const res = await fetch(`https://apply.workable.com/api/v1/widget/accounts/${board}?details=true`, {
-        headers: { 'User-Agent': 'contact@example.com' },
+        headers: { 'User-Agent': 'JobSearchCoach/1.0' },
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -641,7 +641,7 @@ async function fetchSmartRecruiters(): Promise<JobResult[]> {
   await Promise.all(SMARTRECRUITERS_BOARDS.map(async board => {
     try {
       const res = await fetch(`https://api.smartrecruiters.com/v1/companies/${board}/postings?q=analyst&limit=100`, {
-        headers: { 'User-Agent': 'contact@example.com' },
+        headers: { 'User-Agent': 'JobSearchCoach/1.0' },
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -679,7 +679,7 @@ async function fetchRemotive(): Promise<JobResult[]> {
   for (const kw of ['data analyst', 'business analyst']) {
     try {
       const res = await fetch(`https://remotive.com/api/remote-jobs?search=${encodeURIComponent(kw)}&limit=30`, {
-        headers: { 'User-Agent': 'contact@example.com' },
+        headers: { 'User-Agent': 'JobSearchCoach/1.0' },
       });
       if (!res.ok) continue;
       const data = await res.json();
