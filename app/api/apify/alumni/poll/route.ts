@@ -29,9 +29,10 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const runId = searchParams.get('runId') || '';
-    const token = String(searchParams.get('token') || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
+    const token = String(searchParams.get('token') || process.env.APIFY_TOKEN || '').trim();
 
     if (!runId) return NextResponse.json({ ok: false, error: 'Missing runId' }, { status: 400 });
+    if (!token) return NextResponse.json({ ok: false, error: 'Apify token not configured.' }, { status: 400 });
 
     const statusResp = await fetch(`${APIFY_BASE}/actor-runs/${runId}`, {
       headers: { Authorization: `Bearer ${token}` },

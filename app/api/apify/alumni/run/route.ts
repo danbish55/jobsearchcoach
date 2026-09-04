@@ -9,7 +9,7 @@ const ELLA_URL = 'https://www.linkedin.com/school/university-of-arizona/';
 export async function POST(req: Request) {
   try {
     const body    = await req.json().catch(() => ({}));
-    const token   = String(body.token   || process.env.APIFY_TOKEN || 'APIFY_TOKEN_REMOVED').trim();
+    const token   = String(body.token   || process.env.APIFY_TOKEN || '').trim();
     const cookie  = String(body.cookie  || '').trim();
     const keyword = String(body.keyword || '').trim();
     const max     = Math.min(Number(body.maxAlumni) || 200, 1000);
@@ -17,6 +17,12 @@ export async function POST(req: Request) {
     if (!cookie) {
       return NextResponse.json(
         { ok: false, error: 'LinkedIn cookie required. Add your li_at cookie in Settings → LinkedIn Alumni.' },
+        { status: 400 }
+      );
+    }
+    if (!token) {
+      return NextResponse.json(
+        { ok: false, error: 'Apify token not configured. Add it in Settings.' },
         { status: 400 }
       );
     }

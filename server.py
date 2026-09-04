@@ -3409,8 +3409,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     def _apify_run(self):
         import datetime
         cfg       = load_config()
-        _DEFAULT_APIFY_TOKEN = 'APIFY_TOKEN_REMOVED'
-        token     = str(cfg.get('apify_token') or _DEFAULT_APIFY_TOKEN).strip()
+        token     = str(cfg.get('apify_token') or '').strip()
         if not token:
             self._json({'ok': False, 'error': 'Apify token not configured. Add it in Settings → Job Board Scraper.'}, 400)
             return

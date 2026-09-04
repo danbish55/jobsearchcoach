@@ -524,7 +524,8 @@ const Settings = (() => {
     if (status) { status.textContent = 'Testing… (~30 seconds)'; status.style.color = 'var(--text-muted)'; }
     if (btn) btn.disabled = true;
     try {
-      const token = 'APIFY_TOKEN_REMOVED';
+      const token = (localStorage.getItem('jsc_apify_token') || '').trim();
+      if (!token) throw new Error('Apify token not configured. Add it in Settings.');
       const startResp = await fetch('/api/apify/alumni/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
